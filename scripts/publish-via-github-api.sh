@@ -45,7 +45,7 @@ cleanup() {
 
 ensure_temp_dir() {
   if [[ -z "$temp_dir" ]]; then
-    temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/geospatial-ai-risk-operations-publish.XXXXXX")"
+    temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/goods-publish-XXXXXX")"
     trap cleanup EXIT
   fi
 }
