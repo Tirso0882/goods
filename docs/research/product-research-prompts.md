@@ -1,0 +1,33 @@
+# Product research prompts
+
+Run these four on Monday 28 September at 10:00, each in its own chat, as `/research <prompt>`. They run in the background while you do the On-ramp. Read the four reports on Wednesday afternoon. Decide on Thursday, following the Research step in `top-1-percent-ai-agent-engineer-roadmap.md`.
+
+All four share the same candidate list, so their results can be compared side by side:
+
+> clothing and footwear; home and garden; furniture and home decor; consumer electronics accessories (cases, cables, chargers); beauty and cosmetics; health and dietary supplements; sports and outdoor; toys and baby products; pet supplies; car parts and accessories; books and media; DIY and tools; household chemicals; jewelry and watches; hobby and craft supplies
+
+Each report may add up to three categories that the evidence says are missing from the list.
+
+## 1. Demand: what Polish shoppers buy online
+
+```text
+What product categories do people in Poland buy online most, and which are growing? Use only primary sources: the latest "E-commerce w Polsce" report by Gemius with Izba Gospodarki Elektronicznej, GUS (Statistics Poland) survey data on ICT use in households and online purchases, and Eurostat e-commerce statistics for Poland. For each category in this candidate list, give the share of online shoppers buying it, the trend over the last three available years, and the source and data year for every number: clothing and footwear; home and garden; furniture and home decor; consumer electronics accessories; beauty and cosmetics; health and dietary supplements; sports and outdoor; toys and baby products; pet supplies; car parts and accessories; books and media; DIY and tools; household chemicals; jewelry and watches; hobby and craft supplies. Add up to three categories the sources show are missing from that list. Also report what makes Polish shoppers choose a store (delivery method, free returns, payment methods such as BLIK) as the sources state it. Where a source gives no number, write "no data" instead of estimating. End with a table: category, share of shoppers, trend, source. Save to docs/research/product-demand-poland.md. Write in plain language, no em dashes or en dashes.
+```
+
+## 2. Competition and price levels on Allegro and Ceneo
+
+```text
+For each category in this list, how crowded is it in Polish online retail, and what are typical price levels? Categories: clothing and footwear; home and garden; furniture and home decor; consumer electronics accessories; beauty and cosmetics; health and dietary supplements; sports and outdoor; toys and baby products; pet supplies; car parts and accessories; books and media; DIY and tools; household chemicals; jewelry and watches; hobby and craft supplies. Use primary sources: Allegro's own category pages and bestseller lists, Allegro's published seller commission (prowizja) tables, Ceneo category pages, and Google Trends for Poland over the last five years. For each category report: Allegro commission rate, a typical price range for bestsellers, whether large brands or official stores dominate the bestsellers, seasonality from Google Trends, and one niche within the category where a small seller could stand out, with the evidence for it. Say clearly when something is your judgement and not a sourced fact. Cite the URL and access date for each claim. End with a table: category, commission, typical price, competition level, seasonality, niche. Save to docs/research/product-competition-poland.md. Write in plain language, no em dashes or en dashes.
+```
+
+## 3. Regulation per category for a sole trader in Poland
+
+```text
+What regulatory duties would a sole trader (JDG) in Poland take on by selling each of these product categories online to consumers? Categories: clothing and footwear; home and garden; furniture and home decor; consumer electronics accessories; beauty and cosmetics; health and dietary supplements; sports and outdoor; toys and baby products; pet supplies; car parts and accessories; books and media; DIY and tools; household chemicals; jewelry and watches; hobby and craft supplies. Use only primary sources: EUR-Lex for EU regulations and directives, gov.pl, UOKiK, GIS (sanitary inspection), and the BDO register guidance. Cover: the EU General Product Safety Regulation (EU) 2023/988 duties that apply to every online seller; CE marking; the Toy Safety rules; the Cosmetics Regulation (EC) 1223/2009 and the CPNP notification; food and supplement notification to GIS; textile labelling (EU) 1007/2011; electrical equipment, WEEE, and battery rules; packaging and BDO registration; and any category that needs a licence or a responsible person in the EU. For each category, rate the burden as low, medium, or high, list the concrete duties, and give the source for each. Flag anything that changed or will change between 2024 and 2027. Do not give legal advice; list the questions to take to a lawyer or accountant. End with a table: category, burden, main duties, source. Save to docs/research/product-regulation-poland.md. Write in plain language, no em dashes or en dashes.
+```
+
+## 4. Unit economics: shipping, returns, and payment costs
+
+```text
+What does it cost a small online seller in Poland to ship, return, and take payment for a typical order in each of these categories? Categories: clothing and footwear; home and garden; furniture and home decor; consumer electronics accessories; beauty and cosmetics; health and dietary supplements; sports and outdoor; toys and baby products; pet supplies; car parts and accessories; books and media; DIY and tools; household chemicals; jewelry and watches; hobby and craft supplies. Use primary sources: current public price lists and parcel size limits from InPost (Paczkomat sizes A, B, C), Poczta Polska, DPD Polska, and Orlen Paczka; Stripe's published pricing for Poland, including BLIK and Przelewy24; and Polish consumer law on the 14-day withdrawal right and who pays return shipping, from the consumer rights act (ustawa o prawach konsumenta) on isap.sejm.gov.pl. For return rates by category, use only published studies with a named source and say when none exist. For each category report: typical parcel size and the cheapest fitting shipping option, shipping cost, expected return rate if sourced, payment fee on a typical order, and whether the margin after shipping and fees is likely thin, medium, or healthy, marking that last one as judgement. End with a table: category, parcel size, shipping cost, return rate, payment fee, margin outlook. Save to docs/research/product-unit-economics-poland.md. Write in plain language, no em dashes or en dashes.
+```

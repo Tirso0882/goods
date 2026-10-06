@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 1: Read a Medusa API route as a Python developer</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+<main>
+
+<p class="kicker">On-ramp · Lesson 1</p>
+<h1>Read a Medusa API route as a Python developer</h1>
+<p class="subtitle">Twenty lines of TypeScript, mapped to Python you already know.</p>
+
+<div class="meta">
+  <p><strong>Win:</strong> explain every line of a real Medusa route handler, and say why it needs a Zod schema.</p>
+  <p><strong>Time:</strong> about 25 minutes, plus 15 minutes of reading.</p>
+  <p><strong>Why it matters:</strong> every tool your agent calls (<code>get_order</code>, <code>request_return</code>) ends up in a handler like this one. When a tool gets a 400 back from Medusa, this is the code you will be reading. <a href="../MISSION.md">Mission</a></p>
+</div>
+
+<h2>The code</h2>
+
+<p>This is the handler from Medusa's own customization tutorial. It lets an admin create a "brand". It lives at <code>src/api/admin/brands/route.ts</code>.<sup class="cite"><a href="https://docs.medusajs.com/learn/customization/custom-features/api-route">[1]</a></sup></p>
+
+<pre><code>import {
+  MedusaRequest,
+  MedusaResponse,
+} from "@medusajs/framework/http"
+import {
+  createBrandWorkflow,
+} from "../../../workflows/create-brand"
+
+type PostAdminCreateBrandType = {
+  name: string
+}
+
+export const POST = async (
+  req: MedusaRequest&lt;PostAdminCreateBrandType&gt;,
+  res: MedusaResponse
+) =&gt; {
+  const { result } = await createBrandWorkflow(req.scope)
+    .run({
+      input: req.validatedBody,
+    })
+
+  res.json({ brand: result })
+}</code></pre>
+
+<details class="recall">
+  <summary>Before reading on: guess first</summary>
+  <p>Spend one minute. Which parts can you already read from Python? Which symbols are new to you? Write your guesses down. Guessing before you're told helps the explanation stick, even when the guess is wrong.</p>
+</details>
+
+<p>You only need four ideas to read it.</p>
+
+<h2>1. Imports and exports</h2>
+
+<div class="pair">
+  <div><p class="lang">Python (imaginary package)</p>
+<pre><code>from medusa.framework.http import (
+    MedusaRequest,
+    MedusaResponse,
+)
+from ...workflows.create_brand import (
+    create_brand_workflow,
+)</code></pre></div>
+  <div><p class="lang">TypeScript</p>
+<pre><code>import {
+  MedusaRequest,
+  MedusaResponse,
+} from "@medusajs/framework/http"
+import {
+  createBrandWorkflow,
+} from "../../../workflows/create-brand"</code></pre></div>
+</div>
+
+<p>The names come first and the source comes after <code>from</code>, which is the reverse of Python's order. A source starting with <code>.</code> or <code>..</code> is a <em>file path</em> relative to the current file. Medusa's examples leave out the <code>.ts</code> extension. Any other source is a package from <code>node_modules</code>.<sup class="cite"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import">[2]</a></sup> JavaScript names use <code>camelCase</code> where Python uses <code>snake_case</code>.</p>
+
+<p>Python makes every top-level name importable. JavaScript doesn't: a file only shares what it marks with <code>export</code>. Medusa uses this. It finds your handler by its <strong>exported name</strong> (<code>POST</code> handles POST requests) and builds the URL from the <strong>file's path</strong> under <code>src/api</code>. There is no decorator and no central routes file.<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/api-routes">[3]</a></sup></p>
+
+<h2>2. Types are hints that disappear</h2>
+
+<p>You already know this idea from Python. Type hints like <code>name: str</code> are checked by a tool such as mypy, and ignored when the code runs. TypeScript works the same way. The compiler checks your types, then <em>deletes</em> them to produce plain JavaScript. The TypeScript handbook says annotations "never change the runtime behavior of your program".<sup class="cite"><a href="https://www.typescriptlang.org/docs/handbook/2/basic-types.html#erased-types">[4]</a></sup></p>
+
+<div class="pair">
+  <div><p class="lang">Python</p>
+<pre><code>class PostAdminCreateBrandType(TypedDict):
+    name: str
+
+req: MedusaRequest[PostAdminCreateBrandType]</code></pre></div>
+  <div><p class="lang">TypeScript</p>
+<pre><code>type PostAdminCreateBrandType = {
+  name: string
+}
+
+req: MedusaRequest&lt;PostAdminCreateBrandType&gt;</code></pre></div>
+</div>
+
+<ul>
+  <li><code>type X = { ... }</code> gives a name to an object's shape, like a <code>TypedDict</code>.<sup class="cite"><a href="https://www.typescriptlang.org/docs/handbook/2/everyday-types.html">[5]</a></sup></li>
+  <li><code>MedusaRequest&lt;T&gt;</code> is a <strong>generic</strong>: angle brackets where Python uses square ones, as in <code>list[str]</code>. Here it tells the editor what shape the request body has.<sup class="cite"><a href="https://www.typescriptlang.org/docs/handbook/2/generics.html">[6]</a></sup></li>
+  <li><code>string</code>, <code>number</code>, <code>boolean</code> are the basic types. There is no separate <code>int</code> and <code>float</code>.</li>
+  <li>You'll often see <code>import type { ... }</code>. It's the same as a normal import, but it can only bring in types, so the whole line is deleted at compile time.<sup class="cite"><a href="https://www.typescriptlang.org/docs/handbook/2/modules.html">[7]</a></sup></li>
+</ul>
+
+<h2>3. Async arrow functions</h2>
+
+<div class="pair">
+  <div><p class="lang">Python</p>
+<pre><code>async def POST(req, res):
+    ...</code></pre></div>
+  <div><p class="lang">TypeScript</p>
+<pre><code>export const POST = async (req, res) =&gt; {
+  ...
+}</code></pre></div>
+</div>
+
+<p><code>(params) =&gt; { body }</code> is an <strong>arrow function</strong>: a function written as a value and stored in a name.<sup class="cite"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/Arrow_functions">[8]</a></sup> Putting <code>async</code> in front works like <code>async def</code>: inside it you can <code>await</code> things, and calling it gives you back a Promise, which plays the role of Python's coroutine.<sup class="cite"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function">[9]</a></sup> Curly braces mark the body where Python uses indentation.</p>
+
+<p><code>const</code> means the name can't be pointed at something else later. The object it holds can still change.<sup class="cite"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/const">[10]</a></sup> Use <code>let</code> for names you do reassign.</p>
+
+<h2>4. Destructuring and object literals</h2>
+
+<div class="pair">
+  <div><p class="lang">Python</p>
+<pre><code>output = await create_brand_workflow(
+    req.scope
+).run(input=req.validated_body)
+result = output["result"]
+
+res.json({"brand": result})</code></pre></div>
+  <div><p class="lang">TypeScript</p>
+<pre><code>const { result } = await createBrandWorkflow(
+  req.scope
+).run({ input: req.validatedBody })
+
+
+res.json({ brand: result })</code></pre></div>
+</div>
+
+<p><code>const { result } = obj</code> is <strong>destructuring</strong>. It pulls the <code>result</code> key out of an object and stores it in a variable with the same name.<sup class="cite"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring">[11]</a></sup> Python has nothing exactly like it for dicts. Python's tuple unpacking matches by <em>position</em>, while object destructuring matches by <em>key name</em>.</p>
+
+<p>JavaScript has no keyword arguments. Libraries take one object instead, so <code>.run({ input: ... })</code> is Medusa's version of <code>.run(input=...)</code>. Keys in an object literal don't need quotes.</p>
+
+<div class="key">
+<h3>The idea that matters for production</h3>
+<p>Go back to idea 2. The type <code>PostAdminCreateBrandType</code> no longer exists when the server runs. If a client posts <code>{"name": 42}</code>, no TypeScript type will stop it.</p>
+<p>That's why the same tutorial adds a <strong>Zod</strong> schema and a validation middleware. Zod checks the JSON at runtime and fills <code>req.validatedBody</code> only when the body passes.<sup class="cite"><a href="https://docs.medusajs.com/learn/customization/custom-features/api-route">[1]</a></sup> <code>z.infer&lt;typeof Schema&gt;</code> then <em>derives</em> the TypeScript type from the schema, so you write the shape once.<sup class="cite"><a href="https://zod.dev/basics">[12]</a></sup></p>
+<pre><code>export const PostAdminCreateBrand = z.object({ name: z.string() })
+type PostAdminCreateBrandType = z.infer&lt;typeof PostAdminCreateBrand&gt;</code></pre>
+<p>Zod is to TypeScript what <a href="https://docs.pydantic.dev/latest/">Pydantic</a> is to Python. Your agent faces the same problem on the Python side: tool arguments written by the model are untrusted JSON, just like a request body. You will validate them with Pydantic for the same reason.</p>
+</div>
+
+<h2>The whole handler, line by line</h2>
+
+<table class="annotated">
+<tr><td class="ln">1</td><td class="src">import {</td><td class="note"><b>Import</b> named values from a package.</td></tr>
+<tr><td class="ln">2</td><td class="src">  MedusaRequest,</td><td class="note">Types for the request and response. Only used by the type checker.</td></tr>
+<tr><td class="ln">3</td><td class="src">  MedusaResponse,</td><td class="note"></td></tr>
+<tr><td class="ln">4</td><td class="src">} from "@medusajs/framework/http"</td><td class="note">No leading dot, so it's a package.</td></tr>
+<tr><td class="ln">5</td><td class="src">import {</td><td class="note"></td></tr>
+<tr><td class="ln">6</td><td class="src">  createBrandWorkflow,</td><td class="note">A workflow defined in your own code.</td></tr>
+<tr><td class="ln">7</td><td class="src">} from "../../../workflows/create-brand"</td><td class="note">Leading dots, so it's a <b>file path</b>: up three folders from <code>src/api/admin/brands</code>.</td></tr>
+<tr><td class="ln">9</td><td class="src">type PostAdminCreateBrandType = {</td><td class="note"><b>Type alias</b> for the body's shape. Deleted at compile time.</td></tr>
+<tr><td class="ln">10</td><td class="src">  name: string</td><td class="note"></td></tr>
+<tr><td class="ln">11</td><td class="src">}</td><td class="note"></td></tr>
+<tr><td class="ln">13</td><td class="src">export const POST = async (</td><td class="note"><b>Exported</b> name <code>POST</code> plus the file path: that's how Medusa routes <code>POST /admin/brands</code> here.</td></tr>
+<tr><td class="ln">14</td><td class="src">  req: MedusaRequest&lt;PostAdminCreateBrandType&gt;,</td><td class="note"><b>Generic</b>: tells the editor the body's shape.</td></tr>
+<tr><td class="ln">15</td><td class="src">  res: MedusaResponse</td><td class="note"></td></tr>
+<tr><td class="ln">16</td><td class="src">) =&gt; {</td><td class="note">Arrow function body starts.</td></tr>
+<tr><td class="ln">17</td><td class="src">  const { result } = await createBrandWorkflow(req.scope)</td><td class="note"><b>Destructure</b> <code>result</code> from the awaited output. <code>req.scope</code> is Medusa's container (next lesson).</td></tr>
+<tr><td class="ln">18</td><td class="src">    .run({</td><td class="note">One object instead of keyword arguments.</td></tr>
+<tr><td class="ln">19</td><td class="src">      input: req.validatedBody,</td><td class="note">The body after Zod checked it at runtime.</td></tr>
+<tr><td class="ln">20</td><td class="src">    })</td><td class="note"></td></tr>
+<tr><td class="ln">22</td><td class="src">  res.json({ brand: result })</td><td class="note">Send <code>{"brand": ...}</code> as the JSON response.</td></tr>
+<tr><td class="ln">23</td><td class="src">}</td><td class="note"></td></tr>
+</table>
+
+<h2>Practice: retrieval</h2>
+<p>Answer without scrolling up. Getting it wrong first and then fixing it is fine. The effort of recalling is what makes it stick.</p>
+<p class="score"></p>
+
+<div class="mcq">
+  <p class="q">There is no validation middleware, and a client posts <code>{"name": 42}</code>. What does <code>PostAdminCreateBrandType</code> do?</p>
+  <div class="options">
+    <button data-correct data-why="Types are erased when TypeScript compiles to JavaScript. Only runtime code, like a Zod schema, can reject bad input.">Nothing at runtime; the type is already gone</button>
+    <button data-why="That's what the Zod validation middleware does. A TypeScript type alone does nothing once the code runs.">Rejects the request with a 400 validation error</button>
+    <button data-why="Neither TypeScript nor JavaScript converts it here. The type no longer exists at runtime.">Silently converts the number into the string 42</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">How does Medusa know that <code>POST</code> in <code>src/api/admin/brands/route.ts</code> handles <code>POST /admin/brands</code>?</p>
+  <div class="options">
+    <button data-correct data-why="The URL comes from the file's path under src/api, and the HTTP method from the exported name.">The exported name and the file path decide it</button>
+    <button data-why="That's how FastAPI and Flask work. Medusa uses file-based routing instead.">A decorator above the function registers the URL path</button>
+    <button data-why="There's no central routes file. src/api/middlewares.ts exists, but it attaches middleware, not handlers.">A central routes file maps each path to handlers</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">What does <code>const { result } = await wf.run(...)</code> do?</p>
+  <div class="options">
+    <button data-correct data-why="Object destructuring matches by key name, like result = output['result'].">Takes the result key from the awaited object</button>
+    <button data-why="That's array destructuring, written with square brackets: const [first] = list. Curly braces match by key.">Takes the first item from the awaited list</button>
+    <button data-why="A plain const result = ... would do that. The curly braces pull one key out.">Wraps the awaited object in a new variable</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">Why would someone write <code>import type { MedusaRequest }</code> instead of a plain import?</p>
+  <div class="options">
+    <button data-correct data-why="import type can only bring in types, so the compiler deletes the whole line from the JavaScript output.">These names are types, erased from the JavaScript output</button>
+    <button data-why="Imports don't load lazily because of the type keyword. The line simply disappears at compile time.">These names load lazily, on the first incoming request</button>
+    <button data-why="Visibility is controlled by export in the source file, not by how you import it.">These names are private, hidden from other route files</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q"><code>MedusaRequest&lt;PostAdminCreateBrandType&gt;</code> is closest to which Python idea?</p>
+  <div class="options">
+    <button data-correct data-why="Angle brackets in TypeScript play the role of square brackets in Python typing.">A generic type, like list[str] in Python typing</button>
+    <button data-why="Nothing is called. It's a type annotation and gets erased.">A function call that builds a new request</button>
+    <button data-why="No new class is created. The type argument fills a slot in MedusaRequest's existing definition.">A subclass of MedusaRequest named after the body</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">What does <code>z.infer&lt;typeof PostAdminCreateBrand&gt;</code> give you?</p>
+  <div class="options">
+    <button data-correct data-why="You define the shape once, as a Zod schema, and the TypeScript type follows from it, like a Pydantic model doubling as a type hint.">The TypeScript type derived from the Zod schema</button>
+    <button data-why="Validation happens per request in the middleware. z.infer exists only at compile time.">A check validating bodies when the server starts</button>
+    <button data-why="Database tables come from Medusa data models in modules, not from Zod.">A database table generated from the Zod schema</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<h2>Practice: translate</h2>
+<p>Fill in the blanks to turn this Python into TypeScript. Press Check for instant feedback.</p>
+
+<p class="lang">Python</p>
+<pre><code>from .orders import fetch_order
+
+async def get_status(order_id: str):
+    order = await fetch_order(order_id)
+    return order["status"]</code></pre>
+
+<div class="blanks">
+<p class="lang">TypeScript</p>
+<pre><input data-answer="import" size="6"> { fetchOrder } <input data-answer="from" size="4"> "./orders"
+
+export const getStatus = <input data-answer="async" size="5"> (orderId: <input data-answer="string" size="6">) =&gt; {
+  const { <input data-answer="status" size="6"> } = <input data-answer="await" size="5"> fetchOrder(orderId)
+  return status
+}</pre>
+  <button class="btn check">Check</button><button class="btn ghost reveal">Show answers</button>
+  <div class="feedback"></div>
+</div>
+
+<h2>Explain it back</h2>
+<details class="recall">
+  <summary>Close this tab first, then explain lines 13 to 22 out loud</summary>
+  <p>Cover: how the request reaches this function, what the generic does and doesn't do, what <code>await</code> and the curly braces on line 17 mean, and why Zod has to exist. Then type your explanation into the chat with your teacher. It becomes evidence for your learning record, and you can paste it into this week's explain-back in <code>docs/progress/week-01.md</code>.</p>
+</details>
+
+<h2>Read next</h2>
+<p><strong>Primary source:</strong> <a href="https://www.typescriptlang.org/docs/handbook/2/everyday-types.html">TypeScript Handbook: Everyday Types</a> (about 15 minutes). Read up to and including "Type Aliases". It covers the types you'll see on almost every line of Medusa code. If an example uses JavaScript you don't recognise, look it up in <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference">MDN</a>.</p>
+<p>Optional: the original <a href="https://docs.medusajs.com/learn/customization/custom-features/api-route">Medusa brand API route guide</a>, which you can now read end to end.</p>
+
+<div class="next">
+  <p><strong>Reference:</strong> <a href="../reference/typescript-for-python-devs.html">TypeScript for Python developers</a>, a cheat sheet of everything in this lesson.</p>
+  <p><strong>Up next:</strong> <a href="0002-modules-and-data-models.html">Lesson 2: Modules and data models</a>, including what <code>req.scope</code> is.</p>
+  <p><strong>Stuck or curious?</strong> Ask your teacher in chat. Questions like "why does JavaScript do it this way?" are welcome.</p>
+</div>
+
+<p style="font-family: var(--sans); font-size: 0.75rem; color: var(--muted); margin-top: 2rem;">
+Sources: [1] Medusa, <a href="https://docs.medusajs.com/learn/customization/custom-features/api-route">Guide: Create Brand API Route</a>. [2] MDN, <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import">import</a>. [3] Medusa, <a href="https://docs.medusajs.com/learn/fundamentals/api-routes">API Routes</a>. [4] TypeScript Handbook, <a href="https://www.typescriptlang.org/docs/handbook/2/basic-types.html#erased-types">Erased Types</a>. [5] TypeScript Handbook, <a href="https://www.typescriptlang.org/docs/handbook/2/everyday-types.html">Everyday Types</a>. [6] TypeScript Handbook, <a href="https://www.typescriptlang.org/docs/handbook/2/generics.html">Generics</a>. [7] TypeScript Handbook, <a href="https://www.typescriptlang.org/docs/handbook/2/modules.html">Modules</a>. [8] MDN, <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/Arrow_functions">Arrow functions</a>. [9] MDN, <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function">async function</a>. [10] MDN, <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/const">const</a>. [11] MDN, <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring">Destructuring</a>. [12] Zod, <a href="https://zod.dev/basics">Basic usage</a>.
+</p>
+
+</main>
+</body>
+</html>

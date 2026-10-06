@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference: TypeScript for Python developers</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Reference</p>
+<h1>TypeScript for Python developers</h1>
+<p class="subtitle">Only what Medusa code uses. Grows with each lesson.</p>
+
+<h2>Modules</h2>
+<table class="ref">
+<tr><th>Python</th><th>TypeScript</th><th>Note</th></tr>
+<tr><td><code>from pkg import A, B</code></td><td><code>import { A, B } from "pkg"</code></td><td>Names first, source last. <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import">MDN</a></td></tr>
+<tr><td><code>from ..x.y import f</code></td><td><code>import { f } from "../x/y"</code></td><td>A leading dot means a file path. Medusa omits <code>.ts</code>.</td></tr>
+<tr><td>(type hints only)</td><td><code>import type { T } from "pkg"</code></td><td>Types only. The line is erased at compile time. <a href="https://www.typescriptlang.org/docs/handbook/2/modules.html">Handbook</a></td></tr>
+<tr><td>every top-level name is public</td><td><code>export const f = ...</code></td><td>Named export. Import it with braces and the exact name.</td></tr>
+<tr><td>(no equivalent)</td><td><code>export default X</code><br><code>import X from "./file"</code></td><td>The file's one main export. Import it without braces, under any name. <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/export">MDN</a></td></tr>
+</table>
+
+<h2>Types</h2>
+<table class="ref">
+<tr><th>Python</th><th>TypeScript</th><th>Note</th></tr>
+<tr><td><code>x: str</code>, checked by mypy</td><td><code>x: string</code>, checked by <code>tsc</code></td><td>Erased at runtime in both languages. <a href="https://www.typescriptlang.org/docs/handbook/2/basic-types.html#erased-types">Handbook</a></td></tr>
+<tr><td><code>str</code>, <code>int</code>/<code>float</code>, <code>bool</code></td><td><code>string</code>, <code>number</code>, <code>boolean</code></td><td>One number type. <a href="https://www.typescriptlang.org/docs/handbook/2/everyday-types.html">Handbook</a></td></tr>
+<tr><td><code>class Body(TypedDict):<br>    name: str</code></td><td><code>type Body = { name: string }</code></td><td>Type alias for an object shape.</td></tr>
+<tr><td><code>list[str]</code></td><td><code>Array&lt;string&gt;</code> or <code>string[]</code></td><td>Generics use angle brackets. <a href="https://www.typescriptlang.org/docs/handbook/2/generics.html">Handbook</a></td></tr>
+<tr><td>Pydantic model</td><td>Zod schema: <code>z.object({ name: z.string() })</code></td><td>Runtime validation. <a href="https://zod.dev/basics">Zod</a></td></tr>
+<tr><td>model class doubles as a type</td><td><code>type T = z.infer&lt;typeof Schema&gt;</code></td><td>Derive the type from the schema. Write the shape once.</td></tr>
+<tr><td><code>Literal["a", "b"]</code></td><td><code>"a" | "b"</code></td><td>Union of string literals. Erased at runtime, so Zod repeats it with <code>z.enum</code>. <a href="https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#literal-types">Handbook</a></td></tr>
+<tr><td><code>NotRequired[str]</code></td><td><code>{ summary?: string }</code></td><td>Optional key: may be missing.</td></tr>
+<tr><td><code>str | None</code></td><td><code>string | null</code></td><td>Present but may be null. Not the same as a missing key.</td></tr>
+</table>
+
+<h2>Functions and values</h2>
+<table class="ref">
+<tr><th>Python</th><th>TypeScript</th><th>Note</th></tr>
+<tr><td><code>async def f(a, b): ...</code></td><td><code>const f = async (a, b) =&gt; { ... }</code></td><td>Arrow function. Returns a Promise. <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/Arrow_functions">MDN</a></td></tr>
+<tr><td><code>await coro</code></td><td><code>await promise</code></td><td>Only inside <code>async</code> functions. <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function">MDN</a></td></tr>
+<tr><td>name you never rebind</td><td><code>const x = ...</code></td><td>Can't reassign, but the contents can change. <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/const">MDN</a></td></tr>
+<tr><td>name you rebind</td><td><code>let x = ...</code></td><td></td></tr>
+<tr><td><code>r = out["result"]</code></td><td><code>const { result } = out</code></td><td>Object destructuring matches by key name. <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring">MDN</a></td></tr>
+<tr><td><code>first, = items</code></td><td><code>const [first] = items</code></td><td>Array destructuring matches by position.</td></tr>
+<tr><td><code>f(input=x)</code></td><td><code>f({ input: x })</code></td><td>No keyword arguments. Pass one object instead.</td></tr>
+<tr><td><code>{"brand": b}</code></td><td><code>{ brand: b }</code></td><td>Object literal keys don't need quotes.</td></tr>
+<tr><td><code>{"guides": guides}</code></td><td><code>{ guides }</code></td><td>Shorthand: key named after the variable. Not a set. <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Object_initializer#property_definitions">MDN</a></td></tr>
+<tr><td><code>_, count = pair</code></td><td><code>const [, count] = pair</code></td><td>An empty slot skips a position.</td></tr>
+<tr><td><code>data = args["event"]["data"]</code></td><td><code>({ event: { data } }) =&gt; ...</code></td><td>Nested destructuring, here in a parameter. Only <code>data</code> becomes a variable. <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring">MDN</a></td></tr>
+<tr><td><code>f"New {kind} guide"</code></td><td><code>`New ${kind} guide`</code></td><td>Template literal: backticks only. <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals">MDN</a></td></tr>
+<tr><td><code>a == b</code></td><td><code>a === b</code></td><td>Always three equals signs. <code>==</code> converts types first. <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Strict_equality">MDN</a></td></tr>
+<tr><td><code>x if x is not None else d</code></td><td><code>x ?? d</code></td><td>Default when <code>x</code> is <code>null</code> or <code>undefined</code>. Not allowed in a workflow constructor.</td></tr>
+<tr><td><code>raise ValueError("bad")</code></td><td><code>throw new Error("bad")</code></td><td><code>new</code> creates the instance. <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/throw">MDN</a></td></tr>
+<tr><td><code>def f(): ...</code></td><td><code>function f() { ... }</code></td><td>Function declaration. Works like an arrow function for Medusa's purposes.</td></tr>
+<tr><td><code>snake_case</code></td><td><code>camelCase</code></td><td>Naming convention.</td></tr>
+</table>
+
+<h2>Classes</h2>
+<table class="ref">
+<tr><th>Python</th><th>TypeScript</th><th>Note</th></tr>
+<tr><td><code>class A(B):</code></td><td><code>class A extends B { }</code></td><td><code>B</code> can be any expression that makes a class, even a call like <code>MedusaService({ Guide })</code>. <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes/extends">MDN</a></td></tr>
+<tr><td><code>q.filter(...).order_by(...)</code></td><td><code>model.text().nullable()</code></td><td>Chaining: each call returns something you can keep calling.</td></tr>
+</table>
+
+<p>For how these show up in Medusa code (route and module anatomy), see <a href="medusa-building-blocks.html">Medusa building blocks</a>.</p>
+
+<div class="next">
+  <p>From <a href="../lessons/0001-read-a-medusa-api-route.html">Lesson 1</a>, <a href="../lessons/0002-modules-and-data-models.html">Lesson 2</a>, <a href="../lessons/0003-workflows-steps-and-compensation.html">Lesson 3</a>, and <a href="../lessons/0004-subscribers-and-scheduled-jobs.html">Lesson 4</a>.</p>
+</div>
+
+</main>
+</body>
+</html>

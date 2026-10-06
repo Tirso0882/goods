@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 4: Subscribers and scheduled jobs</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+<main>
+
+<p class="kicker">On-ramp · Lesson 4</p>
+<h1>Subscribers and scheduled jobs</h1>
+<p class="subtitle">Two more ways into the stack: "when this happens" and "every so often".</p>
+
+<div class="meta">
+  <p><strong>Win:</strong> write a subscriber and a scheduled job from memory, and say when to use each one instead of an API route.</p>
+  <p><strong>Time:</strong> about 30 minutes, plus 20 minutes in your sandbox.</p>
+  <p><strong>Why it matters:</strong> your roadmap's Step 7 reacts to store events, and an order-placed email or a "re-index this guide for the agent" task is a subscriber. This lesson also completes your On-ramp gate: module, route, workflow, and <em>subscriber</em>. <a href="../MISSION.md">Mission</a></p>
+</div>
+
+<h2>Three doors into the same building</h2>
+
+<p>So far, everything started with an HTTP request. A request isn't the only way to start work. Medusa says workflows can be executed "from API routes, subscribers, and scheduled jobs".<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/workflows">[1]</a></sup> All three sit at the top of the stack and use the same layers below:</p>
+
+<ol class="stack">
+  <li class="here"><b>Entry points</b><span>API route (a request) · subscriber (an event) · job (a clock)</span></li>
+  <li><b>Workflow</b><span>business logic, step by step (Lesson 3)</span></li>
+  <li><b>Module</b><span>owns one domain and its tables (Lesson 2)</span></li>
+  <li><b>PostgreSQL</b><span>the database</span></li>
+</ol>
+
+<table class="ref">
+<tr><th>Entry point</th><th>Starts when</th><th>Gets the container as</th></tr>
+<tr><td>API route</td><td>A client sends a request</td><td><code>req.scope</code></td></tr>
+<tr><td>Subscriber</td><td>An event is emitted, such as <code>order.placed</code></td><td><code>{ event, container }</code></td></tr>
+<tr><td>Scheduled job</td><td>A cron schedule fires, such as every night</td><td><code>container</code></td></tr>
+</table>
+
+<h2>Events: the workflow announces what happened</h2>
+
+<p>Lesson 3's workflow ended with a step you haven't used yet:</p>
+
+<pre><code>emitEventStep({
+  eventName: "guide.created",
+  data: { id: guide.id },
+})</code></pre>
+
+<p><code>emitEventStep</code> comes from <code>@medusajs/medusa/core-flows</code>, and "it only emits the event after the workflow has finished successfully".<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/events-and-subscribers/emit-event">[2]</a></sup> That rule matters. If a later step fails and the guide gets rolled back, nobody hears about a guide that doesn't exist. I checked this in your sandbox: the successful request logged <code>Processing guide.created which has 1 subscribers</code>. The <code>?simulate_failure=true</code> request logged nothing.</p>
+
+<p>Medusa's own workflows emit events the same way: <code>order.placed</code>, <code>product.updated</code>, and many more.<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/events-and-subscribers">[3]</a></sup> Medusa compares them to webhooks, except your handler lives inside the same codebase.</p>
+
+<p>Notice the payload is just <code>{ id }</code>. That's the convention. The subscriber fetches fresh data itself, so it never acts on a stale copy.</p>
+
+<h2>The subscriber</h2>
+
+<p>A subscriber is a file in <code>src/subscribers/</code> that exports two things: the function to run, and a <code>config</code> naming the event.<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/events-and-subscribers">[3]</a></sup> This one is <code>src/subscribers/guide-created.ts</code>:</p>
+
+<pre><code>import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
+import { GUIDE_MODULE } from "../modules/guide"
+import GuideModuleService from "../modules/guide/service"
+
+export default async function guideCreatedHandler({
+  event: { data },
+  container,
+}: SubscriberArgs&lt;{ id: string }&gt;) {
+  const logger = container.resolve("logger")
+  const guideModuleService: GuideModuleService = container.resolve(GUIDE_MODULE)
+
+  const guide = await guideModuleService.retrieveGuide(data.id)
+  logger.info(`New ${guide.kind} guide: ${guide.title}`)
+}
+
+export const config: SubscriberConfig = {
+  event: "guide.created",
+}</code></pre>
+
+<table class="annotated">
+<tr><td class="ln">5</td><td class="src">export default async function guideCreatedHandler({</td><td class="note"><b>Default export</b>: the function Medusa calls for each event. A regular <code>function</code>, not an arrow. Both work.</td></tr>
+<tr><td class="ln">6</td><td class="src">  event: { data },</td><td class="note"><b>Nested destructuring</b>: take <code>event</code>, then <code>data</code> out of it.</td></tr>
+<tr><td class="ln">7</td><td class="src">  container,</td><td class="note">The Medusa container, as in steps.</td></tr>
+<tr><td class="ln">8</td><td class="src">}: SubscriberArgs&lt;{ id: string }&gt;) {</td><td class="note"><b>Generic</b>: the payload's shape, written inline. Matches what <code>emitEventStep</code> sent.</td></tr>
+<tr><td class="ln">12</td><td class="src">  ...retrieveGuide(data.id)</td><td class="note">Fetch fresh data by ID. The one singular method name.</td></tr>
+<tr><td class="ln">13</td><td class="src">  logger.info(`New ${guide.kind} guide: ...`)</td><td class="note"><b>Template literal</b>: backticks and <code>${}</code>, Python's f-string.</td></tr>
+<tr><td class="ln">16</td><td class="src">export const config: SubscriberConfig = {</td><td class="note"><b>Named export</b> Medusa reads to wire this file up.</td></tr>
+<tr><td class="ln">17</td><td class="src">  event: "guide.created",</td><td class="note">One event name, or an array of them.</td></tr>
+</table>
+
+<p>Run it and the server log shows:</p>
+<pre><code>info:    Processing guide.created which has 1 subscribers
+info:    New care guide: Leather boot care</code></pre>
+
+<div class="key">
+<h3>The idea that matters for production: outside the flow</h3>
+<p>A subscriber runs <em>after</em> the workflow is done, separately from it. Medusa says subscribers are for "actions that aren't integral to the original flow", like a confirmation email after <code>order.placed</code>. "The subscriber has no impact on the original order-placement flow".<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/events-and-subscribers">[3]</a></sup></p>
+<p>Turn that around. If your subscriber throws, the guide still exists and the request still succeeded, because nothing is compensated. So the test is: <strong>if this fails, should the main change be undone?</strong> If yes, it's a step in the workflow. If no (an email, a sync, re-indexing a guide for your agent's search), it's a subscriber.</p>
+<p>When a subscriber needs to <em>change</em> data, it should run a workflow, just as a route does: <code>await someWorkflow(container).run({ input })</code>. A subscriber is an entry point, not a place for business logic.</p>
+</div>
+
+<p>One more thing from your own server log: <code>Local Event Bus installed. This is not recommended for production.</code> In development, events travel in memory, so an event is lost if the process dies mid-way. In production you use the Redis Event Module.<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/events-and-subscribers">[3]</a></sup> That's a Setup 2 concern, and now you know what the warning means.</p>
+
+<h2>The scheduled job</h2>
+
+<p>A scheduled job is "an asynchronous function that the Medusa application runs at the interval you specify".<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/scheduled-jobs">[4]</a></sup> It's a file in <code>src/jobs/</code>, again with a default-exported function and a <code>config</code>. This one is <code>src/jobs/count-guides.ts</code>:</p>
+
+<pre><code>import type { MedusaContainer } from "@medusajs/framework/types"
+import { GUIDE_MODULE } from "../modules/guide"
+import GuideModuleService from "../modules/guide/service"
+
+export default async function countGuidesJob(container: MedusaContainer) {
+  const logger = container.resolve("logger")
+  const guideModuleService: GuideModuleService = container.resolve(GUIDE_MODULE)
+
+  const [, count] = await guideModuleService.listAndCountGuides()
+  logger.info(`Guide report: ${count} guides in the database`)
+}
+
+export const config = {
+  name: "count-guides",
+  schedule: "* * * * *",
+}</code></pre>
+
+<ul>
+  <li>The function receives the container directly, with no wrapping object.</li>
+  <li><code>schedule</code> is a standard cron expression, the same five fields as a Linux crontab: minute, hour, day of month, month, day of week. <code>* * * * *</code> is every minute, <code>0 0 * * *</code> is midnight daily, and <code>*/15 * * * *</code> is every 15 minutes. <a href="https://crontab.guru/">crontab.guru</a> translates them.</li>
+  <li><code>listAndCountGuides()</code> returns a pair: <code>[guides, count]</code>. <code>const [, count]</code> skips the first item and keeps the second, like Python's <code>_, count = ...</code>.</li>
+  <li>To turn a job off, move the file out of <code>src/jobs</code>. Don't just delete the <code>config</code> export. That causes errors at build and start.<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/scheduled-jobs">[4]</a></sup></li>
+</ul>
+
+<p>This job only reads, so calling the service directly is fine, just as with Lesson 2's <code>GET</code>. For a job that changes data, such as a nightly ERP sync, Medusa's advice is to "create a workflow and execute it in a scheduled job".<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/scheduled-jobs">[4]</a></sup> Jobs only run while the Medusa application runs. They replace a cron entry or a Celery beat schedule, not a server that's switched off.</p>
+
+<h2>Which one do I need?</h2>
+
+<table class="ref">
+<tr><th>Situation</th><th>Use</th></tr>
+<tr><td>A client (storefront, admin, your agent) asks for something</td><td>API route, which runs a workflow if it writes</td></tr>
+<tr><td>Several writes that must all happen or all be undone</td><td>Workflow with compensation</td></tr>
+<tr><td>Something should follow a change, but mustn't undo it if it fails</td><td>Emit an event, handle it in a subscriber</td></tr>
+<tr><td>Something should happen on a clock</td><td>Scheduled job</td></tr>
+<tr><td>Read one module's data</td><td>Module service, from any entry point</td></tr>
+</table>
+
+<h2>Three new pieces of TypeScript</h2>
+
+<div class="pair">
+  <div><p class="lang">Python</p>
+<pre><code>f"New {guide.kind} guide"
+
+_, count = list_and_count()
+
+def handler(args):
+    data = args["event"]["data"]</code></pre></div>
+  <div><p class="lang">TypeScript</p>
+<pre><code>`New ${guide.kind} guide`
+
+const [, count] = listAndCount()
+
+function handler({ event: { data } }) {
+  // data is ready to use</code></pre></div>
+</div>
+
+<ul>
+  <li><strong>Template literals</strong> use backticks, with <code>${expression}</code> inside. They're Python's f-strings. Plain quotes don't interpolate.<sup class="cite"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals">[5]</a></sup></li>
+  <li><strong>Skipping in array destructuring:</strong> an empty slot before the comma skips that position.<sup class="cite"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring">[6]</a></sup></li>
+  <li><strong>Nested destructuring in parameters:</strong> <code>{ event: { data } }</code> reaches two levels into the argument and names only <code>data</code>. Here <code>event</code> isn't a variable, just the path to <code>data</code>.<sup class="cite"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring">[6]</a></sup></li>
+</ul>
+
+<h2>Practice: retrieval</h2>
+<p>No scrolling up. The last two questions go back to Lessons 2 and 3.</p>
+<p class="score"></p>
+
+<div class="mcq">
+  <p class="q">The workflow fails after <code>createGuideStep</code>. Does the <code>guide.created</code> subscriber run?</p>
+  <div class="options">
+    <button data-correct data-why="emitEventStep only emits after the whole workflow succeeds, so a rolled-back guide is never announced.">No, events go out only after success</button>
+    <button data-why="The event is held until the workflow finishes successfully. A failure means it's never sent.">Yes, the emit step had already been reached</button>
+    <button data-why="Subscribers don't run compensation. The event is simply never emitted.">Yes, and it then runs the compensation</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">A subscriber sending the confirmation email throws. What happens to the order?</p>
+  <div class="options">
+    <button data-correct data-why="Subscribers run outside the original flow, so their failure doesn't roll back the change that triggered them.">It stays placed; the subscriber is outside the flow</button>
+    <button data-why="That's what a failing workflow step would do. Subscribers aren't steps, so nothing is compensated.">It gets cancelled by the workflow's compensation functions</button>
+    <button data-why="The order already completed. The subscriber's failure can't reach back into the request.">The customer's checkout request fails with an error</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">Why does the event payload carry only <code>{ id }</code>?</p>
+  <div class="options">
+    <button data-correct data-why="The subscriber retrieves the record when it runs, so it always works with current data.">So subscribers fetch fresh data instead of stale copies</button>
+    <button data-why="Medusa allows any serialisable payload. Sending only the ID is a convention, not a limit.">Because events can only ever carry one field</button>
+    <button data-why="It isn't about security. The subscriber has the full container anyway.">So subscribers can't see private fields of guides</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">What does the schedule <code>0 0 * * *</code> mean?</p>
+  <div class="options">
+    <button data-correct data-why="Minute 0, hour 0, any day, any month, any weekday.">Every day at midnight</button>
+    <button data-why="Every minute would be * * * * *. Zeros pin the minute and hour.">Every minute, all the time</button>
+    <button data-why="Cron has no 'never' value. Zeros are minute 0 and hour 0.">Never: zero runs per day</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">After a guide is created, you must also create a matching product. If that fails, the guide should go. Where does it belong?</p>
+  <div class="options">
+    <button data-correct data-why="'If this fails, undo the main change' means it's part of the flow, so it's a step with compensation.">A step inside the same workflow, with compensation</button>
+    <button data-why="A failing subscriber can't undo the guide. Use it only for actions that mustn't affect the main change.">A subscriber listening to the guide.created event</button>
+    <button data-why="A job runs on a clock, not as part of creating the guide, and can't roll it back.">A scheduled job that runs every single minute</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">What does <code>const [, count] = await listAndCountGuides()</code> keep?</p>
+  <div class="options">
+    <button data-correct data-why="The method returns [records, count]. The empty slot skips records.">Only the count, the pair's second item</button>
+    <button data-why="The empty slot before the comma skips the first item, the records.">Only the guides, the pair's first item</button>
+    <button data-why="Array destructuring by position picks single items; here one is skipped.">Both items, packed into one object</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">From Lesson 3: what does a compensation function receive as its first argument?</p>
+  <div class="options">
+    <button data-correct data-why="Whatever you pass as StepResponse's second argument, such as the new guide's ID.">The second argument passed to the step's StepResponse</button>
+    <button data-why="The workflow input goes to steps. Compensation only gets what the step saved for it.">The original input that was passed to the workflow</button>
+    <button data-why="The error is handled by Medusa. Compensation gets the step's saved undo data.">The error thrown by the step that failed later</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">From Lesson 2: why can't the Guide module's service call the Product module's service?</p>
+  <div class="options">
+    <button data-correct data-why="Module isolation: each module has its own container. Cross-module work goes through workflows, links, or Query.">Modules are isolated; cross-module work goes in workflows</button>
+    <button data-why="Product is a regular module in the container. The limit is isolation, not availability.">The Product module isn't loaded until after startup</button>
+    <button data-why="Modules aren't classes that inherit from each other. Isolation is what prevents the call.">The Guide service would need to extend Product's class</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<h2>Practice: write both files</h2>
+<p>From memory. Press Check for feedback.</p>
+
+<div class="blanks">
+<p class="lang">src/subscribers/guide-created.ts</p>
+<pre>export <input data-answer="default" size="7"> async function guideCreatedHandler({
+  event: { <input data-answer="data" size="4"> },
+  container,
+}: <input data-answer="SubscriberArgs" size="14">&lt;{ id: string }&gt;) {
+  const guideModuleService = container.resolve(GUIDE_MODULE)
+  const guide = await guideModuleService.<input data-answer="retrieveGuide" size="13">(data.id)
+}
+
+export const <input data-answer="config" size="6">: SubscriberConfig = {
+  <input data-answer="event" size="5">: "guide.created",
+}</pre>
+<p class="lang">src/jobs/count-guides.ts</p>
+<pre>export default async function countGuidesJob(<input data-answer="container" size="9">: MedusaContainer) {
+  const [, count] = await guideModuleService.listAndCountGuides()
+}
+
+export const config = {
+  name: "count-guides",
+  <input data-answer="schedule" size="8">: "<input data-answer="0 0 * * *" size="9">",   // midnight, every day
+}</pre>
+  <button class="btn check">Check</button><button class="btn ghost reveal">Show answers</button>
+  <div class="feedback"></div>
+</div>
+
+<h2>Try it for real</h2>
+<p>This completes your On-ramp gate. Paths are relative to <code>~/Documents/projects/onramp-sandbox/apps/backend</code>. As in Lesson 3, the sandbox already contains both files above, which I ran to check this lesson.</p>
+<ol>
+  <li><strong>See the event.</strong> With <code>npm run dev</code> running, create a guide (the second <code>curl</code> from Lesson 3). Find <code>Processing guide.created</code> and your <code>New sizing guide</code> line in the server log.</li>
+  <li><strong>See no event.</strong> Repeat it with <code>?simulate_failure=true</code>. Confirm that neither line appears.</li>
+  <li><strong>Prove it's outside the flow.</strong> Add <code>throw new Error("subscriber broke")</code> at the end of the subscriber. Create a guide. The request still returns 200 and <code>GET /guides</code> lists it. Then remove the line.</li>
+  <li><strong>Slow the job down.</strong> Change the schedule to every 5 minutes, and work out the expression yourself before checking it on crontab.guru.</li>
+  <li><strong>Write one yourself.</strong> Create <code>src/subscribers/guide-missing-summary.ts</code> from memory. It also listens to <code>guide.created</code> and logs a warning (<code>logger.warn</code>) when the new guide has no summary. Two subscribers on one event is fine. The log line will say <code>has 2 subscribers</code>.</li>
+</ol>
+<p>When all five work, you've met the On-ramp gate. Note it in this week's progress file.</p>
+
+<h2>Explain it back</h2>
+<details class="recall">
+  <summary>Close this tab, then explain out loud</summary>
+  <p>(1) The three entry points and what starts each. (2) Why <code>emitEventStep</code> waiting for success matters. (3) The test for "step or subscriber?". (4) What a scheduled job file exports, and what <code>0 0 * * *</code> means. (5) The whole stack: follow one <code>POST /guides</code> from <code>curl</code> to the database and back, then to the subscriber.</p>
+  <p>Then type it into the chat. Together with Lesson 3's, this is your On-ramp explain-back.</p>
+</details>
+
+<h2>Read next</h2>
+<p><strong>Primary source:</strong> <a href="https://docs.medusajs.com/learn/fundamentals/events-and-subscribers">Medusa docs: Events and Subscribers</a> (about 6 minutes).</p>
+<p>Optional: <a href="https://docs.medusajs.com/learn/fundamentals/scheduled-jobs">Scheduled Jobs</a> and <a href="https://docs.medusajs.com/learn/fundamentals/events-and-subscribers/emit-event">Emit Workflow and Service Events</a>.</p>
+
+<div class="next">
+  <p><strong>Reference:</strong> <a href="../reference/four-layers.html">The four layers, end to end</a> puts all four lessons on one page. <a href="../reference/medusa-building-blocks.html">Medusa building blocks</a> now covers subscribers and jobs.</p>
+  <p><strong>Previous:</strong> <a href="0003-workflows-steps-and-compensation.html">Lesson 3: Workflows, steps, and compensation</a>.</p>
+  <p><strong>Up next:</strong> that's the On-ramp. Next on your roadmap is Setup 1: making the store work locally.</p>
+  <p><strong>Stuck or curious?</strong> Ask your teacher in chat.</p>
+</div>
+
+<p style="font-family: var(--sans); font-size: 0.75rem; color: var(--muted); margin-top: 2rem;">
+Sources: [1] Medusa, <a href="https://docs.medusajs.com/learn/fundamentals/workflows">Workflows</a>. [2] Medusa, <a href="https://docs.medusajs.com/learn/fundamentals/events-and-subscribers/emit-event">Emit Workflow and Service Events</a>. [3] Medusa, <a href="https://docs.medusajs.com/learn/fundamentals/events-and-subscribers">Events and Subscribers</a>. [4] Medusa, <a href="https://docs.medusajs.com/learn/fundamentals/scheduled-jobs">Scheduled Jobs</a>. [5] MDN, <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals">Template literals</a>. [6] MDN, <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring">Destructuring</a>.
+</p>
+
+</main>
+</body>
+</html>
