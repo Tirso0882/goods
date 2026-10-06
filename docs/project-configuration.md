@@ -5,7 +5,8 @@ Fields marked `BLOCKED` are undecided. Do not perform steps that depend on them.
 ```text
 Repository path: goods (see docs/adr/0001-goods-is-the-single-project-repo.md)
 Product category: Jewelry, without watches, imported from China; supplier not chosen yet; storefront reference: https://bamoer.com/ (see docs/adr/0002-product-category-is-jewelry.md)
-Repository visibility: Private (until secret scanning, the license, and publication review are complete)
+Repository visibility: Public (made public on 6 October 2026)
+License: MIT (LICENSE)
 Laptop operating system: macOS 26.7 (arm64), zsh
 Docker runtime: Docker Desktop, engine 29.8.2
 GPU confirmed by nvidia-smi: No (Apple Silicon, no NVIDIA GPU)
@@ -21,6 +22,7 @@ Domain: BLOCKED
 Object storage provider: BLOCKED
 Transactional email provider: BLOCKED
 Data retention period for conversations: BLOCKED
-Remote: https://github.com/Tirso0882/goods (private), default branch main
-Default branch protection enabled: No (GitHub Free does not support branch protection or rulesets on private repos; changes reach main through PRs by convention)
+Remote: https://github.com/Tirso0882/goods (public), default branch main
+Default branch protection enabled: Yes (main: PR required with 0 approvals, applies to admins, no force pushes, no deletion)
+Secret scanning: Enabled, with push protection
 ```
