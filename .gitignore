@@ -232,4 +232,5 @@ __marimo__/
 *.swp
 
 # Folders
+/.agents/
 docs/personal-docs
