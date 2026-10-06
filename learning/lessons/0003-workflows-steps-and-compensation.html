@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 3: Workflows, steps, and compensation</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+<main>
+
+<p class="kicker">On-ramp · Lesson 3</p>
+<h1>Workflows, steps, and compensation</h1>
+<p class="subtitle">Where the business logic lives, and why a return must be a workflow.</p>
+
+<div class="meta">
+  <p><strong>Win:</strong> write a workflow whose step undoes itself when a later step fails, and explain why that makes a return safer than a plain route.</p>
+  <p><strong>Time:</strong> about 35 minutes, plus 30 minutes in your sandbox.</p>
+  <p><strong>Why it matters:</strong> this is your On-ramp learning gate. Your agent's <code>request_return</code> tool will end in a Medusa workflow, and a half-finished return means a real customer is charged for something they sent back. <a href="../MISSION.md">Mission</a></p>
+</div>
+
+<h2>Where workflows sit</h2>
+
+<ol class="stack">
+  <li><b>API route</b><span>HTTP entry point (Lesson 1)</span></li>
+  <li class="here"><b>Workflow</b><span>business logic, step by step (today)</span></li>
+  <li><b>Module</b><span>owns one domain and its tables (Lesson 2)</span></li>
+  <li><b>PostgreSQL</b><span>the database</span></li>
+</ol>
+
+<p>In Lesson 2 the <code>GET /guides</code> route called the Guide module's service directly. That's fine for reading. For anything that <em>changes</em> data, Medusa's rule is: "You implement all custom flows within workflows, then execute them from API routes, subscribers, and scheduled jobs."<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/workflows">[1]</a></sup> The route receives the request; the workflow decides what happens; the modules do the reading and writing.</p>
+
+<h2>The problem: a return in a plain route</h2>
+
+<p>Here is a return written the naive way. An API route can resolve any module's service from <code>req.scope</code>, so nothing stops you from writing this:</p>
+
+<pre><code>export const POST = async (req, res) =&gt; {
+  const orders = req.scope.resolve("order")
+  const payments = req.scope.resolve("payment")
+  const inventory = req.scope.resolve("inventory")
+
+  const ret = await orders.createReturn(...)       // 1. record the return
+  await payments.refundPayment(...)                // 2. give the money back
+  await inventory.adjustInventory(...)             // 3. put stock back on the shelf
+  res.json({ return: ret })
+}</code></pre>
+
+<p>(The method names are simplified to show the shape.) Now suppose step 3 throws because the warehouse location doesn't exist. Steps 1 and 2 have already happened. The customer has their refund and the return is recorded, but the stock count is wrong. Nobody gets told, and nothing puts things back. If step 2 had failed instead, the order would show a return with no refund behind it.</p>
+
+<div class="key">
+<p>The problem isn't <em>access</em>: the route can reach all three modules. The problem is <strong>partial failure</strong>. Three separate modules means three separate writes, and nothing ties them together. A database transaction can't help either, because each module owns its own tables and may even talk to an outside system such as Stripe.</p>
+</div>
+
+<h2>A workflow is a list of steps</h2>
+
+<p>Medusa defines a workflow as "a series of queries and actions, called steps, that complete a task". Unlike a plain function, a workflow tracks each step's progress, and it supports "roll-back logic for each step, so that you can handle errors gracefully and your data remain consistent across systems".<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/workflows">[1]</a></sup></p>
+
+<p>You build one from two functions in <code>@medusajs/framework/workflows-sdk</code>:</p>
+
+<table class="ref">
+<tr><th>Piece</th><th>What it is</th></tr>
+<tr><td><code>createStep(name, fn, compensate)</code></td><td>One unit of work. <code>fn</code> does it; <code>compensate</code> undoes it.</td></tr>
+<tr><td><code>new StepResponse(output, undoData)</code></td><td>What a step returns. <code>output</code> goes to the workflow; <code>undoData</code> is saved for the compensation function.</td></tr>
+<tr><td><code>createWorkflow(name, constructor)</code></td><td>Lists the steps in order.</td></tr>
+<tr><td><code>new WorkflowResponse(value)</code></td><td>What the caller gets back as <code>result</code>.</td></tr>
+</table>
+
+<p>If you've used Airflow or Celery chains in Python, this will feel familiar: you describe the tasks and their order, and an engine runs them and keeps track. The difference is the built-in undo.</p>
+
+<h2>The Guide workflow</h2>
+
+<p>This fills the gap from Lesson 2: something that <em>creates</em> guides. It lives in <code>src/workflows/create-guide.ts</code>. It has three steps: create the guide, a practice step that can fail on purpose, and an event (Lesson 4).</p>
+
+<pre><code>import {
+  createStep,
+  createWorkflow,
+  StepResponse,
+  WorkflowResponse,
+} from "@medusajs/framework/workflows-sdk"
+import { MedusaError } from "@medusajs/framework/utils"
+import { emitEventStep } from "@medusajs/medusa/core-flows"
+import { GUIDE_MODULE } from "../modules/guide"
+import GuideModuleService from "../modules/guide/service"
+
+type GuideData = {
+  title: string
+  kind: "sizing" | "care" | "compatibility"
+  body: string
+  summary?: string | null
+}
+
+type CreateGuideWorkflowInput = {
+  guide: GuideData
+  simulate_failure: boolean
+}
+
+export const createGuideStep = createStep(
+  "create-guide",
+  async (input: GuideData, { container }) =&gt; {
+    const guideModuleService: GuideModuleService = container.resolve(GUIDE_MODULE)
+    const guide = await guideModuleService.createGuides(input)
+    return new StepResponse(guide, guide.id)
+  },
+  async (guideId: string, { container }) =&gt; {
+    const guideModuleService: GuideModuleService = container.resolve(GUIDE_MODULE)
+    await guideModuleService.deleteGuides(guideId)
+  }
+)
+
+// Practice only: lets you trigger a failure after the guide exists.
+const simulateFailureStep = createStep(
+  "simulate-failure",
+  async (input: CreateGuideWorkflowInput) =&gt; {
+    if (input.simulate_failure) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "Simulated failure after the guide was created"
+      )
+    }
+    return new StepResponse()
+  }
+)
+
+export const createGuideWorkflow = createWorkflow(
+  "create-guide",
+  (input: CreateGuideWorkflowInput) =&gt; {
+    const guide = createGuideStep(input.guide)
+    simulateFailureStep(input)
+    emitEventStep({
+      eventName: "guide.created",
+      data: { id: guide.id },
+    })
+    return new WorkflowResponse(guide)
+  }
+)</code></pre>
+
+<h3>Reading <code>createGuideStep</code></h3>
+<table class="annotated">
+<tr><td class="ln">1</td><td class="src">createStep(</td><td class="note">Makes a step. You'll call it inside a workflow.</td></tr>
+<tr><td class="ln">2</td><td class="src">  "create-guide",</td><td class="note">A unique name. Medusa uses it to track the step.</td></tr>
+<tr><td class="ln">3</td><td class="src">  async (input: GuideData, { container }) =&gt; {</td><td class="note"><b>The step function.</b> Second argument holds the <b>container</b>, the same one as <code>req.scope</code>.</td></tr>
+<tr><td class="ln">4</td><td class="src">    ...container.resolve(GUIDE_MODULE)</td><td class="note">Get the Guide service by name, as in Lesson 2.</td></tr>
+<tr><td class="ln">5</td><td class="src">    ...createGuides(input)</td><td class="note">Generated method. Writes one row.</td></tr>
+<tr><td class="ln">6</td><td class="src">    return new StepResponse(guide, guide.id)</td><td class="note">Output for the workflow, then <b>what the undo needs</b>: just the ID.</td></tr>
+<tr><td class="ln">7</td><td class="src">  },</td><td class="note"></td></tr>
+<tr><td class="ln">8</td><td class="src">  async (guideId: string, { container }) =&gt; {</td><td class="note"><b>The compensation function.</b> Receives the second value from line 6.</td></tr>
+<tr><td class="ln">9</td><td class="src">    ...deleteGuides(guideId)</td><td class="note">Undo: delete what line 5 created.</td></tr>
+<tr><td class="ln">10</td><td class="src">  }</td><td class="note"></td></tr>
+</table>
+
+<p>Medusa's docs describe it like this: "if a step creates a record, the compensation function deletes the record when an error occurs later in the workflow." It "only runs if an error occurs throughout the workflow".<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/workflows/compensation-function">[2]</a></sup> The compensation never sees the step's full output, only what you pass as the second argument to <code>StepResponse</code>. So pass exactly what the undo needs.</p>
+
+<h2>What happens when a step fails</h2>
+
+<p>Send a request with <code>?simulate_failure=true</code>, and this is the order of events (I ran it in your sandbox to check):</p>
+
+<ol>
+  <li><code>create-guide</code> runs. A new row is in the <code>guide</code> table.</li>
+  <li><code>simulate-failure</code> throws.</li>
+  <li>Medusa runs the compensation of every step that already <em>finished</em>, newest first. Here that's only <code>create-guide</code>'s, so the row is deleted.</li>
+  <li><code>emitEventStep</code> never runs, so no <code>guide.created</code> event goes out.</li>
+  <li><code>.run()</code> throws the error, and Medusa turns it into a response: <code>{"type":"not_allowed", ...}</code> with HTTP 400.</li>
+</ol>
+
+<p>Afterwards, <code>GET /guides</code> doesn't show the guide and the database has no row for it. Either the whole workflow happens or none of it stays. This isn't a database transaction, though: compensation is ordinary code <em>you</em> write. If a step sends an email, its compensation can't unsend it, so put steps that can't be undone as late as possible.</p>
+
+<h2>The constructor describes, it doesn't run</h2>
+
+<p>The function you pass to <code>createWorkflow</code> looks like normal code, but it isn't run per request. Medusa calls it once to record the steps. "At that point, variables in the workflow don't have any values. They only do when you execute the workflow."<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/workflows/constructor-constraints">[3]</a></sup> Writing an Airflow DAG file is the same idea: the file declares tasks, and the scheduler runs them later.</p>
+
+<p>So <code>guide</code> on the first line of the constructor isn't a guide yet. It's a placeholder that means "the output of <code>create-guide</code>, once it exists". You can pass it on or read a property from it (<code>guide.id</code>), but you can't compute with it. Inside the constructor:<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/workflows/constructor-constraints">[3]</a></sup></p>
+
+<table class="ref">
+<tr><th>Don't</th><th>Do instead</th></tr>
+<tr><td><code>async</code> constructor, <code>await</code></td><td>Plain function. Steps can be async; the constructor can't.</td></tr>
+<tr><td><code>if</code>, ternaries, <code>??</code>, <code>||</code></td><td><code>when(...).then(...)</code> for branches, <code>transform(...)</code> for computed values</td></tr>
+<tr><td>loops, <code>...spread</code>, <code>new Date()</code></td><td><code>transform(...)</code></td></tr>
+<tr><td><code>try</code>/<code>catch</code></td><td>Let compensation handle failures</td></tr>
+</table>
+
+<p>That's why the <code>if</code> lives <em>inside</em> <code>simulateFailureStep</code>. Inside a step function, ordinary code runs per request, so anything goes.</p>
+
+<h2>Calling it from the route</h2>
+
+<p>The route goes back to the shape you read in Lesson 1. Add a <code>POST</code> next to Lesson 2's <code>GET</code> in <code>src/api/guides/route.ts</code>:</p>
+
+<pre><code>import { createGuideWorkflow } from "../../workflows/create-guide"
+import { PostGuideType } from "./validators"
+
+export const POST = async (
+  req: MedusaRequest&lt;PostGuideType&gt;,
+  res: MedusaResponse
+) =&gt; {
+  const { result } = await createGuideWorkflow(req.scope).run({
+    input: {
+      guide: req.validatedBody,
+      simulate_failure: req.query.simulate_failure === "true",
+    },
+  })
+  res.json({ guide: result })
+}</code></pre>
+
+<p>And Lesson 1's Zod schema, in <code>src/api/guides/validators.ts</code>:</p>
+
+<pre><code>import { z } from "zod"
+
+export const PostGuideSchema = z.object({
+  title: z.string(),
+  kind: z.enum(["sizing", "care", "compatibility"]),
+  body: z.string(),
+  summary: z.string().nullable().optional(),
+})
+
+export type PostGuideType = z.infer&lt;typeof PostGuideSchema&gt;</code></pre>
+
+<p>It's attached in <code>src/api/middlewares.ts</code> with <code>{ method: ["POST"], matcher: "/guides", middlewares: [validateAndTransformBody(PostGuideSchema)] }</code>. Now the request passes three checks in order. Zod checks the <em>shape</em> (a <code>kind</code> of <code>"weather"</code> gets a 400 before any workflow runs). The workflow applies the <em>business rules</em>. The database enforces the <em>constraints</em> (Lesson 2's check on <code>kind</code>).</p>
+
+<h2>Back to the return</h2>
+
+<p>As a workflow, the return becomes three steps, and each step can undo itself. The refund moves to the end: money sent through Stripe is the hardest thing to take back, so it only runs once everything else has worked.</p>
+
+<table class="ref">
+<tr><th>Step</th><th>Does</th><th>Compensation</th></tr>
+<tr><td>1. create return</td><td>Order module records the return</td><td>Cancel the return</td></tr>
+<tr><td>2. restock</td><td>Inventory module adjusts stock</td><td>Reverse the adjustment</td></tr>
+<tr><td>3. refund</td><td>Payment module refunds via Stripe</td><td>None needed: nothing runs after it</td></tr>
+</table>
+
+<p>If the refund fails, Medusa reverses the restock, then cancels the return. The order ends up as if nothing happened, and the customer gets an error instead of a half-finished return. You won't write this one yourself: Medusa's own order and return flows are already built as workflows in <code>@medusajs/medusa/core-flows</code>, the same package <code>emitEventStep</code> comes from. Your agent's tools will call Medusa's API routes, and those run the workflows.</p>
+
+<div class="key">
+<h3>The learning gate, in one paragraph</h3>
+<p>A plain route runs its writes one after another. If a later write fails, the earlier ones stay, and the data across modules no longer agrees. A workflow records each step as it completes. When one fails, it runs the completed steps' compensation functions in reverse order, so the change happens completely or gets undone. Medusa also tracks every step's progress, so you can see where it failed. Practise saying this from memory. It's what the learning gate asks for.</p>
+</div>
+
+<h2>Four new pieces of TypeScript</h2>
+
+<div class="pair">
+  <div><p class="lang">Python</p>
+<pre><code>kind: Literal["sizing", "care"]
+
+class GuideData(TypedDict):
+    summary: NotRequired[str | None]
+
+raise ValueError("bad")
+
+if a == "true": ...</code></pre></div>
+  <div><p class="lang">TypeScript</p>
+<pre><code>kind: "sizing" | "care"
+
+type GuideData = {
+  summary?: string | null
+}
+
+throw new Error("bad")
+
+if (a === "true") { ... }</code></pre></div>
+</div>
+
+<ul>
+  <li><strong><code>"sizing" | "care"</code></strong> is a union of string literals, like Python's <code>Literal[...]</code>. Only those exact strings type-check.<sup class="cite"><a href="https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#literal-types">[4]</a></sup> Like every type, it's erased at runtime, which is why Zod's <code>z.enum</code> repeats the list.</li>
+  <li><strong><code>summary?:</code></strong> marks a key that may be missing. <code>| null</code> says it may also be present but null. They're different, just as in Python a missing key differs from <code>None</code>.</li>
+  <li><strong><code>throw new X(...)</code></strong> is <code>raise X(...)</code>. In JavaScript you need <code>new</code> to create an instance of a class.<sup class="cite"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/throw">[5]</a></sup></li>
+  <li><strong><code>===</code></strong> is the equality you want. The older <code>==</code> converts types first (<code>1 == "1"</code> is true), so always use three equals signs.<sup class="cite"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Strict_equality">[6]</a></sup> Query strings are always text, which is why the route compares against <code>"true"</code> and not <code>true</code>.</li>
+</ul>
+
+<h2>Practice: retrieval</h2>
+<p>No scrolling up. The last two questions go back to Lessons 1 and 2.</p>
+<p class="score"></p>
+
+<div class="mcq">
+  <p class="q">In <code>new StepResponse(guide, guide.id)</code>, what is <code>guide.id</code> for?</p>
+  <div class="options">
+    <button data-correct data-why="The second argument is saved and handed to the compensation function if a later step fails.">The input the compensation function receives if needed</button>
+    <button data-why="The first argument, guide, is what the workflow receives. The second one is only for the undo.">The value the workflow passes on to the next step</button>
+    <button data-why="Step names come from createStep's first argument, here create-guide.">The unique name Medusa uses to track this step</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">Steps A, B, C run in order. C throws. Which compensations run?</p>
+  <div class="options">
+    <button data-correct data-why="Only finished steps have something to undo, and Medusa undoes the most recent first.">B's, then A's: completed steps, newest first</button>
+    <button data-why="Compensation runs for steps that completed. C never finished, so there's nothing of C's to undo.">C's, then B's, then A's, in reverse</button>
+    <button data-why="Order matters: undoing newest first mirrors how the changes were built up.">A's, then B's: completed steps, oldest first</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">Why can't you write <code>if (input.simulate_failure)</code> inside the <code>createWorkflow</code> function?</p>
+  <div class="options">
+    <button data-correct data-why="Medusa runs the constructor once to record steps. Inputs are placeholders then, so use when-then or put the if in a step.">It runs once to record steps, before inputs exist</button>
+    <button data-why="TypeScript allows if anywhere. The limit comes from how Medusa builds the workflow, not from the language.">TypeScript forbids if statements inside arrow functions</button>
+    <button data-why="Performance isn't the reason. The values simply don't exist yet when the constructor runs.">Conditions there would slow every workflow run down</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">A plain route creates a return, refunds, then fails restocking. What's the state?</p>
+  <div class="options">
+    <button data-correct data-why="Nothing ties the three writes together, so the first two stay. That's the case for a workflow.">Return and refund stay; stock is wrong and unfixed</button>
+    <button data-why="Only a workflow with compensation undoes earlier writes. A plain route has no rollback across modules.">Medusa rolls back the return and the refund</button>
+    <button data-why="Each module owns separate tables and the refund may hit Stripe, so no single transaction covers them.">One database transaction cancels all three automatically</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">Where does a step get the Guide module's service from?</p>
+  <div class="options">
+    <button data-correct data-why="Steps receive the Medusa container as container in their second argument, the same registry as req.scope.">container.resolve(GUIDE_MODULE), from the second argument</button>
+    <button data-why="Modules are isolated: a step reaches services through the container, not through other modules.">The Product module passes it into the step</button>
+    <button data-why="You never construct services yourself. Medusa builds them once at startup and registers them.">new GuideModuleService(), created inside the step</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">A request posts <code>{"kind": "weather"}</code>. What stops it first?</p>
+  <div class="options">
+    <button data-correct data-why="The validation middleware runs before the handler, so the workflow never starts.">The Zod schema, before the route handler even runs</button>
+    <button data-why="The workflow never starts. The middleware rejects the body before the handler runs.">The workflow's compensation, after the guide is created</button>
+    <button data-why="The database check exists too, but the request never gets that far.">The database check constraint, when inserting the row</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">From Lesson 2: <code>MedusaService({ Guide })</code> gives you which delete methods?</p>
+  <div class="options">
+    <button data-correct data-why="The service factory generates delete, softDelete, and restore, pluralised.">deleteGuides, softDeleteGuides, and restoreGuides</button>
+    <button data-why="Only retrieve is singular. Every other generated method uses the plural.">deleteGuide, softDeleteGuide, and restoreGuide</button>
+    <button data-why="The factory doesn't generate remove or archive methods.">removeGuides, archiveGuides, and unarchiveGuides</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">From Lesson 1: what does <code>const { result } = await wf.run(...)</code> pull out?</p>
+  <div class="options">
+    <button data-correct data-why="Object destructuring by key. result is what WorkflowResponse wrapped.">The result key, holding what WorkflowResponse returned</button>
+    <button data-why="Curly braces destructure by key name, not position.">The first value in the list that run returns</button>
+    <button data-why="The step outputs stay inside the workflow. The caller only gets what WorkflowResponse wraps.">Every step's output, collected into one object</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<h2>Practice: write the step</h2>
+<p>From memory. Press Check for feedback.</p>
+
+<div class="blanks">
+<p class="lang">src/workflows/create-guide.ts</p>
+<pre>export const createGuideStep = <input data-answer="createStep" size="10">(
+  "create-guide",
+  async (input: GuideData, { <input data-answer="container" size="9"> }) =&gt; {
+    const guideModuleService = container.<input data-answer="resolve" size="7">(GUIDE_MODULE)
+    const guide = await guideModuleService.<input data-answer="createGuides" size="12">(input)
+    return new <input data-answer="StepResponse" size="12">(guide, guide.id)
+  },
+  async (guideId: string, { container }) =&gt; {
+    const guideModuleService = container.resolve(GUIDE_MODULE)
+    await guideModuleService.<input data-answer="deleteGuides" size="12">(guideId)
+  }
+)
+
+export const createGuideWorkflow = <input data-answer="createWorkflow" size="14">(
+  "create-guide",
+  (input: CreateGuideWorkflowInput) =&gt; {
+    const guide = createGuideStep(input.guide)
+    return new <input data-answer="WorkflowResponse" size="16">(guide)
+  }
+)</pre>
+  <button class="btn check">Check</button><button class="btn ghost reveal">Show answers</button>
+  <div class="feedback"></div>
+</div>
+
+<h2>Try it for real</h2>
+<p>This counts toward your On-ramp gate ("the throwaway project runs your ... route, workflow"). Paths are relative to <code>~/Documents/projects/onramp-sandbox/apps/backend</code>. The current Medusa template keeps the backend in <code>apps/backend</code>, so <code>src/...</code> in this lesson means <code>apps/backend/src/...</code>.</p>
+<p>Your sandbox already contains the files above. I wrote and ran them to check this lesson, so every snippet here is known to work. That means the practice is to run it, predict, break it, and extend it, not to type it in.</p>
+<ol>
+  <li><strong>Predict, then run.</strong> With <code>npm run dev</code> running, write down what you expect from each command, then run them:
+<pre><code>curl -X POST localhost:9000/guides -H "Content-Type: application/json" \
+  -d '{"title":"Shoe sizes","kind":"weather","body":"x"}'
+
+curl -X POST localhost:9000/guides -H "Content-Type: application/json" \
+  -d '{"title":"Running shoe sizing","kind":"sizing","body":"Order half a size up."}'
+
+curl -X POST "localhost:9000/guides?simulate_failure=true" -H "Content-Type: application/json" \
+  -d '{"title":"Rolled back","kind":"care","body":"temp"}'
+
+curl localhost:9000/guides</code></pre></li>
+  <li><strong>Look underneath.</strong> Check the database directly: <code>docker exec onramp-postgres psql -U postgres -d onramp_sandbox -c 'select title from guide'</code>. "Rolled back" must not be there.</li>
+  <li><strong>Watch the undo.</strong> In the compensation function, add <code>container.resolve("logger").info("Undoing create-guide " + guideId)</code>. Repeat the failing request and find the line in your server log.</li>
+  <li><strong>Extend it.</strong> Write a <code>fillSummaryStep</code> that runs after <code>createGuideStep</code>. When <code>summary</code> is missing, it sets it to the body's first sentence with <code>updateGuides({ id, summary })</code>. Its compensation puts back the old summary. Add a log line to both compensations, run the failing request, and confirm they run newest first.</li>
+</ol>
+<details class="recall">
+  <summary>Stuck on step 4? One possible answer</summary>
+<pre><code>type FillSummaryInput = { id: string; body: string; summary?: string | null }
+
+export const fillSummaryStep = createStep(
+  "fill-summary",
+  async (guide: FillSummaryInput, { container }) =&gt; {
+    const guideModuleService: GuideModuleService = container.resolve(GUIDE_MODULE)
+    const summary = guide.summary ?? guide.body.split(".")[0]
+    const updated = await guideModuleService.updateGuides({ id: guide.id, summary })
+    return new StepResponse(updated, { id: guide.id, summary: guide.summary ?? null })
+  },
+  async (previous: { id: string; summary: string | null }, { container }) =&gt; {
+    container.resolve("logger").info("Undoing fill-summary")
+    const guideModuleService: GuideModuleService = container.resolve(GUIDE_MODULE)
+    await guideModuleService.updateGuides(previous)
+  }
+)
+
+// in the workflow constructor:
+const guide = createGuideStep(input.guide)
+const withSummary = fillSummaryStep(guide)
+simulateFailureStep(input)
+// ... and return new WorkflowResponse(withSummary)</code></pre>
+<p><code>??</code> is fine here because it's inside a step function, which runs per request. It would not be allowed in the constructor.</p>
+</details>
+<p>If anything breaks, paste the error into chat.</p>
+
+<h2>Explain it back</h2>
+<details class="recall">
+  <summary>Close this tab, then explain out loud</summary>
+  <p>(1) What a step, a compensation function, and <code>StepResponse</code>'s second argument are. (2) What happens, in order, when the third of three steps fails. (3) Why you can't write <code>if</code> in the workflow constructor. (4) <strong>The learning gate:</strong> why a workflow is safer than a plain API route for a return.</p>
+  <p>Then type it into the chat. Your explain-backs for Lessons 1 and 2 are still welcome too.</p>
+</details>
+
+<h2>Read next</h2>
+<p><strong>Primary source:</strong> <a href="https://docs.medusajs.com/learn/fundamentals/workflows/compensation-function">Medusa docs: Compensation Function</a> (about 8 minutes). Skip "Handle Step Errors in Loops" for now.</p>
+<p>Optional: <a href="https://docs.medusajs.com/learn/fundamentals/workflows/constructor-constraints">Workflow Constraints</a>, the full list of what the constructor can't do and what to use instead.</p>
+
+<div class="next">
+  <p><strong>Reference:</strong> <a href="../reference/four-layers.html">The four layers, end to end</a> traces one request from <code>curl</code> to the database and back. <a href="../reference/medusa-building-blocks.html">Medusa building blocks</a> now has a workflow section.</p>
+  <p><strong>Previous:</strong> <a href="0002-modules-and-data-models.html">Lesson 2: Modules and data models</a>.</p>
+  <p><strong>Up next:</strong> <a href="0004-subscribers-and-scheduled-jobs.html">Lesson 4: Subscribers and scheduled jobs</a>, where <code>guide.created</code> gets a listener.</p>
+  <p><strong>Stuck or curious?</strong> Ask your teacher in chat.</p>
+</div>
+
+<p style="font-family: var(--sans); font-size: 0.75rem; color: var(--muted); margin-top: 2rem;">
+Sources: [1] Medusa, <a href="https://docs.medusajs.com/learn/fundamentals/workflows">Workflows</a>. [2] Medusa, <a href="https://docs.medusajs.com/learn/fundamentals/workflows/compensation-function">Compensation Function</a>. [3] Medusa, <a href="https://docs.medusajs.com/learn/fundamentals/workflows/constructor-constraints">Workflow Constraints</a>. [4] TypeScript Handbook, <a href="https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#literal-types">Literal Types</a>. [5] MDN, <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/throw">throw</a>. [6] MDN, <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Strict_equality">Strict equality</a>. Also: Medusa, <a href="https://docs.medusajs.com/learn/customization/custom-features/workflow">Guide: Create Brand Workflow</a>.
+</p>
+
+</main>
+</body>
+</html>

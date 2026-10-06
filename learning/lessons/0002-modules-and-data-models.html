@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 2: Modules and data models</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+<main>
+
+<p class="kicker">On-ramp · Lesson 2</p>
+<h1>Modules and data models</h1>
+<p class="subtitle">Where Medusa keeps data, who is allowed to touch it, and what <code>req.scope</code> really is.</p>
+
+<div class="meta">
+  <p><strong>Win:</strong> write the three files of a Medusa module from memory, and explain why one module can't call another.</p>
+  <p><strong>Time:</strong> about 30 minutes, plus an optional 30 minutes building it in a real project.</p>
+  <p><strong>Why it matters:</strong> orders, customers, and returns all live in Medusa modules. Your Step 1 design doc must say which component owns each piece of data, and the module is where Medusa answers that. <a href="../MISSION.md">Mission</a></p>
+</div>
+
+<h2>Where modules sit</h2>
+
+<p>In <a href="0001-read-a-medusa-api-route.html">Lesson 1</a> you read the top layer: an API route that called <code>createBrandWorkflow</code>. Medusa's architecture has four layers, and each one calls only the layer below it.<sup class="cite"><a href="https://docs.medusajs.com/learn/introduction/architecture">[1]</a></sup> Today is the third.</p>
+
+<ol class="stack">
+  <li><b>API route</b><span>HTTP entry point (Lesson 1)</span></li>
+  <li><b>Workflow</b><span>business logic, step by step (Lesson 3)</span></li>
+  <li class="here"><b>Module</b><span>owns one domain and its tables (today)</span></li>
+  <li><b>PostgreSQL</b><span>the database</span></li>
+</ol>
+
+<p>Medusa defines a module as "a reusable package of functionalities related to a single domain or integration".<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/modules">[2]</a></sup> Medusa's own features are modules too: Cart, Order, Customer, Product. If you know Django, a module is close to a Django app: its own models, its own logic, its own migrations.</p>
+
+<h2>A module is three files</h2>
+
+<p>We'll build a small <strong>Guide</strong> module: sizing, care, and compatibility guides, the kind of content your support agent will one day answer questions from. It lives in its own folder:</p>
+
+<pre class="tree">src/modules/guide/
+├── models/guide.ts    the data model: one table
+├── service.ts         the class that reads and writes it
+└── index.ts           the module definition: name + service</pre>
+
+<h3>1. The data model</h3>
+
+<pre><code>import { model } from "@medusajs/framework/utils"
+
+const Guide = model.define("guide", {
+  id: model.id().primaryKey(),
+  title: model.text(),
+  kind: model.enum(["sizing", "care", "compatibility"]),
+  body: model.text(),
+  summary: model.text().nullable(),
+})
+
+export default Guide</code></pre>
+
+<p>A data model "represents a table in the database".<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/modules">[2]</a></sup> It plays the same role as a SQLAlchemy or Django model. <code>model.define</code> takes the table name (snake_case) and an object describing the columns. Some details:</p>
+<ul>
+  <li>Property types include <code>id</code>, <code>text</code>, <code>number</code>, <code>boolean</code>, <code>enum</code>, <code>dateTime</code>, <code>json</code>, and <code>bigNumber</code> (for prices).<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/data-models/properties">[3]</a></sup></li>
+  <li>Calls chain: <code>model.text().nullable()</code> is a text column that may be <code>null</code>. Others are <code>.unique()</code>, <code>.default(...)</code>, <code>.index()</code>. Each call returns the property, so you can keep adding to it.</li>
+  <li>You never write <code>created_at</code>, <code>updated_at</code>, or <code>deleted_at</code>. Medusa adds them to every model. A <em>soft delete</em> keeps the row and sets <code>deleted_at</code> to the current time.<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/data-models/properties">[3]</a></sup></li>
+</ul>
+
+<h3>2. The service</h3>
+
+<pre><code>import { MedusaService } from "@medusajs/framework/utils"
+import Guide from "./models/guide"
+
+class GuideModuleService extends MedusaService({
+  Guide,
+}) {
+}
+
+export default GuideModuleService</code></pre>
+
+<p>The service is the class that does database work for the module.<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/modules">[2]</a></sup> This one has an empty body, yet it already has a full set of methods. <code>MedusaService({ Guide })</code> is a <em>function call that returns a class</em>, with generated methods for each model you pass in. Your class then inherits from that generated class.<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/modules/service-factory">[4]</a></sup></p>
+
+<table class="ref">
+<tr><th>Generated method</th><th>Does</th></tr>
+<tr><td><code>listGuides(filters)</code>, <code>listAndCountGuides(filters)</code></td><td>Fetch many records, optionally with a count</td></tr>
+<tr><td><code>retrieveGuide(id)</code></td><td>Fetch one record by ID. The only singular name.</td></tr>
+<tr><td><code>createGuides(data)</code>, <code>updateGuides(data)</code></td><td>Write one record or an array of them</td></tr>
+<tr><td><code>deleteGuides(ids)</code>, <code>softDeleteGuides(ids)</code>, <code>restoreGuides(ids)</code></td><td>Remove, soft-remove, undo a soft remove</td></tr>
+</table>
+
+<p>The rule: operation name, then the model name, pluralised for everything except <code>retrieve</code>.<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/modules">[2]</a></sup></p>
+
+<h3>3. The module definition</h3>
+
+<pre><code>import { Module } from "@medusajs/framework/utils"
+import GuideModuleService from "./service"
+
+export const GUIDE_MODULE = "guide"
+
+export default Module(GUIDE_MODULE, {
+  service: GuideModuleService,
+})</code></pre>
+
+<p>This tells Medusa the module's name and its main service. When the app starts, Medusa registers the service in its container <strong>under the module's name</strong>.<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/modules">[2]</a></sup> The name can only contain letters, numbers, and underscores. Exporting it as a constant (<code>GUIDE_MODULE</code>) saves you from typing the string by hand later.</p>
+
+<p>Two more things before it works. You list the module in <code>medusa-config.ts</code> (<code>modules: [{ resolve: "./src/modules/guide" }]</code>). Then you create the table with migrations, the same idea as Alembic: <code>npx medusa db:generate guide</code>, then <code>npx medusa db:migrate</code>.<sup class="cite"><a href="https://docs.medusajs.com/learn/customization/custom-features/module">[5]</a></sup></p>
+
+<h2>Four new pieces of TypeScript</h2>
+
+<div class="pair">
+  <div><p class="lang">Python</p>
+<pre><code>{"Guide": Guide}
+
+class GuideModuleService(make_service(Guide)):
+    pass
+
+# every top-level name is importable
+from .service import GuideModuleService</code></pre></div>
+  <div><p class="lang">TypeScript</p>
+<pre><code>{ Guide }
+
+class GuideModuleService extends MedusaService({ Guide }) {
+}
+
+export default GuideModuleService
+import GuideModuleService from "./service"</code></pre></div>
+</div>
+
+<ul>
+  <li><strong><code>{ Guide }</code> is shorthand for <code>{ Guide: Guide }</code></strong>: an object whose key is the variable's name.<sup class="cite"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Object_initializer#property_definitions">[6]</a></sup> It is <em>not</em> a set. Python would read <code>{Guide}</code> as a set, so this one trips up Python developers. You'll see it everywhere, for example <code>res.json({ guides })</code>.</li>
+  <li><strong><code>class A extends B</code></strong> is <code>class A(B):</code>.<sup class="cite"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes/extends">[7]</a></sup> As in Python, <code>B</code> can be any expression that produces a class, including a function call.</li>
+  <li><strong><code>export default X</code></strong> marks the file's one main export. You import it <em>without</em> braces and can name it whatever you like. Named exports (<code>export const GUIDE_MODULE</code>) are imported <em>with</em> braces, using the exact name.<sup class="cite"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/export">[8]</a></sup></li>
+  <li><strong>Chaining</strong> (<code>model.text().nullable()</code>) works because each call returns an object you can keep calling methods on.</li>
+</ul>
+
+<h2>Using the module: the container</h2>
+
+<p>Here is a route that lists guides, at <code>src/api/guides/route.ts</code>:</p>
+
+<pre><code>import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { GUIDE_MODULE } from "../../modules/guide"
+
+export const GET = async (req: MedusaRequest, res: MedusaResponse) =&gt; {
+  const guideModuleService = req.scope.resolve(GUIDE_MODULE)
+  const guides = await guideModuleService.listGuides()
+  res.json({ guides })
+}</code></pre>
+
+<p>This answers Lesson 1's open question. <code>req.scope</code> is the <strong>Medusa container</strong>, "a registry of Framework and commerce tools". <code>resolve(name)</code> hands back whatever is registered under that name.<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/medusa-container">[9]</a></sup> You never write <code>new GuideModuleService()</code>: Medusa creates the service once at startup and gives it to you by name. Workflow steps, subscribers, and scheduled jobs get the same container, just under the name <code>container</code>.</p>
+
+<div class="key">
+<h3>The idea that matters for production: isolation</h3>
+<p>A module "can't access resources, such as services or data models, from other modules". Your Guide module can't resolve the Product module's service, and its data model can't hold a direct relation to Product's tables.<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/modules/isolation">[10]</a></sup></p>
+<p>So how do you build anything that crosses domains? Medusa gives you three tools:<sup class="cite"><a href="https://docs.medusajs.com/learn/fundamentals/modules/isolation">[10]</a></sup></p>
+<ul>
+  <li><strong>Module links</strong> associate records across modules, for example a guide with a product.</li>
+  <li><strong>Query</strong> reads data across modules.</li>
+  <li><strong>Workflows</strong> perform actions that span modules. Their steps resolve each module's service, and the workflow can roll back if a step fails.</li>
+</ul>
+<p>A return touches orders, payments, and inventory, which are three modules. So it has to be a workflow. That's the start of your On-ramp learning gate, and the subject of Lesson 3.</p>
+<p>Your roadmap applies the same rule one level up. Your agent never writes to Medusa's tables directly and only goes through its API. Each piece of data has exactly one owner, and the other parts ask that owner for changes.</p>
+</div>
+
+<h2>Practice: retrieval</h2>
+<p>No scrolling up. The last two questions go back to Lesson 1 on purpose.</p>
+<p class="score"></p>
+
+<div class="mcq">
+  <p class="q">In <code>extends MedusaService({ Guide })</code>, what is <code>{ Guide }</code>?</p>
+  <div class="options">
+    <button data-correct data-why="Shorthand property: { Guide } means { Guide: Guide }. The service factory reads the key to name the methods.">An object whose key Guide holds the Guide model</button>
+    <button data-why="That's how Python reads {Guide}. In JavaScript, curly braces in an expression make an object, and this is shorthand for { Guide: Guide }.">A set containing the Guide model as one element</button>
+    <button data-why="Braces after a function name would be a body, but here they're inside a call's parentheses, so they make an object.">A block of code that runs the Guide model</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">Which generated method fetches a single guide by its ID?</p>
+  <div class="options">
+    <button data-correct data-why="retrieve is the one operation that keeps the model name singular.">retrieveGuide(id)</button>
+    <button data-why="Every operation is pluralised except retrieve, which fetches exactly one record.">retrieveGuides(id)</button>
+    <button data-why="The service factory doesn't generate get methods. The names are list, listAndCount, retrieve, create, update, delete, softDelete, restore.">getGuideById(id)</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">You call <code>softDeleteGuides("gd_123")</code>. What happens to the row?</p>
+  <div class="options">
+    <button data-correct data-why="Soft delete sets deleted_at, a column Medusa adds to every model. restoreGuides undoes it.">It stays, with deleted_at set to the current time</button>
+    <button data-why="That's deleteGuides. A soft delete keeps the row so restoreGuides can bring it back.">It is removed from the table and cannot return</button>
+    <button data-why="There's no archive table. The row stays where it is, and the deleted_at column marks it as deleted.">It moves into a separate archive table for guides</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">The Guide module's service wants to read a product from the Product module. What's the Medusa way?</p>
+  <div class="options">
+    <button data-correct data-why="Modules are isolated. A workflow sits above both modules, and its steps can resolve each module's service.">Use a workflow whose steps call both module services</button>
+    <button data-why="Module isolation forbids it. A module's container only holds its own resources and a few Framework tools.">Resolve the Product module service inside your own service</button>
+    <button data-why="This bypasses the module that owns the data, the same mistake as your agent writing to Medusa tables directly.">Query the product table directly with a SQL statement</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">How does an API route get hold of the Guide module's service?</p>
+  <div class="options">
+    <button data-correct data-why="req.scope is the Medusa container, and the service is registered under the module's name.">It resolves the module's name from req.scope</button>
+    <button data-why="Medusa creates the service at startup and registers it in the container. You resolve it, you don't construct it.">It imports the service class and calls new</button>
+    <button data-why="medusa-config.ts only lists which modules to load. The service itself comes from the container.">It reads the service from medusa-config.ts directly</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q"><code>service.ts</code> ends with <code>export default GuideModuleService</code>. Which import works in <code>index.ts</code>?</p>
+  <div class="options">
+    <button data-correct data-why="A default export is imported without braces, under any name you choose.">import GuideModuleService from "./service"</button>
+    <button data-why="Braces are for named exports. This file has a default export, so the braces would find nothing.">import { GuideModuleService } from "./service"</button>
+    <button data-why="That's Python's star import and isn't valid JavaScript. JavaScript needs a name: import * as service from ...">import * from "./service"</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">From Lesson 1: a client sends a bad request body. What actually rejects it?</p>
+  <div class="options">
+    <button data-correct data-why="Types are erased at runtime. Only runtime code like Zod can check input.">A Zod schema applied by the validation middleware</button>
+    <button data-why="Generics are type information and get erased. They do nothing at runtime.">The generic type argument passed into MedusaRequest</button>
+    <button data-why="A type alias is erased at compile time, so it can't reject anything.">The type alias declared above the route handler</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="mcq">
+  <p class="q">From Lesson 1, plus today: <code>guides</code> holds an array. What JSON does <code>res.json({ guides })</code> send?</p>
+  <div class="options">
+    <button data-correct data-why="Shorthand property: { guides } means { guides: guides }.">{"guides": [ ... ]}</button>
+    <button data-why="The braces wrap the array in an object with a guides key.">[ ... ] on its own</button>
+    <button data-why="Shorthand uses the variable's name as the key, not a position.">{"0": [ ... ]}</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<h2>Practice: write the module</h2>
+<p>Fill in the blanks from memory. Press Check for feedback.</p>
+
+<div class="blanks">
+<p class="lang">src/modules/guide/service.ts</p>
+<pre>import { <input data-answer="MedusaService" size="13"> } from "@medusajs/framework/utils"
+import Guide from "./models/guide"
+
+class GuideModuleService <input data-answer="extends" size="7"> MedusaService({
+  <input data-answer="Guide|Guide: Guide" size="5">,
+}) {
+}
+
+export <input data-answer="default" size="7"> GuideModuleService</pre>
+<p class="lang">src/modules/guide/index.ts</p>
+<pre>import { Module } from "@medusajs/framework/utils"
+import GuideModuleService from "./service"
+
+export const GUIDE_MODULE = "guide"
+
+export default <input data-answer="Module" size="6">(GUIDE_MODULE, {
+  <input data-answer="service" size="7">: GuideModuleService,
+})</pre>
+  <button class="btn check">Check</button><button class="btn ghost reveal">Show answers</button>
+  <div class="feedback"></div>
+</div>
+
+<div class="blanks">
+<p class="lang">src/api/guides/route.ts: return guides of one kind</p>
+<pre>export const GET = async (req: MedusaRequest, res: MedusaResponse) =&gt; {
+  const guideModuleService = req.scope.<input data-answer="resolve" size="7">(GUIDE_MODULE)
+  const guides = await guideModuleService.<input data-answer="listGuides" size="10">({ kind: "sizing" })
+  res.json({ <input data-answer="guides" size="6"> })
+}</pre>
+  <button class="btn check">Check</button><button class="btn ghost reveal">Show answers</button>
+  <div class="feedback"></div>
+</div>
+
+<h2>Try it for real (optional)</h2>
+<p>This counts toward your On-ramp gate ("the throwaway project runs your custom module"). Build it in a throwaway folder <em>outside</em> <code>goods</code>, as the roadmap says.</p>
+<ol>
+  <li>Check you have Node v20.19+ or v22.12+ and a running PostgreSQL, then run <code>npx create-medusa-app@latest onramp-sandbox</code>. Say no to the storefront for now.<sup class="cite"><a href="https://docs.medusajs.com/learn/installation">[11]</a></sup></li>
+  <li>Create the three module files above, then add <code>{ resolve: "./src/modules/guide" }</code> to <code>modules</code> in <code>medusa-config.ts</code>.</li>
+  <li>Run <code>npx medusa db:generate guide</code> and <code>npx medusa db:migrate</code>. Open the generated migration file and find your columns, including the three Medusa added for you.</li>
+  <li>Add the route, run <code>npm run dev</code>, then <code>curl http://localhost:9000/guides</code>. Expect <code>{"guides":[]}</code>. It's empty because nothing creates guides yet. Lesson 3 fixes that with a workflow.</li>
+</ol>
+<p>If anything breaks, paste the error into chat. Reading Medusa errors is part of the skill.</p>
+
+<h2>Explain it back</h2>
+<details class="recall">
+  <summary>Close this tab, then explain out loud</summary>
+  <p>(1) The three files of a module and what each does. (2) Where the service's methods come from and how they're named. (3) What happens between Medusa starting up and your route calling <code>req.scope.resolve("guide")</code>. (4) Why the Guide module can't call the Product module, and what you'd use instead.</p>
+  <p>Then type it into the chat. If you haven't sent Lesson 1's explain-back yet, send both together.</p>
+</details>
+
+<h2>Read next</h2>
+<p><strong>Primary source:</strong> <a href="https://docs.medusajs.com/learn/fundamentals/modules/isolation">Medusa docs: Module Isolation</a> (about 10 minutes). It's short, and it's the page that explains why Lesson 3 exists. Skip the "Injecting Dependencies" section for now.</p>
+<p>Optional: <a href="https://docs.medusajs.com/learn/fundamentals/data-models/properties">Data Model Properties</a> for the full list of column types and options.</p>
+
+<div class="next">
+  <p><strong>Reference:</strong> <a href="../reference/medusa-building-blocks.html">Medusa building blocks</a> (routes, modules, the container, isolation) and <a href="../reference/typescript-for-python-devs.html">TypeScript for Python developers</a> (now with today's four syntax pieces).</p>
+  <p><strong>Previous:</strong> <a href="0001-read-a-medusa-api-route.html">Lesson 1: Read a Medusa API route</a>.</p>
+  <p><strong>Up next:</strong> <a href="0003-workflows-steps-and-compensation.html">Lesson 3: Workflows, steps, and compensation</a>, and why a return must be a workflow.</p>
+  <p><strong>Stuck or curious?</strong> Ask your teacher in chat.</p>
+</div>
+
+<p style="font-family: var(--sans); font-size: 0.75rem; color: var(--muted); margin-top: 2rem;">
+Sources: [1] Medusa, <a href="https://docs.medusajs.com/learn/introduction/architecture">Architecture</a>. [2] Medusa, <a href="https://docs.medusajs.com/learn/fundamentals/modules">Modules</a>. [3] Medusa, <a href="https://docs.medusajs.com/learn/fundamentals/data-models/properties">Data Model Properties</a>. [4] Medusa, <a href="https://docs.medusajs.com/learn/fundamentals/modules/service-factory">Service Factory</a>. [5] Medusa, <a href="https://docs.medusajs.com/learn/customization/custom-features/module">Guide: Implement Brand Module</a>. [6] MDN, <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Object_initializer#property_definitions">Object initializer</a>. [7] MDN, <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes/extends">extends</a>. [8] MDN, <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/export">export</a>. [9] Medusa, <a href="https://docs.medusajs.com/learn/fundamentals/medusa-container">Medusa Container</a>. [10] Medusa, <a href="https://docs.medusajs.com/learn/fundamentals/modules/isolation">Module Isolation</a>. [11] Medusa, <a href="https://docs.medusajs.com/learn/installation">Installation</a>.
+</p>
+
+</main>
+</body>
+</html>

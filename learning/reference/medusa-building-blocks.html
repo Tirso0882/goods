@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference: Medusa building blocks</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Reference</p>
+<h1>Medusa building blocks</h1>
+<p class="subtitle">The parts of a Medusa app, which layer owns what, and how they connect. Grows with each lesson.</p>
+
+<h2>Layers</h2>
+<ol class="stack">
+  <li><b>API route</b><span><code>src/api/**/route.ts</code>: HTTP entry point</span></li>
+  <li><b>Workflow</b><span><code>src/workflows/*.ts</code>: business logic across modules, with rollback</span></li>
+  <li><b>Module</b><span><code>src/modules/&lt;name&gt;</code>: one domain, its tables, its service</span></li>
+  <li><b>PostgreSQL</b><span>the database</span></li>
+</ol>
+<p>Each layer calls only the one below it. <a href="https://docs.medusajs.com/learn/introduction/architecture">Architecture</a></p>
+
+<h2>API route</h2>
+<pre><code>// src/api/admin/brands/route.ts   handles  POST /admin/brands
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+
+export const POST = async (
+  req: MedusaRequest&lt;BodyType&gt;,   // generic: shape of the body (compile time only)
+  res: MedusaResponse
+) =&gt; {
+  const { result } = await someWorkflow(req.scope)   // req.scope: the Medusa container
+    .run({ input: req.validatedBody })               // body after Zod validation
+  res.json({ brand: result })
+}</code></pre>
+<ul>
+  <li>The URL is the file's path under <code>src/api</code>. The HTTP method is the exported name. <a href="https://docs.medusajs.com/learn/fundamentals/api-routes">API Routes</a></li>
+  <li>Validation: a Zod schema in <code>validators.ts</code>, attached with <code>validateAndTransformBody</code> in <code>src/api/middlewares.ts</code>. <a href="https://docs.medusajs.com/learn/fundamentals/api-routes/validation">Validation</a></li>
+  <li>Routes under <code>/admin</code> need an authenticated admin user.</li>
+</ul>
+
+<h2>Module</h2>
+<pre class="tree">src/modules/guide/
+├── models/guide.ts    model.define("guide", { ... })   one table
+├── service.ts         class ... extends MedusaService({ Guide })
+└── index.ts           export default Module("guide", { service })</pre>
+<ol>
+  <li>Register it in <code>medusa-config.ts</code>: <code>modules: [{ resolve: "./src/modules/guide" }]</code>.</li>
+  <li>Create tables: <code>npx medusa db:generate guide</code>, then <code>npx medusa db:migrate</code>.</li>
+</ol>
+<p><a href="https://docs.medusajs.com/learn/fundamentals/modules">Modules</a></p>
+
+<h3>Data model properties</h3>
+<table class="ref">
+<tr><th>Type</th><th>Use for</th></tr>
+<tr><td><code>model.id().primaryKey()</code></td><td>Generated string ID</td></tr>
+<tr><td><code>text</code>, <code>number</code>, <code>float</code>, <code>boolean</code>, <code>dateTime</code>, <code>json</code>, <code>array</code></td><td>The usual column types</td></tr>
+<tr><td><code>enum(["a", "b"])</code></td><td>One of a fixed list</td></tr>
+<tr><td><code>bigNumber</code></td><td>High-precision numbers such as prices</td></tr>
+<tr><td><code>.nullable()</code>, <code>.default(v)</code>, <code>.unique()</code>, <code>.index()</code></td><td>Chain onto any property</td></tr>
+<tr><td><code>created_at</code>, <code>updated_at</code>, <code>deleted_at</code></td><td>Added automatically. Soft delete sets <code>deleted_at</code>.</td></tr>
+</table>
+<p><a href="https://docs.medusajs.com/learn/fundamentals/data-models/properties">Data Model Properties</a></p>
+
+<h3>Generated service methods (for model <code>Guide</code>)</h3>
+<table class="ref">
+<tr><th>Method</th><th>Does</th></tr>
+<tr><td><code>listGuides(filters)</code>, <code>listAndCountGuides(filters)</code></td><td>Many records, optionally with a count</td></tr>
+<tr><td><code>retrieveGuide(id)</code></td><td>One record. The only singular name.</td></tr>
+<tr><td><code>createGuides</code>, <code>updateGuides</code></td><td>Write one or many</td></tr>
+<tr><td><code>deleteGuides</code>, <code>softDeleteGuides</code>, <code>restoreGuides</code></td><td>Remove, soft-remove, undo soft remove</td></tr>
+</table>
+<p><a href="https://docs.medusajs.com/learn/fundamentals/modules/service-factory">Service Factory</a> · <a href="https://docs.medusajs.com/resources/service-factory-reference">full reference</a></p>
+
+<h2>The container</h2>
+<p>A registry of services and tools, filled by Medusa at startup. Module services are registered under the module's name.</p>
+<table class="ref">
+<tr><th>Where you are</th><th>How you get the container</th></tr>
+<tr><td>API route</td><td><code>req.scope.resolve("guide")</code></td></tr>
+<tr><td>Workflow step</td><td><code>async (input, { container }) =&gt; container.resolve(...)</code></td></tr>
+<tr><td>Subscriber</td><td><code>async ({ event, container }) =&gt; ...</code></td></tr>
+<tr><td>Scheduled job</td><td><code>async (container) =&gt; ...</code></td></tr>
+<tr><td>Inside a module</td><td>Its own separate container: only its own resources plus a few tools such as <code>logger</code></td></tr>
+</table>
+<p><a href="https://docs.medusajs.com/learn/fundamentals/medusa-container">Medusa Container</a></p>
+
+<h2>Module isolation</h2>
+<p>A module can't use another module's services or data models. To cross domains:</p>
+<table class="ref">
+<tr><th>Need</th><th>Use</th></tr>
+<tr><td>Associate records across modules (guide with product)</td><td>Module link</td></tr>
+<tr><td>Read data across modules</td><td>Query</td></tr>
+<tr><td>Change data across modules (a return)</td><td>Workflow, whose steps resolve each module's service</td></tr>
+</table>
+<p><a href="https://docs.medusajs.com/learn/fundamentals/modules/isolation">Module Isolation</a></p>
+
+<h2>Workflow</h2>
+<pre><code>// src/workflows/create-guide.ts
+import { createStep, createWorkflow, StepResponse, WorkflowResponse }
+  from "@medusajs/framework/workflows-sdk"
+
+const createGuideStep = createStep(
+  "create-guide",                                    // unique step name
+  async (input, { container }) =&gt; {                  // runs per request
+    const guide = await container.resolve("guide").createGuides(input)
+    return new StepResponse(guide, guide.id)         // (output, data for the undo)
+  },
+  async (guideId, { container }) =&gt; {                // compensation: the undo
+    await container.resolve("guide").deleteGuides(guideId)
+  }
+)
+
+export const createGuideWorkflow = createWorkflow(
+  "create-guide",
+  (input) =&gt; {                                       // runs once, to record steps
+    const guide = createGuideStep(input.guide)
+    return new WorkflowResponse(guide)
+  }
+)
+
+// call it from a route, subscriber, or job:
+const { result } = await createGuideWorkflow(req.scope).run({ input })</code></pre>
+<ul>
+  <li>When a step fails, the compensations of all <em>finished</em> steps run, newest first. Then <code>.run()</code> throws. <a href="https://docs.medusajs.com/learn/fundamentals/workflows/compensation-function">Compensation Function</a></li>
+  <li>Put steps that can't be undone (a refund, an email) last.</li>
+  <li>Throw <code>new MedusaError(MedusaError.Types.NOT_ALLOWED, "...")</code> from <code>@medusajs/framework/utils</code> to fail with a 400. <code>INVALID_DATA</code> is also a 400; <code>NOT_FOUND</code> is a 404.</li>
+</ul>
+<h3>Constructor rules</h3>
+<table class="ref">
+<tr><th>Not in the constructor</th><th>Use</th></tr>
+<tr><td><code>async</code> / <code>await</code></td><td>A plain function; steps can be async</td></tr>
+<tr><td><code>if</code>, ternary, <code>??</code>, <code>||</code>, <code>?.</code></td><td><code>when(...).then(...)</code>, or <code>transform(...)</code></td></tr>
+<tr><td>Loops, <code>...</code> spread, <code>new Date()</code></td><td><code>transform(...)</code></td></tr>
+<tr><td><code>try</code> / <code>catch</code></td><td>Compensation</td></tr>
+<tr><td>Non-serialisable returns (Map)</td><td>Plain objects and primitives</td></tr>
+</table>
+<p>Reading a property (<code>guide.id</code>) and passing outputs to the next step are fine. <a href="https://docs.medusajs.com/learn/fundamentals/workflows/constructor-constraints">Workflow Constraints</a></p>
+
+<h2>Events and subscribers</h2>
+<pre><code>// in a workflow: emitted only if the whole workflow succeeds
+import { emitEventStep } from "@medusajs/medusa/core-flows"
+emitEventStep({ eventName: "guide.created", data: { id: guide.id } })
+
+// src/subscribers/guide-created.ts
+import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
+
+export default async function handler({
+  event: { data },
+  container,
+}: SubscriberArgs&lt;{ id: string }&gt;) {
+  const guide = await container.resolve("guide").retrieveGuide(data.id)
+}
+
+export const config: SubscriberConfig = { event: "guide.created" }   // or an array</code></pre>
+<ul>
+  <li>Subscribers run outside the original flow. If they throw, nothing is rolled back. <a href="https://docs.medusajs.com/learn/fundamentals/events-and-subscribers">Events and Subscribers</a></li>
+  <li>Test: if this fails, should the main change be undone? Yes: make it a workflow step. No: make it a subscriber.</li>
+  <li>Send only IDs in the payload; fetch fresh data in the subscriber. To change data, run a workflow from the subscriber.</li>
+  <li>The Local Event Bus is for development. Production uses the Redis Event Module.</li>
+</ul>
+
+<h2>Scheduled job</h2>
+<pre><code>// src/jobs/count-guides.ts
+import type { MedusaContainer } from "@medusajs/framework/types"
+
+export default async function countGuidesJob(container: MedusaContainer) {
+  const [, count] = await container.resolve("guide").listAndCountGuides()
+}
+
+export const config = { name: "count-guides", schedule: "0 0 * * *" }</code></pre>
+<table class="ref">
+<tr><th>Cron</th><th>Means</th></tr>
+<tr><td><code>* * * * *</code></td><td>Every minute</td></tr>
+<tr><td><code>*/15 * * * *</code></td><td>Every 15 minutes</td></tr>
+<tr><td><code>0 * * * *</code></td><td>Every hour, on the hour</td></tr>
+<tr><td><code>0 0 * * *</code></td><td>Every day at midnight</td></tr>
+<tr><td><code>0 9 * * 1</code></td><td>Mondays at 09:00</td></tr>
+</table>
+<ul>
+  <li>Fields: minute, hour, day of month, month, day of week. <a href="https://crontab.guru/">crontab.guru</a></li>
+  <li>Jobs that change data should run a workflow. Jobs run only while Medusa runs.</li>
+  <li>To disable, move the file out of <code>src/jobs</code>; don't remove the <code>config</code> export. <a href="https://docs.medusajs.com/learn/fundamentals/scheduled-jobs">Scheduled Jobs</a></li>
+</ul>
+
+<h2>Which one?</h2>
+<table class="ref">
+<tr><th>Need</th><th>Use</th></tr>
+<tr><td>A client asks for something</td><td>API route</td></tr>
+<tr><td>Several writes, all or nothing</td><td>Workflow with compensation</td></tr>
+<tr><td>React to a change without risking it</td><td>Event + subscriber</td></tr>
+<tr><td>Run on a clock</td><td>Scheduled job</td></tr>
+</table>
+<p>One request through all of them: <a href="four-layers.html">The four layers, end to end</a>.</p>
+
+<div class="next">
+  <p>From <a href="../lessons/0001-read-a-medusa-api-route.html">Lesson 1</a>, <a href="../lessons/0002-modules-and-data-models.html">Lesson 2</a>, <a href="../lessons/0003-workflows-steps-and-compensation.html">Lesson 3</a>, and <a href="../lessons/0004-subscribers-and-scheduled-jobs.html">Lesson 4</a>.</p>
+</div>
+
+</main>
+</body>
+</html>

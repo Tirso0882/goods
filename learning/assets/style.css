@@ -1,0 +1,196 @@
+/* Shared stylesheet for every lesson and reference sheet. */
+
+:root {
+  --ink: #1f1d1a;
+  --muted: #6b665e;
+  --paper: #fffdf8;
+  --rule: #e4ded2;
+  --code-bg: #f4f0e6;
+  --accent: #8a3b12;
+  --good: #2f6b3a;
+  --good-bg: #e6f1e7;
+  --bad: #9b2c2c;
+  --bad-bg: #f7e4e2;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --sans: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { font-size: 17px; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  line-height: 1.55;
+}
+
+main {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+}
+
+/* Header */
+.kicker {
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
+}
+h1 { font-size: 2.1rem; line-height: 1.15; margin: 0.3rem 0 0.6rem; font-weight: 600; }
+.subtitle { font-style: italic; color: var(--muted); font-size: 1.15rem; margin: 0 0 2rem; }
+h2 {
+  font-size: 1.35rem; font-weight: 600; margin: 2.8rem 0 0.8rem;
+  padding-top: 1rem; border-top: 1px solid var(--rule);
+}
+h3 { font-size: 1.05rem; font-weight: 600; margin: 1.8rem 0 0.4rem; }
+p, li { hyphens: auto; }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+/* Meta box: goal, time, mission link */
+.meta {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  border-left: 3px solid var(--accent);
+  padding: 0.6rem 1rem;
+  background: #fbf6ec;
+  margin: 1.5rem 0;
+}
+.meta p { margin: 0.25rem 0; }
+.meta strong { color: var(--accent); font-weight: 600; }
+
+/* Citations: small superscript links */
+sup.cite a { font-family: var(--sans); font-size: 0.7rem; text-decoration: none; padding: 0 0.1rem; }
+
+/* Code */
+code, pre { font-family: var(--mono); font-size: 0.82rem; }
+p code, li code, td code { background: var(--code-bg); padding: 0.05rem 0.3rem; border-radius: 3px; }
+pre {
+  background: var(--code-bg);
+  padding: 0.9rem 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+.lang { font-family: var(--sans); font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin: 1rem 0 -0.4rem; }
+
+/* Side-by-side Python / TypeScript */
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin: 1rem 0; }
+.pair pre { margin: 0.4rem 0 0; height: calc(100% - 1.2rem); }
+@media (max-width: 640px) { .pair { grid-template-columns: 1fr; } }
+
+/* Annotated code: one row per line, note on the right */
+.annotated { width: 100%; border-collapse: collapse; margin: 1.2rem 0; }
+.annotated td { vertical-align: top; padding: 0.15rem 0.6rem; border-bottom: 1px dotted var(--rule); }
+.annotated td.ln { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); text-align: right; width: 2rem; }
+.annotated td.src { font-family: var(--mono); font-size: 0.8rem; white-space: pre; background: var(--code-bg); }
+.annotated td.note { font-family: var(--sans); font-size: 0.8rem; color: var(--muted); width: 40%; }
+.annotated td.note b { color: var(--accent); font-weight: 600; }
+
+/* Callouts */
+.key {
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 0.8rem 1.1rem;
+  margin: 1.5rem 0;
+}
+.key > :first-child { margin-top: 0; }
+.key > :last-child { margin-bottom: 0; }
+
+/* Layer diagram: <ol class="stack"><li><b>Name</b><span>what it does</span></li>...</ol>
+   Add class "here" to the layer the lesson is about. */
+.stack { list-style: none; padding: 0; margin: 1.2rem 0; font-family: var(--sans); font-size: 0.85rem; }
+.stack li {
+  display: flex; justify-content: space-between; gap: 1rem;
+  border: 1px solid var(--rule); background: #fff;
+  padding: 0.5rem 0.9rem; margin: 0 auto 0.3rem; position: relative;
+}
+.stack li:not(:last-child)::after {
+  content: "\2193"; position: absolute; left: 50%; bottom: -0.95rem; color: var(--muted); font-size: 0.8rem;
+}
+.stack li b { font-weight: 600; }
+.stack li span { color: var(--muted); text-align: right; }
+.stack li.here { border: 2px solid var(--accent); background: #fbf6ec; }
+.stack li.here b { color: var(--accent); }
+
+/* File tree: <pre class="tree"> */
+pre.tree { background: transparent; border-left: 3px solid var(--rule); border-radius: 0; padding: 0.3rem 1rem; }
+
+/* Tables (reference sheets) */
+table.ref { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+table.ref th {
+  font-family: var(--sans); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); text-align: left; border-bottom: 2px solid var(--ink); padding: 0.4rem 0.5rem;
+}
+table.ref td { border-bottom: 1px solid var(--rule); padding: 0.45rem 0.5rem; vertical-align: top; }
+table.ref td code { white-space: pre-wrap; }
+
+/* Quiz components (driven by assets/quiz.js) */
+.mcq, .blanks, .recall {
+  font-family: var(--sans);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 1rem 1.2rem;
+  margin: 1.2rem 0;
+  background: #fff;
+}
+.mcq .q { font-weight: 600; margin: 0 0 0.7rem; font-size: 0.95rem; }
+.mcq .q code { font-weight: 400; }
+.mcq .options { display: flex; flex-direction: column; gap: 0.45rem; }
+.mcq button {
+  font: inherit; font-size: 0.9rem; text-align: left;
+  padding: 0.55rem 0.8rem; border: 1px solid var(--rule); border-radius: 4px;
+  background: var(--paper); color: var(--ink); cursor: pointer;
+}
+.mcq button:hover:not(:disabled) { border-color: var(--accent); }
+.mcq button:disabled { cursor: default; }
+.mcq button.correct { background: var(--good-bg); border-color: var(--good); }
+.mcq button.wrong { background: var(--bad-bg); border-color: var(--bad); }
+.feedback { font-size: 0.85rem; margin-top: 0.7rem; min-height: 0; }
+.feedback.good { color: var(--good); }
+.feedback.bad { color: var(--bad); }
+
+.blanks pre { white-space: pre; }
+.blanks input {
+  font-family: var(--mono); font-size: 0.8rem;
+  border: none; border-bottom: 2px solid var(--accent);
+  background: #fff; padding: 0 0.2rem; text-align: center;
+}
+.blanks input.ok { border-color: var(--good); background: var(--good-bg); }
+.blanks input.no { border-color: var(--bad); background: var(--bad-bg); }
+.btn {
+  font: inherit; font-size: 0.85rem; padding: 0.45rem 1rem; margin-right: 0.5rem;
+  border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: #fff; cursor: pointer;
+}
+.btn.ghost { background: transparent; color: var(--accent); }
+
+.recall summary { cursor: pointer; font-weight: 600; font-size: 0.95rem; }
+.recall[open] summary { margin-bottom: 0.6rem; }
+.recall { font-size: 0.9rem; }
+
+.score { font-family: var(--sans); font-size: 0.85rem; color: var(--muted); }
+
+/* Footer */
+.next {
+  font-family: var(--sans); font-size: 0.85rem;
+  margin-top: 3rem; padding-top: 1rem; border-top: 2px solid var(--ink);
+}
+.next p { margin: 0.35rem 0; }
+
+/* Print: clean black on white, show link targets, hide interactive chrome */
+@media print {
+  html { font-size: 11pt; }
+  body { background: #fff; }
+  main { max-width: none; padding: 0; }
+  .btn, .feedback, .score { display: none; }
+  .mcq, .blanks, .recall, pre, .annotated tr, table.ref tr { break-inside: avoid; }
+  details.recall > *:not(summary) { display: block; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 0.75em; color: var(--muted); word-break: break-all; }
+  sup.cite a::after { content: ""; }
+}
