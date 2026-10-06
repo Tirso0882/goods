@@ -111,7 +111,7 @@ Default branch protection enabled:
 
 Use these decision rules:
 
-1. Keep the repository private until secret scanning, the license, and publication review are complete.
+1. The repository is public from Setup 1, with secret scanning, push protection, a gitleaks history scan, and the license in place (see `docs/adr/0003-repository-is-public-from-setup-1.md`).
 2. Start with Node 24 LTS and Python 3.12. They are compatible with the current Medusa starter, tau2-bench, NeMo Guardrails, NeMo Data Designer, and NeMo Agent Toolkit. Recheck before installation, then pin the exact runtime versions.
 3. Commit the generated Node lockfile and use a committed `uv.lock` for Python.
 4. Use one hosted model through LiteLLM for the primary baseline. Default: Claude Sonnet on Amazon Bedrock, called from `eu-central-1` (Frankfurt) through the EU cross-region inference profile. See "Models" in the stack section for the alternatives.
@@ -473,10 +473,10 @@ This step runs in the background during the On-ramp. Background agents do the so
 5. On the MSI development laptop, run `nvidia-smi`. Record the GPU model, driver, CUDA version reported by the driver, and VRAM. GPU failure does not block the store setup.
 6. Confirm at least 30 GB of free disk space.
 7. Create the repository outside any unrelated project.
-8. Initialize git, set the default branch, add a private remote, and enable branch protection if the host supports it.
+8. Initialize git, set the default branch, add the remote, enable branch protection, secret scanning, and push protection, and add the license.
 9. Add an initial README that says the system uses synthetic data and test payments.
 
-**Gate:** all required commands work, the repository is private, and no secrets are present in the first commit.
+**Gate:** all required commands work, `main` is protected, secret scanning and push protection are on, and `gitleaks git` finds no secrets in history.
 
 **Day 2: scaffold Medusa**
 
