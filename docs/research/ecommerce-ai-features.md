@@ -55,7 +55,7 @@ Don't build this yourself. Use an open-source commerce platform (see stack below
 | 3 | **Shopping assistant** | Chat that recommends products and adds them to the cart | ★★★ | Low to medium | What the NVIDIA blueprint does. Needs 2 first |
 | 4 | **Visual search** | Upload a photo, get similar products | ★★ | Low | Image embeddings (CLIP-style models) |
 | 5 | **Recommendations** | "You may also like", personalized home page | ★★ | Low | Strongly fits your data engineering skills |
-| 6 | Voice assistant | Browse and ask by voice | ★★★ | Low | Skip for now |
+| 6 | Voice assistant | Browse and ask by voice | ★★★ | Low | In the core roadmap as Step 14: voice in the chat widget first, then a phone-line assessment |
 | 7 | Virtual try-on | See the product on you or in your room | ★★★ | Low | Needs GPUs and 3D or vision work. Skip |
 
 ### C. Back-office AI (running the store)

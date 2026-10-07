@@ -2,7 +2,7 @@
 
 Goal: become a strong AI agent engineer by building a production-grade customer support agent for a Medusa e-commerce store, while reading Chip Huyen's *AI Engineering*. The order of priorities is: the skill first, then public evidence of it, then the store. The same skills should serve three outcomes: an agent engineering job, consulting work, and your own e-commerce business.
 
-Time: 40 project hours a week, Monday to Friday from 10:00 to 18:00. Saturday is a light day of spaced review only (10:00 to 12:30), and Sunday is fully off. The core roadmap runs about 10 weeks, from Monday 28 September to Wednesday 2 December 2026 (shifted two build days after Setup 1 Day 1 slipped). Product research runs in the background during week 1, alongside the On-ramp. After the core roadmap, run a retro before choosing the pace for the second project.
+Time: 40 project hours a week, Monday to Friday from 10:00 to 18:00. Saturday is a light day of spaced review only (10:00 to 12:30), and Sunday is fully off. The core roadmap runs about 13 weeks, from Monday 28 September to Wednesday 23 December 2026 (shifted two build days after Setup 1 Day 1 slipped, then three weeks when multi-agent, voice, and fine-tuning came into scope; see `docs/adr/0004-multi-agent-voice-and-fine-tuning-are-in-scope.md`). Product research runs in the background during week 1, alongside the On-ramp. After the core roadmap, run a retro before choosing the pace for the second project.
 
 The project runs in production with synthetic data and test payments only. Your employer and a Polish lawyer have confirmed you can run the business, so the only remaining blockers for real orders are the business registration, tax, consumer-law, privacy, and security work in "Before taking real orders" at the end of this file. That work runs in parallel from week 1.
 
@@ -144,12 +144,14 @@ Keep `.env`, private keys, database dumps, Langfuse exports, and model-provider 
 
 Background research from NVIDIA's [retail resources](https://resources.nvidia.com/en-us-resources-for-retail-practitioner/), the broader feature list, and the platform comparison are in `ecommerce-ai-features.md` in this folder.
 
-Version-sensitive commands and compatibility findings were checked against primary sources on 25 September 2026. The source notes are in `roadmap-platform-verification-notes.md` in this folder. Recheck them with `/research` before Step 8 (LangGraph), Step 10 (NeMo Agent Toolkit), and Step 11 (NeMo Guardrails).
+Version-sensitive commands and compatibility findings were checked against primary sources on 25 September 2026. The source notes are in `roadmap-platform-verification-notes.md` in this folder. Recheck them with `/research` before Step 8 (LangGraph), Step 10 (NeMo Agent Toolkit), Step 11 (NeMo Guardrails), Step 13 (LangGraph multi-agent), Step 14 (speech providers and voice frameworks), and Step 15 (fine-tuning tools and hosted fine-tuning). Nothing in Steps 13 to 15 has been verified against primary sources yet.
 
 ## Stack
 
 - **Store:** [Medusa](https://docs.medusajs.com/learn/installation): a Node.js backend with an admin dashboard, plus the Next.js Starter Storefront. Needs Node v20.19+ or v22.12+ (v24 LTS or lower with the storefront) and PostgreSQL.
-- **Agent service:** Python 3.12, FastAPI, LangGraph (from Step 8), LiteLLM.
+- **Agent service:** Python 3.12, FastAPI, LangGraph (from Step 8; multi-agent experiment in Step 13), LiteLLM.
+- **Voice (Step 14):** a cascaded pipeline inside the agent service: speech-to-text, the same agent, then text-to-speech. Candidates to verify with `/research`: an EU-processing hosted speech provider (for example Mistral's Voxtral for speech-to-text), an open-source pipeline framework (for example Pipecat or LiveKit Agents), and local open models on the laptop GPU for development (for example faster-whisper and Piper). Pick in an ADR.
+- **Fine-tuning (Step 15):** LoRA or QLoRA on a small open-weight model on the laptop GPU, with Hugging Face TRL and PEFT or Unsloth. Hosted fine-tuning on an EU provider is the production option if the experiment wins.
 - **Data:** PostgreSQL. Medusa owns store data; the agent keeps its own tables in a separate schema. pgvector for FAQ search.
 - **Quality and safety:** tau-bench plus pytest evals, Langfuse tracing, NeMo Guardrails.
 - **NVIDIA open-source tools (all Apache 2.0):**
@@ -165,7 +167,7 @@ Version-sensitive commands and compatibility findings were checked against prima
 - **Not using:**
   - Azure Container Apps: no Azure access, and one VPS is cheaper and simpler for Medusa's server, worker, Postgres, and Redis. If you later want managed containers instead of a VPS, the closest EU option is Scaleway Serverless Containers.
   - NIM containers: not open source. Free for development and testing only; production needs an NVIDIA AI Enterprise license, from $4,500 per GPU per year ([NIM FAQ](https://docs.api.nvidia.com/nim/docs/product)). Your production server has no GPU anyway.
-  - Milvus with cuVS, TensorRT-LLM, Dynamo, Riva, Omniverse: built for GPU-scale serving, speech, or 3D, so they're overkill here.
+  - Milvus with cuVS, TensorRT-LLM, Dynamo, Riva, Omniverse: built for GPU-scale serving, speech, or 3D, so they're overkill here. Voice in Step 14 uses hosted speech APIs instead of self-hosted Riva, because the production server has no GPU.
   - LangSmith: proprietary. Self-hosting is an Enterprise-plan add-on ([LangSmith docs](https://docs.langchain.com/langsmith/self-hosted)). Keep Langfuse.
 - **Reference to read:** NVIDIA's [retail shopping assistant blueprint](https://github.com/NVIDIA-AI-Blueprints/retail-shopping-assistant), which uses the same FastAPI, LangGraph, and NeMo Guardrails pattern.
 - **Infrastructure:** Docker, GitHub Actions, and [Coolify](https://github.com/coollabsio/coolify) (open source, self-hosted, deploys to any server you can reach over SSH) on an EU VPS. Stripe in test mode for payments.
@@ -191,7 +193,9 @@ Version-sensitive commands and compatibility findings were checked against prima
   - the fast development loop;
   - free repeated eval runs;
   - embeddings;
-  - the "cheaper model for simple requests" experiment in Step 10.
+  - the "cheaper model for simple requests" experiment in Step 10;
+  - local speech-to-text and text-to-speech during Step 14 development;
+  - QLoRA fine-tuning of a small model in Step 15. Prove it fits in VRAM with a short run before planning around it.
 - Use one hosted model API for the main agent. Small local models are much weaker at multi-step tool use, and your production server has no GPU.
 - LiteLLM routes to local or hosted models with the same code.
 
@@ -222,7 +226,7 @@ Repo layout: one monorepo, created by `create-medusa-app`:
 ## Rules
 
 1. Nothing counts unless it changes a number in your eval report.
-2. One agent, not many. Add a second one only if an eval proves it's worth the cost.
+2. One agent through Step 12. Step 13 builds a multi-agent version as an experiment, and it replaces the single agent only if the eval report proves it's worth the cost. A losing result is kept as evidence, not hidden.
 3. If a week slips, move the schedule. Never skip the eval steps.
 
 ## Reading list (nothing else during the core roadmap)
@@ -234,10 +238,11 @@ Huyen's book follows the reading track below. The other items are named in each 
 - Anthropic, [Writing effective tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
 - Anthropic, [Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
 - OpenAI, [A practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)
+- Anthropic, [How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system), and Cognition, [Don't build multi-agents](https://cognition.ai/blog/dont-build-multi-agents): read together in Step 13, one for and one against
 - [tau-bench paper](https://arxiv.org/abs/2406.12045) and [repo](https://github.com/sierra-research/tau2-bench) (use its `retail` domain as your benchmark)
 - Designing Data-Intensive Applications, 2nd edition: only the topics listed in the schedule
 - [Google SRE book, Handling Overload](https://sre.google/sre-book/handling-overload/)
-- Official docs, only the parts each step names: [Medusa](https://docs.medusajs.com/learn/customization), [LangGraph persistence and interrupts](https://docs.langchain.com/oss/python/langgraph/persistence), [Coolify](https://coolify.io/docs), NeMo Data Designer, NeMo Agent Toolkit, and NeMo Guardrails.
+- Official docs, only the parts each step names: [Medusa](https://docs.medusajs.com/learn/customization), [LangGraph persistence and interrupts](https://docs.langchain.com/oss/python/langgraph/persistence), LangGraph multi-agent, [Coolify](https://coolify.io/docs), NeMo Data Designer, NeMo Agent Toolkit, NeMo Guardrails, the chosen speech provider and voice framework, and the chosen fine-tuning library.
 
 ## Book reading track
 
@@ -256,7 +261,7 @@ Priority, highest first: ch. 6, 4, 3, 5, 10, 2, 8, 1, 9, 7.
 | 7 | 5. Prompt Engineering | 23, 26, 27 Oct | Defensive Prompt Engineering; Organize and Version Prompts | Step 5 |
 | 8 | 8. Dataset Engineering | 28 to 29 Oct | Data Coverage; Acquisition and Annotation; AI-Powered Data Synthesis; Deduplicate Data | Step 4 hand labels; Step 9 |
 | 9 | 9. Inference Optimization | 30 Oct, 2 Nov | Inference Performance Metrics; Inference Service Optimization | Step 10 |
-| 10 | 7. Finetuning | 3 to 4 Nov | When to Finetune; Finetuning and RAG. Skim the rest | Step 7 "RAG instead of finetuning" ADR |
+| 10 | 7. Finetuning | 3 to 4 Nov | When to Finetune; Finetuning and RAG. Skim the rest; the full chapter is read in Step 15 | Step 7 "RAG instead of finetuning" ADR; Step 15 |
 
 From 5 November the block becomes a spaced second read of the sections the current step uses:
 
@@ -268,7 +273,10 @@ From 5 November the block becomes a spaced second read of the sections the curre
 | 16 to 18 Nov | Ch. 9 service optimization; ch. 10 router, gateway, and caches | Step 10 |
 | 19 to 20 Nov | Ch. 10 Put in Guardrails; ch. 5 Defensive Prompt Engineering | Step 11 |
 | 23 to 25 Nov | Ch. 10 Monitoring and Observability; User Feedback | Step 12 |
-| 26 Nov to 1 Dec | All chapter summaries and your explain-backs | Step 13 case study and walkthrough |
+| 26 Nov to 2 Dec | Ch. 6 Agents: planning, multi-agent, and failure modes; ch. 4 Model Selection | Step 13 multi-agent experiment |
+| 3 to 9 Dec | Ch. 9 Inference Performance Metrics (latency budgets); ch. 10 Put in Guardrails | Step 14 voice |
+| 10 to 16 Dec | Ch. 7 in full (memory math, PEFT and LoRA, model merging); ch. 8 Data Coverage again | Step 15 fine-tuning |
+| 17 to 23 Dec | All chapter summaries and your explain-backs | Step 16 case study and walkthrough |
 
 ## What the agent may do
 
@@ -360,7 +368,7 @@ Store raw machine-readable results separately from the summary. Remove or mask p
 6. **Failure plan:** model call fails, tool fails, worker crashes mid-refund, approval never answered.
 7. **Budgets:** max turns, tokens, and retries per conversation (retries: max 3 per request).
 8. **Metrics:** the three numbers above.
-9. **Build order and out of scope:** no multi-agent, voice, or fine-tuning.
+9. **Build order and out of scope:** build one agent, text only, with no fine-tuned model through Step 12. Multi-agent (Step 13), voice (Step 14), and fine-tuning (Step 15) come after the single agent is hardened, each against the frozen baseline. Write down now which metrics each of them must beat.
 
 ```mermaid
 flowchart LR
@@ -397,10 +405,13 @@ Steps run back to back and can cross week boundaries. The detailed plan below de
 | 6 | 2 to 7 Nov | Step 6, Step 7 | Book ch. 9 and 7, then second reads of ch. 6; "Writing effective tools"; DDIA on transactions |
 | 7 | 9 to 14 Nov | Step 8, Step 9 | Second reads of ch. 6 and 8; LangGraph persistence and interrupt docs; Data Designer docs |
 | 8 | 16 to 21 Nov | Step 10, Step 11 | Second reads of ch. 9, 10, and 5; SRE Handling Overload; Guardrails docs |
-| 9 | 23 to 28 Nov | Step 12, start of Step 13 | Second read of ch. 10; chapter summaries; DDIA on consistency and derived data |
-| 10 | 30 Nov to 2 Dec | End of Step 13, retro | Your explain-backs |
+| 9 | 23 to 28 Nov | Step 12, start of Step 13 | Second reads of ch. 10 and 6; DDIA on consistency and derived data; the two multi-agent posts |
+| 10 | 30 Nov to 5 Dec | End of Step 13, start of Step 14 | Second reads of ch. 4, 9, and 10; LangGraph multi-agent docs; speech provider and voice framework docs |
+| 11 | 7 to 12 Dec | End of Step 14, start of Step 15 | Ch. 7 in full; fine-tuning library docs |
+| 12 | 14 to 19 Dec | End of Step 15, start of Step 16 | Ch. 8 again; chapter summaries |
+| 13 | 21 to 23 Dec | End of Step 16, retro | Your explain-backs |
 
-Slow down if you're skipping evals or learning gates, or if Steps 6 to 8 run past the end of week 7.
+Slow down if you're skipping evals or learning gates, or if Steps 6 to 8 run past the end of week 7. Steps 13 to 15 are five build days each. Do not start them until Step 12's gate passes.
 
 ## Detailed execution plan
 
@@ -1151,7 +1162,105 @@ Run each destructive fault case against synthetic test payments only.
 
 **Learning gate:** without notes, pick three injected faults and explain what the system did and which signal showed it.
 
-### Step 13: close gaps and publish evidence
+### Step 13: multi-agent experiment against the single-agent baseline
+
+**Outcome:** a supervisor with specialist agents runs on the same dataset as the single agent, and an ADR decides from the eval report which architecture ships.
+
+**Read:**
+
+- book: second read of ch. 6 Agents (planning, multi-agent, failure modes), and ch. 4 Model Selection;
+- Anthropic's "How we built our multi-agent research system" and Cognition's "Don't build multi-agents";
+- current LangGraph multi-agent documentation. Recheck with `/research` first.
+
+**Learning objectives:**
+
+- Explain when a multi-agent design beats a single agent with tools, and what it costs in tokens, latency, and lost context.
+- Explain how verified identity, idempotency keys, and approvals cross an agent handoff without being restated by a model.
+- Explain why giving each specialist only its own tools is a security property, not just tidiness.
+
+**Steps:**
+
+1. Freeze the accepted Step 12 report as the single-agent baseline.
+2. Write the hypothesis first: which metrics the multi-agent version must improve, and by how much, for it to replace the single agent. Commit it before building.
+3. Design a supervisor and three specialists: orders and returns, FAQ and policy, and refund proposals. Write the routing rules and the handoff contract.
+4. Give each specialist only the tools it needs. The FAQ specialist has no write tools. Only the refund specialist can call `propose_refund`.
+5. Pass verified identity, case ID, and idempotency keys as typed state, by reference. A specialist never trusts identity claims written in a message from another agent.
+6. Keep every policy check, idempotency rule, and approval in application code, exactly as in Steps 6 and 8. The new architecture must not move any of them into prompts.
+7. Build the graph in LangGraph with the same PostgreSQL checkpointer, so pending approvals still survive restart.
+8. Trace each agent separately, with the parent case and correlation ID, so cost and latency can be attributed per agent.
+9. Add eval cases for multi-agent failures: wrong routing, context lost at handoff, handoff loops, two specialists calling the same write, and a specialist reaching for a tool it does not have.
+10. Run the full suite five times on both architectures with the same dataset, model, and parameters.
+11. Rerun the Step 6 and Step 8 fault tests against the multi-agent version.
+12. Write the ADR: adopt, reject, or adopt for a subset of intents, with the numbers. If it loses, the single agent stays and the branch stays as evidence.
+
+**Gate:** the comparison report covers task success, cost per correct resolution, escalation, wrong actions, and latency for both architectures. Zero safety regressions if adopted. The ADR's decision follows from the predeclared hypothesis.
+
+**Learning gate:** without notes, explain where your multi-agent version spent its extra tokens, and which failure mode appeared that the single agent did not have.
+
+### Step 14: voice mode in the storefront chat, then assess a phone line
+
+**Outcome:** customers can talk to the same agent through the chat widget, with the same safety rules and measured latency. A written assessment decides whether a phone line is worth building later.
+
+**Read:**
+
+- book: second read of ch. 9 Inference Performance Metrics, and ch. 10 Put in Guardrails;
+- current docs for the speech provider and voice framework you pick. Recheck with `/research` first.
+
+**Learning objectives:**
+
+- Explain the cascaded voice pipeline (speech-to-text, agent, text-to-speech) and where each part of the latency goes.
+- Explain why a transcribed email or order number cannot be trusted the way typed text is, and what that means for identity and writes.
+- Explain the extra privacy duties that come with audio.
+
+**Steps:**
+
+1. Freeze the accepted text baseline from Step 13.
+2. Use `/research` to compare EU-processing speech-to-text and text-to-speech providers on Polish and English quality, price, data retention, and DPA terms. Record the choice in an ADR.
+3. Add a voice endpoint to the agent service that streams audio in, transcribes it, runs the existing agent unchanged, and streams speech out. Voice is a new channel, not a new agent.
+4. Set a latency budget for time to first audio, p50 and p95, and measure every stage against it.
+5. Speak the AI disclosure at the start of every voice session, and show it in the widget.
+6. Read back identifiers before using them: email, order number, and address. A write needs explicit spoken confirmation of the read-back.
+7. Do not treat voice as identity. Verification stays the same as in text.
+8. Do not store raw audio by default. Store transcripts under the same redaction and retention rules as text, and add the speech provider to the data-flow diagram.
+9. Handle barge-in (the customer talks over the agent), silence, background noise, and a dropped connection. Each ends in a defined state.
+10. Run output through the same guardrails before it reaches text-to-speech, so blocked text is never spoken.
+11. Build voice evals: generate audio from existing text cases with text-to-speech, add noise and accents, and score word error rate on identifiers, task success, and wrong actions against the text baseline.
+12. Assess a phone line in writing: telephony providers with Polish numbers, cost per minute, call recording consent, caller ID as a weak signal and never as identity, and how the voice evals would carry over. End with a go or no-go ADR. Do not build it in this step.
+
+**Gate:** voice task success is within the declared tolerance of text, wrong actions stay at zero, every write in voice cases was confirmed by read-back, latency meets the budget, and the phone ADR is committed.
+
+**Learning gate:** without notes, walk through a voice return request and name every point where a transcription error could cause a wrong action, and what stops it.
+
+### Step 15: fine-tune a small model for one narrow task
+
+**Outcome:** a fine-tuned small model is compared with prompting on a held-out set, and an ADR decides whether it ships.
+
+**Read:** book ch. 7 in full, and ch. 8 Data Coverage again. Current docs for the fine-tuning library. Recheck with `/research` first.
+
+**Learning objectives:**
+
+- Explain when to fine-tune instead of prompting or retrieval, and why the Step 7 ADR still keeps policy knowledge in RAG.
+- Explain LoRA and QLoRA, and why they fit an 8 GB GPU when full fine-tuning does not.
+- Explain how training data leaks into an eval set, and how you prevented it.
+
+**Steps:**
+
+1. Pick one narrow, low-risk, high-volume task with a clear label: the Step 13 router's intent classification, or the Step 10 cheap-model intent. Never a task that decides a write.
+2. Freeze the baseline: the hosted model with the best prompt, and the small base model with the same prompt.
+3. Build the training set from synthetic and human-reviewed cases. Split by source before training, and keep every existing eval case out of the training data.
+4. Write a short dataset card: source, size, label method, split, and known gaps.
+5. Run a short QLoRA job on the laptop GPU to prove it fits. Record VRAM, time, and settings.
+6. Train with fixed seeds and record every hyperparameter.
+7. Evaluate on the held-out set and on the full agent suite with the fine-tuned model in place: accuracy, cost, latency, and wrong actions.
+8. Check for regressions outside the task, such as refusals and the language mix.
+9. Decide how it would run in production. The VPS has no GPU, so the options are a hosted fine-tuning service from an EU provider, or not shipping. Price it.
+10. Write the ADR: ship, do not ship, or retry with more data, with the numbers.
+
+**Gate:** the comparison on the held-out set is reproducible from committed config and data, no eval case was in the training data, and the ADR follows from the numbers.
+
+**Learning gate:** without notes, explain what the fine-tuned model learned that prompting could not give it, or why it learned nothing useful.
+
+### Step 16: close gaps and publish evidence
 
 **Outcome:** a reproducible public case study shows what worked, what failed, and the measured results without exposing secrets or personal data.
 
@@ -1192,15 +1301,17 @@ Run each destructive fault case against synthetic test payments only.
 Use the title "An e-commerce support agent, with numbers." Include:
 
 1. problem and constraints;
-2. architecture and why it is one agent;
+2. architecture, and the single-agent versus multi-agent result;
 3. risk tiers and approval design;
 4. eval methodology;
 5. baseline and final metrics;
 6. three important failures and the tests they created;
 7. cost and latency changes;
 8. reliability fault results;
-9. limitations and next experiments;
-10. instructions to reproduce the safe demo.
+9. voice results compared with text, and the phone-line decision;
+10. the fine-tuning result and why it shipped or did not;
+11. limitations and next experiments;
+12. instructions to reproduce the safe demo.
 
 Do not claim "production ready" without naming the tested workload and unresolved limits. Do not publish provider keys, real traces, personal data, internal hostnames, or exploitable security details.
 
@@ -1211,7 +1322,7 @@ Do not claim "production ready" without naming the tested workload and unresolve
 3. Create a versioned release.
 4. Publish the post with links to the release, architecture, dataset card, and final report.
 5. Verify every public link in a logged-out browser.
-6. Create issues for post-roadmap work instead of silently extending Step 13.
+6. Create issues for post-roadmap work instead of silently extending Step 16.
 
 **Gate:** a new developer can reproduce the safe local demo, the public evidence supports every numerical claim, and all known limitations are explicit.
 
@@ -1225,7 +1336,8 @@ Use this order:
 2. Keep one complete vertical slice.
 3. Reduce dataset breadth while preserving every high-risk category.
 4. Defer optimization, local-model experiments, dashboard polish, and publication design.
-5. Move the completion date.
+5. Shrink Steps 13 to 15 before touching Steps 1 to 12: run Step 15 on one task only, then drop Step 14's phone assessment. Never ship voice writes without the read-back and voice safety cases.
+6. Move the completion date.
 
 Never recover schedule by removing identity checks, idempotency, approval, restore testing, fault testing, eval repetitions, or learning gates.
 
@@ -1247,6 +1359,9 @@ The roadmap is complete only when all of these statements are true:
 - CI blocks access-control, wrong-action, and accepted-baseline regressions;
 - logs and traces are correlated, redacted, and retained deliberately;
 - backup restore, rollback, provider failure, and worker crash have been tested;
+- the multi-agent experiment has a comparison report against the single agent, and an ADR that follows from it;
+- voice mode keeps zero wrong actions, confirms every write by read-back, meets its latency budget, and the phone-line decision is recorded;
+- the fine-tuning experiment is reproducible, no eval case was in its training data, and its ADR follows from the held-out result;
 - public claims link to reproducible evidence;
 - every unresolved production risk is documented;
 - every step's learning gate has passed, and each skill in the skills map has its evidence linked.
@@ -1264,7 +1379,10 @@ The core roadmap should leave public evidence for each skill below. The same evi
 | RAG with citations | Step 7 | Retrieval evals, including injected, outdated, and conflicting documents |
 | Cost and latency | Step 10 | Cost per correct resolution, before and after |
 | Production operations | Setup 2 and Step 12 | Deploy, rollback, and restore drills; alerts; reliability report |
-| Communication | Steps 1 and 13 | The design doc, the case study, and the explain-backs |
+| Multi-agent design | Step 13 | Single versus multi-agent comparison report and the ADR it produced |
+| Voice | Step 14 | Voice evals against text, latency budget per stage, phone-line ADR |
+| Fine-tuning | Step 15 | Dataset card, held-out comparison with prompting, and the ship decision |
+| Communication | Steps 1 and 16 | The design doc, the case study, and the explain-backs |
 
 Two enabling skills get learning gates but no public evidence: TypeScript with Medusa (On-ramp) and running a VPS (Setup 2).
 
@@ -1275,14 +1393,16 @@ Your own gates only test what you thought to test. Get outside feedback on a sch
 - Each week, share the eval report summary or one explain-back publicly: a short post, or a relevant community such as the Medusa Discord.
 - After Step 4, ask one practitioner to review the eval harness and the judge calibration.
 - After Step 8, ask one practitioner to review the approval design and the fault results.
+- After Step 13, ask one practitioner to challenge the multi-agent hypothesis and the comparison report.
 - Record what they found in that week's progress note, and turn every real finding into a test or an issue.
 
 ## After the core roadmap
 
 1. Run a retro: hours actually worked, energy, which learning gates were hard, and what stuck on spaced review. Choose the pace for what comes next from that, not from this plan.
 2. Start the second project: the catalog enrichment agent from `ecommerce-ai-features.md`. It turns supplier data into titles, descriptions, attributes, and PL/EN translations, with your approval before publishing. It reuses the approval, eval, and tracing work, and the real store needs it from day one. Take it through `/grill-with-docs` and `/to-spec` like any new idea.
-3. Read the rest of DDIA (start with stream processing) and the SRE chapters on service level objectives and postmortems.
-4. Keep the demo live, set a reliability target, and publish one post per quarter with the numbers.
+3. If the Step 14 phone-line ADR says go, take the phone line through `/grill-with-docs` and `/to-spec` too, and decide its order against the second project.
+4. Read the rest of DDIA (start with stream processing) and the SRE chapters on service level objectives and postmortems.
+5. Keep the demo live, set a reliability target, and publish one post per quarter with the numbers.
 
 ## Before taking real orders
 
@@ -1291,9 +1411,9 @@ Your employer is fine with the business and a Polish lawyer has confirmed you ca
 1. Register the business in CEIDG (usually a sole proprietorship, JDG) and pick the tax form with your accountant.
 2. Settle VAT with your accountant: whether the small-business exemption applies to your products, and whether you need OSS registration for sales to consumers in other EU countries.
 3. Write the store terms (regulamin), the 14-day withdrawal right with a return form, the complaints process, and price display rules, including the lowest price from the last 30 days next to any discount.
-4. Write the privacy policy. Sign a data processing agreement with every processor: VPS host, model provider, Langfuse, Stripe, and the email service. Record what you process and how long you keep it.
+4. Write the privacy policy. Sign a data processing agreement with every processor: VPS host, model provider, speech provider, Langfuse, Stripe, and the email service. Record what you process and how long you keep it, including voice transcripts.
 5. Tell customers clearly that the chat is an AI, and give them a route to a human.
 6. Check product safety and labeling duties for the category chosen in the Research step.
 7. Switch Stripe to live mode and add BLIK and Przelewy24.
-8. Rerun the Step 13 security and privacy review against the live configuration before the first real order.
+8. Rerun the Step 16 security and privacy review against the live configuration before the first real order.
 9. Launch the agent with read-only tools and human handoff only. Keep write tools behind the kill switch until evals on real, redacted conversations match the synthetic baseline. Real customers will ask things the synthetic set did not cover.
