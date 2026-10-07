@@ -9,14 +9,18 @@ Become a strong AI agent engineer by shipping a customer support agent for a Med
 - Pass every step's learning gate in the core roadmap without notes.
 - Explain the core ideas of Chip Huyen's *AI Engineering* (evals, agents, RAG, prompts, inference, architecture) as they show up in this project's code.
 - Harden a fresh EU VPS, deploy the store with Coolify, and explain each step and why a proven restore beats a backup.
+- Explain when a supervisor with specialist agents beats a single agent, and defend the choice with the Step 13 comparison report.
+- Explain the cascaded voice pipeline, where its latency goes, and why spoken identifiers need read-back before any write.
+- Explain when to fine-tune instead of prompting or retrieval, how LoRA and QLoRA work, and how to keep training data out of evals.
 
 ## Constraints
 - Learning block is 10:00 to 11:30 on build days, plus spaced review on Saturday (10:00 to 12:30). Lessons must fit that block.
-- Core roadmap runs from 28 September to 2 December 2026. Lessons follow the roadmap's step order.
+- Core roadmap runs from 28 September to 23 December 2026. Lessons follow the roadmap's step order.
 - Comfortable in Python, little or no TypeScript or JavaScript. Already familiar with Docker, Compose, and GitHub Actions.
 - Prefers learning solo: no communities.
 
 ## Out of scope
 - Frontend depth (React, Next.js internals) beyond what the chat widget and storefront setup need.
-- Multi-agent systems, voice, and fine-tuning (out of scope in the roadmap too).
+- Telephony depth beyond the Step 14 phone-line assessment.
+- Full fine-tuning and pretraining. Step 15 covers LoRA and QLoRA on a small model only.
 - TypeScript features Medusa code does not use.

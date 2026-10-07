@@ -11,7 +11,7 @@ Laptop operating system: macOS 26.7 (arm64), zsh
 Docker runtime: Docker Desktop, engine 29.8.2
 GPU confirmed by nvidia-smi: No (Apple Silicon, no NVIDIA GPU)
 Node version: 24 LTS (v24.21.0), pinned in .nvmrc, switched automatically by fnm 1.39.0
-Package manager and version: BLOCKED (npm 11.19.0 ships with Node 24; confirm what create-medusa-app uses in Setup 1)
+Package manager and version: pnpm 10.33.2, pinned by packageManager in the root package.json and enabled with corepack (Medusa 2.21.2 monorepo from create-medusa-app)
 Python version: 3.12 (3.12.13 via uv), pinned in .python-version
 Hosted model provider: Amazon Bedrock, eu-central-1, through LiteLLM
 Primary model: Claude Sonnet (EU cross-region inference profile)

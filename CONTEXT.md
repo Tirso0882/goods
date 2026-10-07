@@ -11,7 +11,7 @@ The gate-driven plan that builds the support agent, from product research to the
 _Avoid_: 13-week plan, the course
 
 **Step**:
-One unit of the core roadmap's detailed plan (Research, On-ramp, Setup 1 and 2, Steps 1 to 13), with its own gate and learning gate.
+One unit of the core roadmap's detailed plan (Research, On-ramp, Setup 1 and 2, Steps 1 to 16), with its own gate and learning gate.
 _Avoid_: Module, milestone, lesson
 
 **Week**:
