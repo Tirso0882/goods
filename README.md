@@ -44,6 +44,13 @@ The repo is a pnpm monorepo: the Medusa backend and Admin are in `apps/backend`,
    docker exec goods-postgres createdb -U postgres medusa-goods
    ```
 
+   Then start Redis. Medusa uses it for the event bus, workflow engine, locking, and cache. If the container already exists, run `docker start goods-redis` instead.
+
+   ```bash
+   docker run -d --name goods-redis -p 6379:6379 \
+     -v goods-redisdata:/data redis:8-alpine redis-server --appendonly yes
+   ```
+
 3. Install dependencies and create the backend env file:
 
    ```bash
