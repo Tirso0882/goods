@@ -97,22 +97,24 @@ export async function resolveProductIds(
         (row) => [row.product_id],
         deleted,
       );
+    // Options are shared between products, so they have no `product_id`.
     case "product-option":
       return relatedProductIds(
         query,
         "product_option",
-        ["product_id"],
+        ["products.id"],
         ids,
-        (row) => [row.product_id],
+        (row) => (row.products ?? []).map((product: any) => product?.id),
         deleted,
       );
     case "product-option-value":
       return relatedProductIds(
         query,
         "product_option_value",
-        ["option.product_id"],
+        ["option.products.id"],
         ids,
-        (row) => [row.option?.product_id],
+        (row) =>
+          (row.option?.products ?? []).map((product: any) => product?.id),
         deleted,
       );
     case "product-tag":
