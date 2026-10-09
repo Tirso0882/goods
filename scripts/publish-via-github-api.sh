@@ -31,6 +31,19 @@ fail() {
   exit 1
 }
 
+# Blobs and trees are content-addressed, so re-posting after a dropped
+# connection is safe. Commits and refs are not retried.
+gh_post_object() {
+  local attempt
+  for attempt in 1 2 3 4; do
+    if "$GH_BIN" api --method POST "$1" --input "$2" --jq .sha; then
+      return 0
+    fi
+    ((attempt < 4)) && sleep $((attempt * 2))
+  done
+  fail "POST $1 failed after 4 attempts"
+}
+
 require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"
 }
@@ -159,7 +172,7 @@ else
     "$GIT_BIN" cat-file blob "$object_sha" | base64 | tr -d '\n' >"$blob_base64_file"
     blob_payload="$temp_dir/blob-payload.json"
     jq -n --rawfile content "$blob_base64_file" '{content: $content, encoding: "base64"}' >"$blob_payload"
-    uploaded_sha="$($GH_BIN api --method POST "repos/$repo/git/blobs" --input "$blob_payload" --jq .sha)"
+    uploaded_sha="$(gh_post_object "repos/$repo/git/blobs" "$blob_payload")"
     [[ "$uploaded_sha" == "$object_sha" ]] || fail "uploaded blob hash mismatch for $path"
 
     jq -nc \
@@ -171,7 +184,7 @@ else
 
   tree_payload="$temp_dir/tree-payload.json"
   jq -s '{tree: .}' "$entries_file" >"$tree_payload"
-  published_tree="$($GH_BIN api --method POST "repos/$repo/git/trees" --input "$tree_payload" --jq .sha)"
+  published_tree="$(gh_post_object "repos/$repo/git/trees" "$tree_payload")"
   [[ "$published_tree" == "$local_tree" ]] || fail "API tree hash $published_tree does not match local tree $local_tree"
 
   commit_message="$($GIT_BIN log -1 --format=%B HEAD)"
