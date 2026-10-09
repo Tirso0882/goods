@@ -39,6 +39,12 @@ const nextConfig = {
         protocol: "https",
         hostname: "*.s3.amazonaws.com",
       },
+      // Bamoer reference photos, hotlinked for local development only.
+      {
+        protocol: "https",
+        hostname: "cdn.shopify.com",
+        pathname: "/s/files/1/1013/3304/1466/files/**",
+      },
       ...(S3_HOSTNAME && S3_PATHNAME
         ? [
             {

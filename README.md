@@ -58,30 +58,55 @@ The repo is a pnpm monorepo: the Medusa backend and Admin are in `apps/backend`,
    cp apps/backend/.env.example apps/backend/.env
    ```
 
-4. Create the tables and seed the starter data (default sales channel, publishable API key, Europe region, stock location), then create an admin user:
+4. Create the tables and the starter data (default sales channel, publishable API key, stock location), seed the jewelry store (Poland region with PLN and 23% VAT, shipping to Poland, the catalog with stock), then create an admin user:
 
    ```bash
    cd apps/backend
    pnpm medusa db:migrate
+   pnpm seed
    pnpm medusa user -e admin@example.com -p <choose-a-password>
    cd ../..
    ```
 
-5. Start the backend with `pnpm backend:dev`, open Admin at http://localhost:9000/app and log in. Then add the Poland region (until the seed does it):
-   1. Settings, Store: add PLN to the store currencies.
-   2. Settings, Regions, Create: name Poland, currency PLN, country Poland, payment provider "System default", tax-inclusive pricing on.
-   3. Settings, Tax Regions: add Poland with tax provider "System" and a 23% default rate (VAT).
+   The seed is safe to re-run: it skips anything that already exists.
 
-6. Create the storefront env file and paste the publishable key from Admin (Settings, Publishable API Keys, "Default Publishable API Key") into `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY`:
+5. Create the storefront env file and paste the publishable key into `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY`. Find it in Admin (`pnpm backend:dev`, then http://localhost:9000/app, Settings, Publishable API Keys, "Default Publishable API Key"):
 
    ```bash
    cp apps/storefront/.env.example apps/storefront/.env.local
    ```
 
-7. Stop the backend and start everything:
+6. Stop the backend and start everything:
 
    ```bash
    pnpm dev
    ```
 
    Backend health: http://localhost:9000/health (returns `OK`). Admin: http://localhost:9000/app. Storefront: http://localhost:8000/pl.
+
+## Tests
+
+```bash
+pnpm test
+```
+
+Needs the Postgres and Redis containers running. The backend tests check the catalog fixture, then run the migration scripts and the jewelry seed twice on a throwaway database (Redis database 1). They assert the product and variant counts, PLN prices, stock and Poland setup, and that the second run changes nothing.
+
+## Reset local data
+
+This deletes everything in the local database and Redis (products, orders, customers, the admin user) and rebuilds the same store from scratch. Stop `pnpm dev` first; the script refuses to run while anything is connected to the database.
+
+```bash
+ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=<choose-a-password> pnpm reset
+pnpm dev
+```
+
+The script, `scripts/reset-local-data.sh`:
+
+1. Drops and recreates the database from `DATABASE_URL` in `apps/backend/.env`.
+2. Flushes the Redis database from `REDIS_URL` (cache, workflow and event state).
+3. Runs `pnpm medusa db:migrate`, which also creates the starter data and the search index.
+4. Runs the jewelry seed.
+5. Recreates the admin user if `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set. Without them, it prints the command to do it.
+6. Deletes `apps/storefront/.next`, so the storefront doesn't serve cached products from the old database.
+7. Writes the new publishable API key into `apps/storefront/.env.local`. Every fresh database gets a new key, and the storefront fails with the old one.

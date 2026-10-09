@@ -108,7 +108,27 @@ export async function middleware(request: NextRequest) {
   const cacheIdCookie = request.cookies.get("_medusa_cache_id")
   const cacheId = cacheIdCookie?.value || crypto.randomUUID()
 
-  const regionMap = await getRegionMap(cacheId)
+  let regionMap: Map<string, HttpTypes.StoreRegion>
+
+  try {
+    regionMap = await getRegionMap(cacheId)
+  } catch (error) {
+    // The backend takes longer to boot than the storefront, and can go down.
+    // Without regions no page can render, so ask the browser to retry.
+    console.error(`Middleware: could not load regions from ${BACKEND_URL}`, error)
+    return new NextResponse(
+      '<!doctype html><meta http-equiv="refresh" content="3"><title>Store unavailable</title><p>The store is starting up. This page reloads in a few seconds.</p>',
+      {
+        status: 503,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Retry-After": "3",
+          "Cache-Control": "no-store",
+        },
+      }
+    )
+  }
+
   const countryCode = await getCountryCode(request, regionMap)
 
   // if the country code is available, use it, otherwise use the default region
