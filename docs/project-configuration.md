@@ -26,3 +26,22 @@ Remote: https://github.com/Tirso0882/goods (public), default branch main
 Default branch protection enabled: Yes (main: PR required with 0 approvals, applies to admins, no force pushes, no deletion)
 Secret scanning: Enabled, with push protection
 ```
+
+## Generated stack versions
+
+Recorded on 9 October 2026 from the scaffold in #4. Package versions are the installed ones, read from `node_modules`.
+
+| Part | Version |
+| --- | --- |
+| Node | v24.21.0 |
+| pnpm | 10.33.2 |
+| PostgreSQL (Docker image `pgvector/pgvector:pg17`) | 17.11, pgvector 0.8.7 |
+| Redis (Docker image `redis:8-alpine`) | 8.10.2 |
+| Medusa (`@medusajs/medusa`, backend) | 2.21.2 |
+| Medusa JS SDK (`@medusajs/js-sdk`, storefront) | 2.21.2 |
+| Next.js (storefront) | 15.5.24 |
+| React (storefront) | 19.0.5 |
+| React (backend admin) | 18.3.1 |
+| TypeScript (both apps) | 5.9.3 |
+
+Lockfiles: `pnpm-lock.yaml` at the root is the only package lockfile. pnpm workspaces keep one lockfile for the whole repo, so the apps have none of their own. It is committed.
