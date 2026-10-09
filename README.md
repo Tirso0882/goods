@@ -68,7 +68,7 @@ The repo is a pnpm monorepo: the Medusa backend and Admin are in `apps/backend`,
    cd ../..
    ```
 
-   The seed is safe to re-run: it skips anything that already exists.
+   The seed is safe to re-run: it skips anything that already exists and never deletes products, so products you add in Admin stay. Its own 16 products get the catalog's images back on each run.
 
 5. Create the storefront env file and paste the publishable key into `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY`. Find it in Admin (`pnpm backend:dev`, then http://localhost:9000/app, Settings, Publishable API Keys, "Default Publishable API Key"):
 

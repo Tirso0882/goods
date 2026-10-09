@@ -20,7 +20,7 @@ flowchart LR
     end
   end
 
-  S3[("Medusa demo images<br/>S3 eu-west-1")]
+  S3[("Bamoer product images<br/>cdn.shopify.com")]
 
   Browser -->|"HTTP pages"| Storefront
   Storefront -->|"JS SDK, server side<br/>x-publishable-api-key"| StoreAPI
@@ -34,4 +34,4 @@ flowchart LR
 
 - The storefront renders on the Next.js server, so the browser only talks to port 8000 for store pages.
 - Medusa runs in shared mode: one process serves the APIs, the dashboard, and background jobs.
-- Product images are the starter's demo images, hosted on Medusa's public S3 bucket.
+- The seeded catalog's images are hotlinked from Bamoer's Shopify CDN, for local development only. Images uploaded in Admin are stored on the laptop by Medusa's local file provider.

@@ -20,8 +20,6 @@ import {
   createServiceZonesWorkflow,
   createShippingOptionsWorkflow,
   createTaxRegionsWorkflow,
-  deleteProductCategoriesWorkflow,
-  deleteProductsWorkflow,
   updatePricePreferencesWorkflow,
   updateProductsWorkflow,
   updateStoresWorkflow,
@@ -43,13 +41,11 @@ export default async function seedJewelry({ container }: ExecArgs) {
   await ensurePolandShipping(container, regionId)
   logger.info(`Poland region ready: ${regionId}`)
 
-  const removedIds = await removeNonCatalogProducts(container)
-  await removeNonCatalogCategories(container)
   const categoryIds = await ensureCategories(container)
   await ensureProducts(container, categoryIds)
   await ensureProductImages(container)
   await ensureInventoryLevels(container)
-  await syncSearchIndex(container, removedIds)
+  await syncSearchIndex(container)
 
   logger.info(`Catalog ready: ${CATALOG.length} products.`)
 }
@@ -285,46 +281,6 @@ async function ensurePolandShipping(container: MedusaContainer, regionId: string
   logger.info(`Created ${missing.length} Poland shipping option(s).`)
 }
 
-/** The database holds exactly the fixture: starter and demo products go. */
-async function removeNonCatalogProducts(container: MedusaContainer): Promise<string[]> {
-  const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  const catalogHandles = new Set(CATALOG.map((p) => p.handle))
-
-  const { data: products } = await query.graph({ entity: 'product', fields: ['id', 'handle'] })
-  const extra = products.filter((p) => !catalogHandles.has(p.handle))
-
-  if (!extra.length) {
-    logger.info('No non-catalog products. Skipping.')
-    return []
-  }
-
-  const ids = extra.map((p) => p.id)
-  await deleteProductsWorkflow(container).run({ input: { ids } })
-  logger.info(`Removed ${ids.length} non-catalog product(s).`)
-  return ids
-}
-
-async function removeNonCatalogCategories(container: MedusaContainer) {
-  const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  const catalogNames = new Set<string>(CATEGORIES)
-
-  const { data: categories } = await query.graph({
-    entity: 'product_category',
-    fields: ['id', 'name'],
-  })
-  const extra = categories.filter((c) => !catalogNames.has(c.name))
-
-  if (!extra.length) {
-    logger.info('No non-catalog categories. Skipping.')
-    return
-  }
-
-  await deleteProductCategoriesWorkflow(container).run({ input: extra.map((c) => c.id) })
-  logger.info(`Removed ${extra.length} non-catalog categor(ies).`)
-}
-
 async function ensureCategories(container: MedusaContainer): Promise<Map<string, string>> {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -506,7 +462,7 @@ async function ensureInventoryLevels(container: MedusaContainer) {
  * Product events are handled asynchronously, so `medusa exec` can exit before
  * the search index catches up. Replaying them here is awaited.
  */
-async function syncSearchIndex(container: MedusaContainer, removedIds: string[]) {
+async function syncSearchIndex(container: MedusaContainer) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const search = container.resolve(Modules.SEARCH)
@@ -520,13 +476,6 @@ async function syncSearchIndex(container: MedusaContainer, removedIds: string[])
       `Search index is ${productIndex?.status ?? 'missing'}; the backend fills it on start. Skipping.`
     )
     return
-  }
-
-  if (removedIds.length) {
-    await search.ingest({
-      name: 'product.deleted',
-      data: removedIds.map((id) => ({ id })),
-    } as never)
   }
 
   const { data: products } = await query.graph({ entity: 'product', fields: ['id'] })
