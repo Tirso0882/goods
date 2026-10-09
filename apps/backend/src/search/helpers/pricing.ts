@@ -4,10 +4,11 @@ import { QueryContext, search } from "@medusajs/framework/utils";
 /**
  * The currencies the index holds prices in. Each gets its own set of price
  * fields, so filtering and sorting work per currency. Adding one is a schema
- * change: the module reindexes on the next boot. Keep in sync with the
+ * change: run `medusa db:migrate` (or `db:migrate:search`) to build the new
+ * index version, then restart so it is filled. Keep in sync with the
  * storefront's `SEARCH_PRICE_CURRENCIES`.
  */
-export const PRICE_CURRENCIES = ["eur", "usd"] as const;
+export const PRICE_CURRENCIES = ["pln", "eur", "usd"] as const;
 
 export type PriceCurrency = (typeof PRICE_CURRENCIES)[number];
 
