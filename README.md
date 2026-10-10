@@ -15,6 +15,8 @@ This system uses synthetic data and test payments only.
 - `docs/research/top-1-percent-ai-agent-engineer-roadmap.md`: the core roadmap.
 - `docs/project-configuration.md`: machine, versions, and project decisions.
 - `docs/adr/`: architecture decision records.
+- `docs/runbooks/local-store.md`: start, stop, reset, seed, purchase, webhook and troubleshooting for the local store.
+- `docs/progress/`: weekly reports with commands, results, decisions and the learning gate.
 - `CONTEXT.md`: project vocabulary.
 - `learning/`: lessons and learning records.
 
