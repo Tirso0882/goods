@@ -1,5 +1,6 @@
 /**
- * Seeds the synthetic jewelry store: Poland region, 23% VAT and the catalog.
+ * Seeds the synthetic jewelry store: Poland region, 23% VAT, the catalog, and
+ * synthetic customers with orders in every state.
  * Safe to re-run: every step looks for what it creates and skips it if present.
  *
  *   pnpm medusa exec ./src/scripts/seed-jewelry.ts
@@ -25,6 +26,7 @@ import {
   updateStoresWorkflow,
 } from '@medusajs/medusa/core-flows'
 import { CATALOG, CATEGORIES } from '../seed/jewelry-catalog'
+import { ensureCustomers, ensureOrders } from '../seed/seed-orders'
 
 const COUNTRY = 'pl'
 const CURRENCY = 'pln'
@@ -41,13 +43,35 @@ export default async function seedJewelry({ container }: ExecArgs) {
   await ensurePolandShipping(container, regionId)
   logger.info(`Poland region ready: ${regionId}`)
 
+  const salesChannelId = await findStockedSalesChannel(container)
   const categoryIds = await ensureCategories(container)
-  await ensureProducts(container, categoryIds)
+  await ensureProducts(container, categoryIds, salesChannelId)
   await ensureProductImages(container)
   await ensureInventoryLevels(container)
   await syncSearchIndex(container)
-
   logger.info(`Catalog ready: ${CATALOG.length} products.`)
+
+  const customerIds = await ensureCustomers(container)
+  await ensureOrders(container, { regionId, salesChannelId, customerIds })
+}
+
+/** Carts can only sell from a channel linked to a stock location; there may be others. */
+async function findStockedSalesChannel(container: MedusaContainer): Promise<string> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+
+  const { data: channels } = await query.graph({
+    entity: 'sales_channel',
+    fields: ['id', 'stock_locations.id'],
+  })
+  const stocked = channels.find((c) => c.stock_locations?.length)
+
+  if (!stocked) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      'No sales channel with a stock location. Run `pnpm medusa db:migrate` first.'
+    )
+  }
+  return stocked.id
 }
 
 async function ensurePlnCurrency(container: MedusaContainer) {
@@ -306,7 +330,11 @@ async function ensureCategories(container: MedusaContainer): Promise<Map<string,
   return new Map(all.map((c) => [c.name, c.id]))
 }
 
-async function ensureProducts(container: MedusaContainer, categoryIds: Map<string, string>) {
+async function ensureProducts(
+  container: MedusaContainer,
+  categoryIds: Map<string, string>,
+  salesChannelId: string
+) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
 
@@ -320,16 +348,13 @@ async function ensureProducts(container: MedusaContainer, categoryIds: Map<strin
   }
 
   const {
-    data: [salesChannel],
-  } = await query.graph({ entity: 'sales_channel', fields: ['id'] })
-  const {
     data: [shippingProfile],
   } = await query.graph({ entity: 'shipping_profile', fields: ['id'] })
 
-  if (!salesChannel || !shippingProfile) {
+  if (!shippingProfile) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
-      'No sales channel or shipping profile. Run `pnpm medusa db:migrate` first.'
+      'No shipping profile. Run `pnpm medusa db:migrate` first.'
     )
   }
 
@@ -347,7 +372,7 @@ async function ensureProducts(container: MedusaContainer, categoryIds: Map<strin
         images: p.images.map((url) => ({ url })),
         category_ids: [categoryIds.get(p.category)!],
         shipping_profile_id: shippingProfile.id,
-        sales_channels: [{ id: salesChannel.id }],
+        sales_channels: [{ id: salesChannelId }],
         options: p.options,
         variants: p.variants.map((v) => ({
           title: Object.values(v.options).join(' / '),

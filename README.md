@@ -90,7 +90,27 @@ The repo is a pnpm monorepo: the Medusa backend and Admin are in `apps/backend`,
 pnpm test
 ```
 
-Needs the Postgres and Redis containers running. The backend tests check the catalog fixture, then run the migration scripts and the jewelry seed twice on a throwaway database (Redis database 1). They assert the product and variant counts, PLN prices, stock and Poland setup, and that the second run changes nothing.
+Needs the Postgres and Redis containers running. The backend tests check the catalog fixture, then run the migration scripts and the jewelry seed twice on a throwaway database (Redis database 1). They assert the product and variant counts, PLN prices, stock and Poland setup, the synthetic customers and the order count in each state, and that the second run changes nothing.
+
+## Synthetic customers and orders
+
+The seed also creates 10 customers (`@example.com` emails, made-up addresses) and 12 orders, defined in `apps/backend/src/seed/customers-and-orders.ts`. Each order goes through checkout, gets paid, then follows its story through Medusa's admin workflows, so the order's Activity panel shows every step:
+
+| State | Story |
+| --- | --- |
+| unfulfilled | Paid, not fulfilled yet |
+| fulfilled | Packed, not shipped |
+| shipped | In transit |
+| delivered | Delivered, no return |
+| canceled | Canceled after payment, refunded |
+| return-requested | Customer withdrew; the parcel hasn't arrived for inspection |
+| return-approved | Received, inspection passed, goods and original delivery refunded |
+| return-deducted | Received, inspection found wear, refund reduced by the diminished value |
+| exchanged | Wrong ring size: returned, right size sent and delivered |
+| claim-replaced | Arrived broken: replacement sent, no return needed |
+| claim-refunded | Item missing from the parcel: that item refunded |
+
+A return is only eligible for a refund once the item is received and inspected. Every date is the real time the seed ran.
 
 ## Reset local data
 
@@ -106,7 +126,7 @@ The script, `scripts/reset-local-data.sh`:
 1. Drops and recreates the database from `DATABASE_URL` in `apps/backend/.env`.
 2. Flushes the Redis database from `REDIS_URL` (cache, workflow and event state).
 3. Runs `pnpm medusa db:migrate`, which also creates the starter data and the search index.
-4. Runs the jewelry seed.
+4. Runs the jewelry seed (catalog, customers and orders).
 5. Recreates the admin user if `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set. Without them, it prints the command to do it.
 6. Deletes `apps/storefront/.next`, so the storefront doesn't serve cached products from the old database.
 7. Writes the new publishable API key into `apps/storefront/.env.local`. Every fresh database gets a new key, and the storefront fails with the old one.
