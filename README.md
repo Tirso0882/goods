@@ -84,6 +84,24 @@ The repo is a pnpm monorepo: the Medusa backend and Admin are in `apps/backend`,
 
    Backend health: http://localhost:9000/health (returns `OK`). Admin: http://localhost:9000/app. Storefront: http://localhost:8000/pl.
 
+## Stripe test checkout
+
+Without Stripe keys the store still runs, with only the manual system payment. To pay with Stripe's test card:
+
+1. In the [Stripe Dashboard](https://dashboard.stripe.com/test/apikeys), switch to test mode and copy the secret key (`sk_test_...`) into `STRIPE_API_KEY` in `apps/backend/.env`, and the publishable key (`pk_test_...`) into `NEXT_PUBLIC_STRIPE_KEY` in `apps/storefront/.env.local`. Both files are ignored by git.
+2. Install the [Stripe CLI](https://docs.stripe.com/stripe-cli) (`brew install stripe/stripe-cli/stripe`), run `stripe login`, then forward webhooks to Medusa's Stripe route:
+
+   ```bash
+   stripe listen --forward-to localhost:9000/hooks/payment/stripe_stripe \
+     --events payment_intent.created,payment_intent.processing,payment_intent.canceled,payment_intent.payment_failed,payment_intent.requires_action,payment_intent.amount_capturable_updated,payment_intent.partially_funded,payment_intent.succeeded
+   ```
+
+   These are the events Medusa's Stripe provider handles. Recent Stripe CLI versions refuse to start without `--events`.
+
+   Copy the `whsec_...` secret it prints into `STRIPE_WEBHOOK_SECRET` in `apps/backend/.env`. It stays the same across `stripe listen` runs on the same machine. Keep the listener running while you test.
+3. Run `pnpm seed` again. With the key set, it enables Stripe in the Poland region.
+4. Restart `pnpm dev`, check out at http://localhost:8000/pl, choose Credit card, and pay with `4242 4242 4242 4242`, any future date, any CVC. Payments are captured automatically, so the order in Admin shows Captured and Not fulfilled.
+
 ## Tests
 
 ```bash
