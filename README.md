@@ -102,6 +102,8 @@ Without Stripe keys the store still runs, with only the manual system payment. T
 3. Run `pnpm seed` again. With the key set, it enables Stripe in the Poland region.
 4. Restart `pnpm dev`, check out at http://localhost:8000/pl, choose Credit card, and pay with `4242 4242 4242 4242`, any future date, any CVC. Payments are captured automatically, so the order in Admin shows Captured and Not fulfilled.
 
+Declines, 3D Secure, bad or repeated webhooks and refunds are recorded in [docs/verification/stripe-failure-paths.md](docs/verification/stripe-failure-paths.md).
+
 ## Tests
 
 ```bash

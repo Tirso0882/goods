@@ -246,3 +246,6 @@ docs/personal-docs
 # Next.js and TypeScript build output
 .next/
 *.tsbuildinfo
+
+# Turborepo's local cache
+.turbo/
