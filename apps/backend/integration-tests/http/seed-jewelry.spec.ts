@@ -2,15 +2,22 @@ import path from 'path'
 import { MigrationScriptsMigrator } from '@medusajs/framework/migrations'
 import type { ExecArgs, MedusaContainer } from '@medusajs/framework/types'
 import { ContainerRegistrationKeys } from '@medusajs/framework/utils'
+import {
+  createProductCategoriesWorkflow,
+  createProductsWorkflow,
+} from '@medusajs/medusa/core-flows'
 import { medusaIntegrationTestRunner } from '@medusajs/test-utils'
 import seedJewelry from '../../src/scripts/seed-jewelry'
 import { CATALOG, CATEGORIES } from '../../src/seed/jewelry-catalog'
 
 jest.setTimeout(180_000)
 
+const ADMIN_HANDLE = 'silver-anklet'
+const ADMIN_CATEGORY = 'Anklets'
+
 /**
  * `db:migrate` runs these, the test runner does not. Core's create the default
- * shipping profile; ours create the starter store data the seed replaces.
+ * shipping profile; ours create the sales channel, API key and stock location.
  */
 async function runMigrationScripts(container: MedusaContainer) {
   const migrator = new MigrationScriptsMigrator({ container })
@@ -103,20 +110,42 @@ medusaIntegrationTestRunner({
       beforeAll(async () => {
         const container = getContainer()
         await runMigrationScripts(container)
+        const {
+          result: [adminCategory],
+        } = await createProductCategoriesWorkflow(container).run({
+          input: { product_categories: [{ name: ADMIN_CATEGORY, is_active: true }] },
+        })
+        await createProductsWorkflow(container).run({
+          input: {
+            products: [
+              {
+                title: 'Silver Anklet',
+                handle: ADMIN_HANDLE,
+                category_ids: [adminCategory.id],
+                options: [{ title: 'Default', values: ['Default'] }],
+                variants: [{ title: 'Default', options: { Default: 'Default' }, prices: [] }],
+              },
+            ],
+          },
+        })
         await seed(container)
         first = await snapshot(container)
         await seed(container)
         second = await snapshot(container)
       })
 
-      it('creates exactly the catalog products, replacing the starter ones', () => {
-        expect(first.products.map((p) => p.handle)).toEqual(CATALOG.map((p) => p.handle).sort())
-        expect(first.categories).toEqual([...CATEGORIES].sort())
+      it('creates the catalog and keeps products added in Admin', () => {
+        expect(first.products.map((p) => p.handle)).toEqual(
+          [...CATALOG.map((p) => p.handle), ADMIN_HANDLE].sort()
+        )
+        expect(first.categories).toEqual([...CATEGORIES, ADMIN_CATEGORY].sort())
       })
 
       it('creates the expected number of variants, each with its PLN price and stock', () => {
         const expected = CATALOG.flatMap((p) => p.variants)
-        const actual = first.products.flatMap((p) => p.variants)
+        const actual = first.products
+          .filter((p) => p.handle !== ADMIN_HANDLE)
+          .flatMap((p) => p.variants)
         expect(actual).toHaveLength(expected.length)
 
         const bySku = new Map(actual.map((v) => [v.sku, v]))
