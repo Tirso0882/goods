@@ -23,6 +23,7 @@ import {
   createTaxRegionsWorkflow,
   updatePricePreferencesWorkflow,
   updateProductsWorkflow,
+  updateRegionsWorkflow,
   updateStoresWorkflow,
 } from '@medusajs/medusa/core-flows'
 import { CATALOG, CATEGORIES } from '../seed/jewelry-catalog'
@@ -37,6 +38,7 @@ export default async function seedJewelry({ container }: ExecArgs) {
 
   await ensurePlnCurrency(container)
   const regionId = await ensurePolandRegion(container)
+  await ensureStripeInRegion(container, regionId)
   await ensureTaxInclusive(container, 'currency_code', CURRENCY)
   await ensureTaxInclusive(container, 'region_id', regionId)
   await ensurePolandTaxRegion(container)
@@ -150,6 +152,47 @@ async function ensurePolandRegion(container: MedusaContainer): Promise<string> {
   })
   logger.info('Created the Poland region.')
   return region.id
+}
+
+const STRIPE_PROVIDER = 'pp_stripe_stripe'
+
+/** Stripe is only registered when STRIPE_API_KEY is set, so a seed without it skips this. */
+async function ensureStripeInRegion(container: MedusaContainer, regionId: string) {
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+
+  const { data: providers } = await query.graph({
+    entity: 'payment_provider',
+    fields: ['id'],
+    filters: { id: STRIPE_PROVIDER, is_enabled: true },
+  })
+  if (!providers.length) {
+    logger.info('Stripe is not configured. Skipping its region link.')
+    return
+  }
+
+  const {
+    data: [region],
+  } = await query.graph({
+    entity: 'region',
+    fields: ['payment_providers.id'],
+    filters: { id: regionId },
+  })
+  const linked = (region.payment_providers ?? []).flatMap((p) => (p ? [p.id] : []))
+
+  if (linked.includes(STRIPE_PROVIDER)) {
+    logger.info('Stripe already enabled in the Poland region. Skipping.')
+    return
+  }
+
+  // The update replaces the whole list, so the linked providers go back in.
+  await updateRegionsWorkflow(container).run({
+    input: {
+      selector: { id: regionId },
+      update: { payment_providers: [...linked, STRIPE_PROVIDER] },
+    },
+  })
+  logger.info('Enabled Stripe in the Poland region.')
 }
 
 async function ensurePolandTaxRegion(container: MedusaContainer) {
