@@ -1,14 +1,47 @@
-import { loadEnv, defineConfig } from '@medusajs/framework/utils'
+import { loadEnv, defineConfig, MedusaError } from '@medusajs/framework/utils'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
+
+const WORKER_MODES = ['shared', 'worker', 'server'] as const
+
+// Unset means "shared": one process serves HTTP and runs jobs, as in `pnpm dev`.
+const workerMode = (() => {
+  const mode = process.env.MEDUSA_WORKER_MODE
+  if (!mode) {
+    return undefined
+  }
+  if (!(WORKER_MODES as readonly string[]).includes(mode)) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `MEDUSA_WORKER_MODE must be one of ${WORKER_MODES.join(', ')}, or unset for shared. Got "${mode}".`
+    )
+  }
+  return mode as (typeof WORKER_MODES)[number]
+})()
+
+const isLocalHttpUrl = (url: string | undefined) => {
+  if (!url) {
+    return false
+  }
+  try {
+    const { protocol, hostname } = new URL(url)
+    return protocol === 'http:' && (hostname === 'localhost' || hostname === '127.0.0.1')
+  } catch {
+    return false
+  }
+}
+
+// With NODE_ENV=production the session cookie is Secure, so Admin login over
+// plain http://localhost sets no cookie. The opt-out only applies when the
+// server's public URL is local, so a copied Compose file cannot ship it.
+const insecureLocalCookies =
+  process.env.INSECURE_LOCAL_COOKIES === 'true' && isLocalHttpUrl(process.env.MEDUSA_BACKEND_URL)
 
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
     redisUrl: process.env.REDIS_URL,
-    // Unset means "shared": one process serves HTTP and runs jobs, as in `pnpm dev`.
-    workerMode: (process.env.MEDUSA_WORKER_MODE || undefined) as
-      'shared' | 'worker' | 'server' | undefined,
+    workerMode,
     http: {
       storeCors: process.env.STORE_CORS!,
       adminCors: process.env.ADMIN_CORS!,
@@ -16,6 +49,7 @@ module.exports = defineConfig({
       jwtSecret: process.env.JWT_SECRET,
       cookieSecret: process.env.COOKIE_SECRET,
     },
+    ...(insecureLocalCookies ? { cookieOptions: { secure: false } } : {}),
   },
   // backendUrl is left to Medusa's default, which reads MEDUSA_BACKEND_URL.
   // Setting it to undefined here would override that default.

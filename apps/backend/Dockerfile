@@ -8,10 +8,11 @@
 #   docker run --rm <env> <image> ./node_modules/.bin/medusa db:migrate
 #
 # Build from the repo root: docker build -f apps/backend/Dockerfile .
+#
+# Both FROM lines use the same node image. Dependabot bumps them together;
+# they are literal because it does not resolve ARGs in FROM.
 
-ARG NODE_IMAGE=node:24.21.0-alpine3.24@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
-
-FROM ${NODE_IMAGE} AS base
+FROM node:24.21.0-alpine3.24@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS base
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     MEDUSA_DISABLE_TELEMETRY=true
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
@@ -42,7 +43,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
       --config.inject-workspace-packages=true \
       --store-dir /pnpm/store /prod/backend
 
-FROM ${NODE_IMAGE} AS runtime
+FROM node:24.21.0-alpine3.24@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS runtime
 ENV NODE_ENV=production \
     MEDUSA_DISABLE_TELEMETRY=true \
     PORT=9000
@@ -50,12 +51,11 @@ ENV NODE_ENV=production \
 WORKDIR /server
 COPY --from=build --chown=node:node /prod/backend/node_modules ./node_modules
 COPY --from=build --chown=node:node /repo/apps/backend/.medusa/server ./
+COPY --chown=node:node apps/backend/healthcheck.mjs ./
 # The local file provider writes uploads here when S3 is not configured.
 RUN mkdir -p static && chown node:node static
 USER node
 EXPOSE 9000
-# /health is registered after every loader finishes, so OK means booted and
-# connected. Worker mode serves it too.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||9000)+'/health').then(async r=>process.exit(r.ok&&(await r.text())==='OK'?0:1)).catch(()=>process.exit(1))"]
+  CMD ["node", "healthcheck.mjs"]
 CMD ["./node_modules/.bin/medusa", "start"]

@@ -1,0 +1,12 @@
+# Optional: trust a TLS-inspecting proxy (for example Zscaler) for model pulls.
+# Without it `ollama pull` fails with "x509: certificate signed by unknown
+# authority". CA_BUNDLE is a PEM file with the public roots plus the proxy's
+# root CA; it replaces the image's trust store.
+#
+#   CA_BUNDLE=/path/to/ca-bundle.pem docker compose -f compose.yaml -f compose.proxy-ca.yaml up -d
+services:
+  ollama:
+    environment:
+      SSL_CERT_FILE: /etc/goods/ca-bundle.pem
+    volumes:
+      - ${CA_BUNDLE:?set CA_BUNDLE to a PEM bundle that includes the proxy root CA}:/etc/goods/ca-bundle.pem:ro

@@ -1,0 +1,241 @@
+# Local stack only, not a deployment file: localhost URLs, non-Secure cookies.
+#
+# Postgres with pgvector, Redis, Medusa server and worker, the storefront and
+# Ollama (CPU). Commands and checks are in docs/runbooks/compose-stack.md:
+#
+#   cp .env.example .env              # then fill in the secrets
+#   docker compose up -d --build --wait
+#   docker compose run --rm medusa-seed
+#   docker compose run --rm medusa-admin-user
+#   docker compose run --rm ollama-pull
+#
+# NVIDIA GPU (Linux or Windows with WSL 2 only):
+#   docker compose -f compose.yaml -f compose.gpu.yaml up -d
+#
+# Postgres, Redis and Ollama publish no host ports. Use `docker compose exec`.
+
+name: goods-stack
+
+# Each image line stays under an `image:` key so Dependabot can bump it.
+x-pgvector: &pgvector
+  image: pgvector/pgvector:0.8.7-pg17-bookworm@sha256:ac08538c6f8b9904c33c8224c5e5706dbe760aca29db1d096972b4052c22a75d
+
+x-ollama: &ollama
+  image: ollama/ollama:0.40.3@sha256:adca95a12c2b386a8f9a995e7fa0600e187e3323b5e5522f5a6c3b1ec73eff99
+
+# sslmode=disable: Medusa uses SSL for any host but localhost.
+x-database-url: &database-url postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/medusa-goods?sslmode=disable
+
+x-backend: &backend
+  image: ${BACKEND_IMAGE:-goods-stack-backend:local}
+  build:
+    context: .
+    dockerfile: apps/backend/Dockerfile
+  environment: &backend-env
+    DATABASE_URL: *database-url
+    REDIS_URL: redis://redis:6379
+    JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+    COOKIE_SECRET: ${COOKIE_SECRET:?set COOKIE_SECRET in .env}
+    AUTH_MFA_ENCRYPTION_KEY: ${AUTH_MFA_ENCRYPTION_KEY:-}
+    STORE_CORS: http://localhost:${STOREFRONT_PORT:-8000}
+    ADMIN_CORS: http://localhost:${MEDUSA_PORT:-9000}
+    AUTH_CORS: http://localhost:${MEDUSA_PORT:-9000},http://localhost:${STOREFRONT_PORT:-8000}
+    STRIPE_API_KEY: ${STRIPE_API_KEY:-}
+    STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    # Non-Secure session cookies so Admin login works over plain HTTP. The
+    # backend ignores the flag unless MEDUSA_BACKEND_URL is a localhost URL.
+    MEDUSA_BACKEND_URL: http://localhost:${MEDUSA_PORT:-9000}
+    INSECURE_LOCAL_COOKIES: "true"
+  depends_on: &backend-deps
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+x-one-off: &one-off
+  <<: *backend
+  restart: "no"
+  healthcheck:
+    disable: true
+
+services:
+  postgres:
+    <<: *pgvector
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: medusa-goods
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "medusa-goods"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.10.2-alpine3.23@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Runs on every `up`, before the server and worker start. A fresh database
+  # also gets the starter data and a new publishable key here.
+  medusa-migrate:
+    <<: *one-off
+    command: ["./node_modules/.bin/medusa", "db:migrate"]
+
+  medusa-seed:
+    <<: *one-off
+    profiles: ["setup"]
+    command:
+      ["./node_modules/.bin/medusa", "exec", "./src/scripts/seed-jewelry.js"]
+    depends_on:
+      <<: *backend-deps
+      medusa-migrate:
+        condition: service_completed_successfully
+
+  medusa-admin-user:
+    <<: *one-off
+    profiles: ["setup"]
+    environment:
+      <<: *backend-env
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    command:
+      - sh
+      - -ec
+      - |
+        [ -n "$$ADMIN_PASSWORD" ] || { echo "Set ADMIN_PASSWORD in .env" >&2; exit 1; }
+        exec ./node_modules/.bin/medusa user -e "$$ADMIN_EMAIL" -p "$$ADMIN_PASSWORD"
+    depends_on:
+      <<: *backend-deps
+      medusa-migrate:
+        condition: service_completed_successfully
+
+  medusa-server:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      MEDUSA_WORKER_MODE: server
+      DISABLE_MEDUSA_ADMIN: "false"
+    ports:
+      - 127.0.0.1:${MEDUSA_PORT:-9000}:9000
+    volumes:
+      - medusa-static:/server/static
+    depends_on:
+      <<: *backend-deps
+      medusa-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  medusa-worker:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      MEDUSA_WORKER_MODE: worker
+      DISABLE_MEDUSA_ADMIN: "true"
+    volumes:
+      - medusa-static:/server/static
+    depends_on:
+      <<: *backend-deps
+      medusa-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Copies the publishable key from the database into a volume the storefront
+  # reads at start, so a fresh database needs no hand-edited env file.
+  publishable-key:
+    <<: *pgvector
+    user: postgres
+    environment:
+      DATABASE_URL: *database-url
+    command:
+      - sh
+      - -ec
+      - |
+        key=$$(psql "$$DATABASE_URL" -tAc \
+          "select token from api_key where type = 'publishable' and deleted_at is null order by created_at limit 1")
+        [ -n "$$key" ] || { echo "No publishable key in the database" >&2; exit 1; }
+        printf %s "$$key" > /var/run/postgresql/publishable-key
+        echo "Publishable key: $$key"
+    # The image makes this folder writable for the postgres user, and a new
+    # volume mounted on it starts with the same owner.
+    volumes:
+      - publishable-key:/var/run/postgresql
+    depends_on:
+      medusa-migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  storefront:
+    image: ${STOREFRONT_IMAGE:-goods-stack-storefront:local}
+    build:
+      context: .
+      dockerfile: apps/storefront/Dockerfile
+    environment:
+      MEDUSA_BACKEND_URL: http://medusa-server:9000
+      PUBLIC_MEDUSA_BACKEND_URL: http://localhost:${MEDUSA_PORT:-9000}
+      PUBLIC_BASE_URL: http://localhost:${STOREFRONT_PORT:-8000}
+      PUBLIC_STRIPE_KEY: ${PUBLIC_STRIPE_KEY:-}
+      # Empty means "use the key from the publishable-key volume".
+      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
+    command:
+      - sh
+      - -ec
+      - |
+        if [ -z "$$MEDUSA_PUBLISHABLE_KEY" ]; then
+          MEDUSA_PUBLISHABLE_KEY=$$(cat /run/goods/publishable-key)
+          export MEDUSA_PUBLISHABLE_KEY
+        fi
+        exec node apps/storefront/server.js
+    ports:
+      - 127.0.0.1:${STOREFRONT_PORT:-8000}:8000
+    volumes:
+      - publishable-key:/run/goods:ro
+    depends_on:
+      publishable-key:
+        condition: service_completed_successfully
+      medusa-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # CPU by default. Runs as root: the image has no documented non-root mode.
+  ollama:
+    <<: *ollama
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Models are pulled at runtime into the ollama volume, never into an image.
+  ollama-pull:
+    <<: *ollama
+    profiles: ["setup"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-nemotron-3-nano:4b}
+    entrypoint: ["sh", "-ec"]
+    command:
+      - ollama show "$$OLLAMA_MODEL" >/dev/null 2>&1 || ollama pull "$$OLLAMA_MODEL"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  pgdata:
+  redisdata:
+  medusa-static:
+  publishable-key:
+  ollama:

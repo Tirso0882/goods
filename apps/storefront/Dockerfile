@@ -1,16 +1,19 @@
 # syntax=docker/dockerfile:1
 #
-# Builds without a running backend and without a publishable key. Runtime env
-# (server-only, read at start):
-#   MEDUSA_BACKEND_URL      backend as seen from this container, e.g. http://medusa-server:9000
-#   MEDUSA_PUBLISHABLE_KEY  key created by `medusa db:migrate` or in Admin
-# Build args are inlined into the browser bundle, so they must be public values.
+# Builds without a running backend, a key or any URL, so one image runs in every
+# environment. Runtime env, read by the storefront server:
+#   MEDUSA_BACKEND_URL         backend as seen from this container, e.g. http://medusa-server:9000
+#   MEDUSA_PUBLISHABLE_KEY     key created by `medusa db:migrate` or in Admin
+#   PUBLIC_MEDUSA_BACKEND_URL  backend as seen from the browser
+#   PUBLIC_BASE_URL            this storefront's public URL
+#   PUBLIC_STRIPE_KEY          Stripe publishable key (pk_test_... or pk_live_...)
 #
 # Build from the repo root: docker build -f apps/storefront/Dockerfile .
+#
+# Both FROM lines use the same node image. Dependabot bumps them together;
+# they are literal because it does not resolve ARGs in FROM.
 
-ARG NODE_IMAGE=node:24.21.0-alpine3.24@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
-
-FROM ${NODE_IMAGE} AS base
+FROM node:24.21.0-alpine3.24@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS base
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
@@ -28,19 +31,13 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --offline --frozen-lockfile --store-dir /pnpm/store \
       --filter "@dtc/storefront..."
 COPY apps/storefront apps/storefront
-# The browser calls the backend at this URL. Server code uses MEDUSA_BACKEND_URL.
-ARG NEXT_PUBLIC_MEDUSA_BACKEND_URL=http://localhost:9000
+# A store setting, the same in every environment. URLs and keys are runtime env.
 ARG NEXT_PUBLIC_DEFAULT_REGION=pl
-ARG NEXT_PUBLIC_BASE_URL=http://localhost:8000
-ARG NEXT_PUBLIC_STRIPE_KEY=
-ENV NEXT_PUBLIC_MEDUSA_BACKEND_URL=${NEXT_PUBLIC_MEDUSA_BACKEND_URL} \
-    NEXT_PUBLIC_DEFAULT_REGION=${NEXT_PUBLIC_DEFAULT_REGION} \
-    NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL} \
-    NEXT_PUBLIC_STRIPE_KEY=${NEXT_PUBLIC_STRIPE_KEY} \
+ENV NEXT_PUBLIC_DEFAULT_REGION=${NEXT_PUBLIC_DEFAULT_REGION} \
     NODE_ENV=production
 RUN pnpm --filter @dtc/storefront build
 
-FROM ${NODE_IMAGE} AS runtime
+FROM node:24.21.0-alpine3.24@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS runtime
 # Docker sets HOSTNAME to the container ID, and server.js binds to HOSTNAME.
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

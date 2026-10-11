@@ -1,13 +1,12 @@
-import { getPublishableKey } from "@lib/util/backend-env"
+import { getStoreConfig } from "@lib/util/backend-env"
 import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
 
-// The publishable key is public by design. Serving it here lets the browser
-// use the key the container was started with instead of one baked into the build.
+// Every value here is public by design. Serving them at runtime keeps them out
+// of the browser bundle, so the same image runs in any environment.
 export function GET() {
-  return NextResponse.json(
-    { publishableKey: getPublishableKey() ?? null },
-    { headers: { "Cache-Control": "no-store" } }
-  )
+  return NextResponse.json(getStoreConfig(), {
+    headers: { "Cache-Control": "no-store" },
+  })
 }

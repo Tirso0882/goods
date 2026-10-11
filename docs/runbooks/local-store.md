@@ -1,6 +1,6 @@
 # Local store runbook
 
-How to run, reset and test the local jewelry store. First-time setup (containers, env files, admin user, Stripe keys) is in the [README](../../README.md). This runbook assumes that setup is done.
+How to run, reset and test the local jewelry store. First-time setup (containers, env files, admin user, Stripe keys) is in the [README](../../README.md). This runbook assumes that setup is done. To run the whole store from the production images instead of `pnpm dev`, see the [Compose stack runbook](compose-stack.md).
 
 Everything here is synthetic data and Stripe test mode. Never point these commands at a shared or production database.
 

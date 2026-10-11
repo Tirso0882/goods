@@ -1,4 +1,5 @@
-import { getBackendUrl, getPublishableKey } from "@lib/util/backend-env"
+import { sdk } from "@lib/config"
+import { getPublishableKey } from "@lib/util/backend-env"
 import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
@@ -19,16 +20,15 @@ export async function GET() {
   }
 
   try {
-    const res = await fetch(`${getBackendUrl()}/health`, {
+    // Not JSON: the SDK returns the raw response, and throws on non-2xx.
+    await sdk.client.fetch<Response>("/health", {
+      headers: { accept: "text/plain" },
       cache: "no-store",
       signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
     })
-    if (!res.ok) {
-      return unavailable(`backend /health returned ${res.status}`)
-    }
   } catch (error) {
     return unavailable(
-      `backend unreachable: ${
+      `backend /health failed: ${
         error instanceof Error ? error.message : "unknown error"
       }`
     )

@@ -61,9 +61,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
-      # Same images as the local setup in the README.
+      # Same images as compose.yaml. Dependabot only bumps them there, so copy
+      # each new tag and digest here in the same pull request.
       postgres:
-        image: pgvector/pgvector:pg17
+        image: pgvector/pgvector:0.8.7-pg17-bookworm@sha256:ac08538c6f8b9904c33c8224c5e5706dbe760aca29db1d096972b4052c22a75d
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -74,7 +75,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis:8-alpine
+        image: redis:8.10.2-alpine3.23@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
         ports:
           - 6379:6379
         options: >-
@@ -138,9 +139,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # No build args: the storefront keeps its Dockerfile defaults (localhost
-      # URLs) until the deployed URLs exist. Keep in sync with
-      # docs/architecture/containers.md.
+      # No build args: the storefront reads its URLs and keys at runtime, so
+      # this image deploys to any environment (docs/architecture/containers.md).
       - id: push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
