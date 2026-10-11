@@ -19,6 +19,10 @@ type Props = {
   >
 }
 
+// Data calls read cookies, so these pages can only render per request. Without
+// this, a page not prerendered at build fails with DYNAMIC_SERVER_USAGE.
+export const dynamic = "force-dynamic"
+
 export async function generateStaticParams() {
   try {
     const product_categories = await listCategories()

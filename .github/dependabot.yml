@@ -33,7 +33,9 @@ updates:
         patterns:
           - "*"
 
-  # No Dockerfiles yet. These paths cover where the image work is expected to add them.
+  # Watches apps/backend/Dockerfile and apps/storefront/Dockerfile. Both take
+  # the node base image from `ARG NODE_IMAGE`, and Dependabot does not resolve
+  # ARGs in FROM (dependabot/dependabot-core#2057), so bump that digest by hand.
   - package-ecosystem: docker
     directories:
       - /

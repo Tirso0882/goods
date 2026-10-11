@@ -10,6 +10,10 @@ type Props = {
   searchParams: Promise<{ v_id?: string }>
 }
 
+// Data calls read cookies, so these pages can only render per request. Without
+// this, a page not prerendered at build fails with DYNAMIC_SERVER_USAGE.
+export const dynamic = "force-dynamic"
+
 export async function generateStaticParams() {
   try {
     const countryCodes = await listRegions().then((regions) =>

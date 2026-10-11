@@ -16,6 +16,7 @@ This system uses synthetic data and test payments only.
 - `docs/project-configuration.md`: machine, versions, and project decisions.
 - `docs/adr/`: architecture decision records.
 - `docs/runbooks/local-store.md`: start, stop, reset, seed, purchase, webhook and troubleshooting for the local store.
+- `docs/architecture/containers.md`: production images, and each process's port, health check, volume and secrets.
 - `docs/progress/`: weekly reports with commands, results, decisions and the learning gate.
 - `CONTEXT.md`: project vocabulary.
 - `learning/`: lessons and learning records.

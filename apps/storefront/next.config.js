@@ -1,6 +1,6 @@
+const path = require("path")
+const { PHASE_PRODUCTION_BUILD } = require("next/constants")
 const checkEnvVariables = require("./check-env-variables")
-
-checkEnvVariables()
 
 /**
  * Medusa Cloud-related environment variables
@@ -13,6 +13,8 @@ const S3_PATHNAME = process.env.MEDUSA_CLOUD_S3_PATHNAME
  */
 const nextConfig = {
   reactStrictMode: true,
+  output: "standalone",
+  outputFileTracingRoot: path.join(__dirname, "../../"),
   logging: {
     fetches: {
       fullUrl: true,
@@ -58,4 +60,10 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+// The production image is built without a key and reads it at runtime.
+module.exports = (phase) => {
+  if (phase !== PHASE_PRODUCTION_BUILD) {
+    checkEnvVariables()
+  }
+  return nextConfig
+}

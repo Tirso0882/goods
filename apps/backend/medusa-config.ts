@@ -6,6 +6,9 @@ module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
     redisUrl: process.env.REDIS_URL,
+    // Unset means "shared": one process serves HTTP and runs jobs, as in `pnpm dev`.
+    workerMode: (process.env.MEDUSA_WORKER_MODE || undefined) as
+      'shared' | 'worker' | 'server' | undefined,
     http: {
       storeCors: process.env.STORE_CORS!,
       adminCors: process.env.ADMIN_CORS!,
@@ -13,6 +16,11 @@ module.exports = defineConfig({
       jwtSecret: process.env.JWT_SECRET,
       cookieSecret: process.env.COOKIE_SECRET,
     },
+  },
+  // backendUrl is left to Medusa's default, which reads MEDUSA_BACKEND_URL.
+  // Setting it to undefined here would override that default.
+  admin: {
+    disable: process.env.DISABLE_MEDUSA_ADMIN === 'true',
   },
   modules: [
     {
@@ -59,6 +67,35 @@ module.exports = defineConfig({
         ],
       },
     },
+    // The File Module takes one provider. Without a bucket Medusa keeps its
+    // local provider, which writes to ./static and needs a volume to persist.
+    ...(process.env.S3_BUCKET
+      ? [
+          {
+            resolve: '@medusajs/medusa/file',
+            options: {
+              providers: [
+                {
+                  resolve: '@medusajs/medusa/file-s3',
+                  id: 's3',
+                  options: {
+                    file_url: process.env.S3_FILE_URL,
+                    access_key_id: process.env.S3_ACCESS_KEY_ID,
+                    secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
+                    region: process.env.S3_REGION,
+                    bucket: process.env.S3_BUCKET,
+                    endpoint: process.env.S3_ENDPOINT,
+                    // MinIO and some S3-compatible stores need path-style URLs.
+                    ...(process.env.S3_FORCE_PATH_STYLE === 'true'
+                      ? { additional_client_config: { forcePathStyle: true } }
+                      : {}),
+                  },
+                },
+              ],
+            },
+          },
+        ]
+      : []),
     // Without a key the store still boots, with only the system payment provider.
     ...(process.env.STRIPE_API_KEY
       ? [

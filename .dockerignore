@@ -1,0 +1,32 @@
+# Allowlist: both images build from the repo root and only need the workspace
+# manifests and the two apps. Everything else, including .git, docs, learning
+# and agent files, stays out of the build context.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!.npmrc
+!apps/backend
+!apps/storefront
+
+# Secrets. Next.js loads .env* from the app folder during build, so a leaked
+# .env.local would bake development values into the image.
+**/.env
+**/.env.*
+
+# Installed dependencies and build output, rebuilt inside the image
+**/node_modules
+**/.medusa
+**/.next
+**/.turbo
+**/tsconfig.tsbuildinfo
+**/coverage
+
+# Local uploads from the backend's local file provider
+apps/backend/static
+apps/backend/uploads
+
+# Junk
+**/*.log
+**/.DS_Store
+**/Dockerfile

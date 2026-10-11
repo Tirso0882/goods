@@ -107,3 +107,58 @@ jobs:
       - run: pnpm build
         env:
           NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_ci_placeholder
+
+  # Lives in this workflow because `needs:` only reaches jobs in the same run.
+  publish:
+    name: publish (${{ matrix.image }})
+    needs: [format, lint, typecheck, test, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        image: [backend, storefront]
+    permissions:
+      contents: read # check out the build context
+      packages: write # push images, and the attestation, to GHCR
+      # Build provenance with actions/attest, as documented in
+      # https://github.com/actions/attest/blob/v4.2.2/README.md#usage
+      # https://docs.github.com/en/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds
+      id-token: write # OIDC token for the Sigstore signing certificate
+      attestations: write # store the attestation on GitHub
+    env:
+      IMAGE: ghcr.io/tirso0882/goods-${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # No build args: the storefront keeps its Dockerfile defaults (localhost
+      # URLs) until the deployed URLs exist. Keep in sync with
+      # docs/architecture/containers.md.
+      - id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/${{ matrix.image }}/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          # The source label links the package to this repository on GHCR.
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+          # Storage records only exist for organization-owned repositories.
+          create-storage-record: false
