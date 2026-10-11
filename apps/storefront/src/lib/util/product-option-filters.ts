@@ -6,7 +6,9 @@ export const parseOptionValueIds = (
   searchParams: URLSearchParams | Record<string, string | string[] | undefined>
 ): OptionValueIds => {
   if (typeof (searchParams as URLSearchParams).getAll === "function") {
-    const values = (searchParams as URLSearchParams).getAll(OPTION_VALUE_QUERY_KEY)
+    const values = (searchParams as URLSearchParams).getAll(
+      OPTION_VALUE_QUERY_KEY
+    )
     return Array.from(new Set(values.filter(Boolean)))
   }
 

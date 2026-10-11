@@ -1,0 +1,13 @@
+# Prose and generated files are not code-formatted.
+*.md
+*.html
+docs/
+learning/
+pnpm-lock.yaml
+skills-lock.json
+
+# Build output
+.medusa/
+.next/
+.turbo/
+apps/storefront/public/

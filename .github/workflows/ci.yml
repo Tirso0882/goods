@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  TURBO_TELEMETRY_DISABLED: "1"
+  MEDUSA_DISABLE_TELEMETRY: "true"
+
+# Job names are required status checks in branch protection. Renaming one
+# means updating the protection rule too.
+jobs:
+  format:
+    name: format
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm format:check
+
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm lint
+        env:
+          # next.config.js refuses to load without it. Not a real key.
+          NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_ci_placeholder
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm typecheck
+
+  test:
+    name: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      # Same images as the local setup in the README.
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      REDIS_URL: redis://localhost:6379/1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm test
+
+  build:
+    name: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+        env:
+          NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_ci_placeholder

@@ -75,7 +75,9 @@ async function getCountryCode(
   const urlCountryCode = request.nextUrl.pathname.split("/")[1]?.toLowerCase()
 
   // Cloudflare Workers provides country via request.cf.country
-  const cloudflareCountryCode = (request as { cf?: { country?: string } }).cf?.country?.toLowerCase()
+  const cloudflareCountryCode = (
+    request as { cf?: { country?: string } }
+  ).cf?.country?.toLowerCase()
 
   // Vercel provides x-vercel-ip-country header
   const vercelCountryCode = request.headers
@@ -115,7 +117,10 @@ export async function middleware(request: NextRequest) {
   } catch (error) {
     // The backend takes longer to boot than the storefront, and can go down.
     // Without regions no page can render, so ask the browser to retry.
-    console.error(`Middleware: could not load regions from ${BACKEND_URL}`, error)
+    console.error(
+      `Middleware: could not load regions from ${BACKEND_URL}`,
+      error
+    )
     return new NextResponse(
       '<!doctype html><meta http-equiv="refresh" content="3"><title>Store unavailable</title><p>The store is starting up. This page reloads in a few seconds.</p>',
       {

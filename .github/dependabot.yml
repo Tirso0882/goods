@@ -1,0 +1,44 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Medusa packages share one version and must move together.
+      medusa:
+        patterns:
+          - "@medusajs/*"
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/*
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # No Dockerfiles yet. These paths cover where the image work is expected to add them.
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /apps/*
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"

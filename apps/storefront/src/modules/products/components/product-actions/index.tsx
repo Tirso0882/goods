@@ -179,8 +179,8 @@ export default function ProductActions({
           {!selectedVariant
             ? "Select variant"
             : !inStock || !isValidVariant
-            ? "Out of stock"
-            : "Add to cart"}
+              ? "Out of stock"
+              : "Add to cart"}
         </Button>
         <MobileActions
           product={product}

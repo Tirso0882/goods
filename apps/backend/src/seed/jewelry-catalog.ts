@@ -159,10 +159,30 @@ export const CATALOG: FixtureProduct[] = [
       { title: 'Metal', values: ['Silver', '18K Gold Plated'] },
     ],
     variants: [
-      { sku: 'EAR-4PS-CZ-SLV', options: { Stone: 'Cubic Zirconia', Metal: 'Silver' }, price_pln: 89, stock: 40 },
-      { sku: 'EAR-4PS-CZ-GLD', options: { Stone: 'Cubic Zirconia', Metal: '18K Gold Plated' }, price_pln: 109, stock: 25 },
-      { sku: 'EAR-4PS-MOI-SLV', options: { Stone: 'Moissanite', Metal: 'Silver' }, price_pln: 149, stock: 20 },
-      { sku: 'EAR-4PS-MOI-GLD', options: { Stone: 'Moissanite', Metal: '18K Gold Plated' }, price_pln: 169, stock: 12 },
+      {
+        sku: 'EAR-4PS-CZ-SLV',
+        options: { Stone: 'Cubic Zirconia', Metal: 'Silver' },
+        price_pln: 89,
+        stock: 40,
+      },
+      {
+        sku: 'EAR-4PS-CZ-GLD',
+        options: { Stone: 'Cubic Zirconia', Metal: '18K Gold Plated' },
+        price_pln: 109,
+        stock: 25,
+      },
+      {
+        sku: 'EAR-4PS-MOI-SLV',
+        options: { Stone: 'Moissanite', Metal: 'Silver' },
+        price_pln: 149,
+        stock: 20,
+      },
+      {
+        sku: 'EAR-4PS-MOI-GLD',
+        options: { Stone: 'Moissanite', Metal: '18K Gold Plated' },
+        price_pln: 169,
+        stock: 12,
+      },
     ],
   },
   {
@@ -224,10 +244,30 @@ export const CATALOG: FixtureProduct[] = [
       { title: 'Chain length', values: ['40 cm', '45 cm'] },
     ],
     variants: [
-      { sku: 'NEC-PYN-SLV-40', options: { Metal: 'Silver', 'Chain length': '40 cm' }, price_pln: 149, stock: 15 },
-      { sku: 'NEC-PYN-SLV-45', options: { Metal: 'Silver', 'Chain length': '45 cm' }, price_pln: 149, stock: 20 },
-      { sku: 'NEC-PYN-GLD-40', options: { Metal: '18K Gold Plated', 'Chain length': '40 cm' }, price_pln: 175, stock: 8 },
-      { sku: 'NEC-PYN-GLD-45', options: { Metal: '18K Gold Plated', 'Chain length': '45 cm' }, price_pln: 175, stock: 12 },
+      {
+        sku: 'NEC-PYN-SLV-40',
+        options: { Metal: 'Silver', 'Chain length': '40 cm' },
+        price_pln: 149,
+        stock: 15,
+      },
+      {
+        sku: 'NEC-PYN-SLV-45',
+        options: { Metal: 'Silver', 'Chain length': '45 cm' },
+        price_pln: 149,
+        stock: 20,
+      },
+      {
+        sku: 'NEC-PYN-GLD-40',
+        options: { Metal: '18K Gold Plated', 'Chain length': '40 cm' },
+        price_pln: 175,
+        stock: 8,
+      },
+      {
+        sku: 'NEC-PYN-GLD-45',
+        options: { Metal: '18K Gold Plated', 'Chain length': '45 cm' },
+        price_pln: 175,
+        stock: 12,
+      },
     ],
   },
   {

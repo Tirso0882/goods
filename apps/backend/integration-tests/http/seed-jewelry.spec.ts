@@ -178,7 +178,10 @@ async function snapshot(container: MedusaContainer) {
     ],
   })
   const { data: exchanges } = await query.graph({ entity: 'order_exchange', fields: ['order_id'] })
-  const { data: claims } = await query.graph({ entity: 'order_claim', fields: ['order_id', 'type'] })
+  const { data: claims } = await query.graph({
+    entity: 'order_claim',
+    fields: ['order_id', 'type'],
+  })
 
   const afterSales = (orderId: string): AfterSales => ({
     returns: returns
@@ -263,9 +266,16 @@ async function snapshot(container: MedusaContainer) {
           items: (o.items ?? [])
             .map((i) => ({ sku: i!.variant_sku, quantity: Number(i!.quantity) }))
             .sort((a, b) => a.sku!.localeCompare(b.sku!)),
-          captured: payments.flatMap((p) => p!.captures ?? []).reduce((s, c) => s + Number(c!.amount), 0),
-          refunded: payments.flatMap((p) => p!.refunds ?? []).reduce((s, r) => s + Number(r!.amount), 0),
-          refund_notes: payments.flatMap((p) => p!.refunds ?? []).map((r) => r!.note).filter((n) => !!n),
+          captured: payments
+            .flatMap((p) => p!.captures ?? [])
+            .reduce((s, c) => s + Number(c!.amount), 0),
+          refunded: payments
+            .flatMap((p) => p!.refunds ?? [])
+            .reduce((s, r) => s + Number(r!.amount), 0),
+          refund_notes: payments
+            .flatMap((p) => p!.refunds ?? [])
+            .map((r) => r!.note)
+            .filter((n) => !!n),
         }
       })
       .sort((a, b) => a.key.localeCompare(b.key)),

@@ -298,7 +298,9 @@ const items = (order: Order) =>
     quantity: Number(i!.quantity),
     unit_price: Number(i!.unit_price),
     // Not on the generated type, but `items.*` returns it.
-    fulfilled: Number((i as { detail?: { fulfilled_quantity?: number } }).detail?.fulfilled_quantity ?? 0),
+    fulfilled: Number(
+      (i as { detail?: { fulfilled_quantity?: number } }).detail?.fulfilled_quantity ?? 0
+    ),
   }))
 
 const payments = (order: Order) =>
@@ -379,7 +381,10 @@ async function sendItems(
       input: {
         order_id: orderId,
         fulfillment_id: f!.id,
-        items: (f!.items ?? []).map((i) => ({ id: i!.line_item_id!, quantity: Number(i!.quantity) })),
+        items: (f!.items ?? []).map((i) => ({
+          id: i!.line_item_id!,
+          quantity: Number(i!.quantity),
+        })),
       },
     })
   }
