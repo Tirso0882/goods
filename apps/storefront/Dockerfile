@@ -13,7 +13,7 @@
 # Both FROM lines use the same node image. Dependabot bumps them together;
 # they are literal because it does not resolve ARGs in FROM.
 
-FROM node:24.21.0-alpine3.24@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS base
+FROM node:26.11.1-alpine3.24@sha256:143494b1da2945f061539253adc65e4f1569ddf07da2d384c022c791a9d90a4a AS base
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
@@ -37,7 +37,7 @@ ENV NEXT_PUBLIC_DEFAULT_REGION=${NEXT_PUBLIC_DEFAULT_REGION} \
     NODE_ENV=production
 RUN pnpm --filter @dtc/storefront build
 
-FROM node:24.21.0-alpine3.24@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS runtime
+FROM node:26.11.1-alpine3.24@sha256:143494b1da2945f061539253adc65e4f1569ddf07da2d384c022c791a9d90a4a AS runtime
 # Docker sets HOSTNAME to the container ID, and server.js binds to HOSTNAME.
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
