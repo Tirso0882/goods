@@ -1,5 +1,8 @@
 version: 2
 
+# Major versions are upgraded on purpose in their own PR, so npm and image
+# updates skip them. These ignores also apply to security updates: a fix that
+# needs a new major shows up as an alert only.
 updates:
   - package-ecosystem: npm
     directory: /
@@ -10,6 +13,9 @@ updates:
     open-pull-requests-limit: 10
     commit-message:
       prefix: "chore(deps)"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       # Medusa packages share one version and must move together.
       medusa:
@@ -42,6 +48,9 @@ updates:
       interval: weekly
     commit-message:
       prefix: "chore(deps)"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # Postgres, Redis and Ollama in compose.yaml. The CI test job pins the same
   # Postgres and Redis, which Dependabot leaves alone: copy each bump there.
@@ -52,6 +61,8 @@ updates:
     commit-message:
       prefix: "chore(deps)"
     ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
       # Local tags of the images compose.yaml builds; not on any registry.
       - dependency-name: goods-stack-backend
       - dependency-name: goods-stack-storefront
