@@ -150,7 +150,7 @@ Throughout, `/health` stays `OK`: it only reports that Medusa booted. Use `/read
 
 ## GPU
 
-The default is CPU, which is the only option on a Mac: Docker Desktop on macOS has no NVIDIA passthrough. On Linux with the NVIDIA Container Toolkit, or Windows with Docker Desktop and WSL 2, first check that containers can see the GPU with Docker's documented test ([Docker Desktop GPU](https://docs.docker.com/desktop/features/gpu), setup notes in [roadmap-platform-verification-notes.md](../research/roadmap-platform-verification-notes.md)), then add the override:
+The default is CPU. The development laptop's RTX 4070 can run Ollama: on Windows with Docker Desktop and WSL 2, or Linux with the NVIDIA Container Toolkit, first check that containers can see the GPU with Docker's documented test ([Docker Desktop GPU](https://docs.docker.com/desktop/features/gpu), setup notes in [roadmap-platform-verification-notes.md](../research/roadmap-platform-verification-notes.md)), then add the override:
 
 ```bash
 docker compose -f compose.yaml -f compose.gpu.yaml up -d --wait

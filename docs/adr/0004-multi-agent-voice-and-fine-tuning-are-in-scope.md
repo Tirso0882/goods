@@ -12,5 +12,5 @@ Each new step is an experiment against the frozen baseline, not a commitment to 
 
 - The schedule grows by three weeks. If it slips, Steps 13 to 15 shrink before anything in Steps 1 to 12 does.
 - Voice adds a speech provider as a processor: it needs a DPA, a place in the data-flow diagram, and retention rules for transcripts. Raw audio is not stored by default.
-- Fine-tuning needs a training set that is kept out of the eval set, and a production serving option, because the VPS has no GPU.
+- Fine-tuning needs a training set that is kept out of the eval set, and a production serving option, because production hosting has no GPU.
 - Nothing in Steps 13 to 15 has been checked against primary sources yet. Run `/research` before each one.

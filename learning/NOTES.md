@@ -3,7 +3,8 @@
 ## Learner preferences
 - Plain, natural language. Never use em dash or en dash characters in lessons, references, or notes.
 - Comfortable in Python (not production depth). Bridge every TypeScript idea from a Python equivalent.
-- Wants all three tracks: Huyen chapters, Node and Medusa, VPS operations, in roadmap order.
+- Wants all three tracks: Huyen chapters, Node and Medusa, Railway operations (replaced VPS operations on 12 Oct 2026), in roadmap order.
+- Development moves from a MacBook Pro M3 Pro to an MSI laptop with an RTX 4070 on 13 Oct 2026. GPU lessons (Ollama, Step 14 speech, Step 15 QLoRA) can now run locally.
 - Prefers solo learning. No community suggestions.
 
 ## Working notes

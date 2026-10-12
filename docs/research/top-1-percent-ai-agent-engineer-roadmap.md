@@ -48,7 +48,7 @@ Learning is the first priority, so it has its own structure:
 - **Learning objectives:** every step lists what you should be able to explain or do afterwards.
 - **Learning gate:** every step ends with one. Explain the objectives without notes, out loud or in writing. If you can't, spend the next learning block there before starting the next step.
 - **Explain-back:** every weekly progress note has one. It takes each concept from the week and shows where it appears in your own code.
-- **`/teach` workspace:** `learning/` in this repo. Open it as a separate Cursor window when studying. It holds the mission, lessons, reference sheets, and learning records for the Huyen chapters, Node and Medusa, and VPS operations.
+- **`/teach` workspace:** `learning/` in this repo. Open it as a separate Cursor window when studying. It holds the mission, lessons, reference sheets, and learning records for the Huyen chapters, Node and Medusa, and Railway operations.
 - **Spaced review:** on the light day, redo quizzes and explain-backs from two and four weeks earlier.
 
 ### Required evidence for every week
@@ -101,7 +101,7 @@ Hosted model provider:
 Primary model:
 Embedding model:
 Monthly model budget:
-EU VPS provider and region:
+Hosting provider, region and plan:
 Domain:
 Object storage provider:
 Transactional email provider:
@@ -118,7 +118,7 @@ Use these decision rules:
 5. Use Ollama only for local experiments until evals prove a local model is good enough for a specific step.
 6. Keep Stripe in test mode for the whole roadmap.
 7. Use synthetic identities and addresses. Do not copy real customer records into development.
-8. Choose an EU region for the VPS, database backups, object storage, and observability data.
+8. Choose an EU region for hosting, database backups, object storage, and observability data.
 9. Set a monthly budget alert before running automated evals against a hosted model.
 
 ## Project control files
@@ -165,12 +165,13 @@ Version-sensitive commands and compatibility findings were checked against prima
   - Open-weight models in production (this replaces NIM): [Scaleway Generative APIs](https://www.scaleway.com/en/docs/generative-apis/reference-content/supported-models/) or [OVHcloud AI Endpoints](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-responses-api.md). Both are EU providers with OpenAI-compatible APIs, per-token pricing, and custom function calling. Use one of them for the Step 10 "cheaper model for simple requests" experiment. Tool-calling support varies by model, so check the model card and prove it with your evals.
   - Keep build.nvidia.com for dev-only experiments. The NeMo tools above are CPU-friendly Python libraries and do not depend on NVIDIA hosting.
 - **Not using:**
-  - Azure Container Apps: no Azure access, and one VPS is cheaper and simpler for Medusa's server, worker, Postgres, and Redis. If you later want managed containers instead of a VPS, the closest EU option is Scaleway Serverless Containers.
+  - Azure Container Apps: no Azure access.
+  - A self-managed VPS with Coolify: the plan until 12 October 2026. Railway removes server hardening and patching from the roadmap. If you later need an EU-owned provider, the options are a VPS with Coolify or Scaleway Serverless Containers.
   - NIM containers: not open source. Free for development and testing only; production needs an NVIDIA AI Enterprise license, from $4,500 per GPU per year ([NIM FAQ](https://docs.api.nvidia.com/nim/docs/product)). Your production server has no GPU anyway.
   - Milvus with cuVS, TensorRT-LLM, Dynamo, Riva, Omniverse: built for GPU-scale serving, speech, or 3D, so they're overkill here. Voice in Step 14 uses hosted speech APIs instead of self-hosted Riva, because the production server has no GPU.
   - LangSmith: proprietary. Self-hosting is an Enterprise-plan add-on ([LangSmith docs](https://docs.langchain.com/langsmith/self-hosted)). Keep Langfuse.
 - **Reference to read:** NVIDIA's [retail shopping assistant blueprint](https://github.com/NVIDIA-AI-Blueprints/retail-shopping-assistant), which uses the same FastAPI, LangGraph, and NeMo Guardrails pattern.
-- **Infrastructure:** Docker, GitHub Actions, and [Coolify](https://github.com/coollabsio/coolify) (open source, self-hosted, deploys to any server you can reach over SSH) on an EU VPS. Stripe in test mode for payments.
+- **Infrastructure:** Docker, GitHub Actions, and [Railway](https://docs.railway.com/) (managed containers, Postgres, Redis and volumes) in its EU West region. Stripe in test mode for payments.
 
 ## Where things run
 
@@ -199,21 +200,21 @@ Version-sensitive commands and compatibility findings were checked against prima
 - Use one hosted model API for the main agent. Small local models are much weaker at multi-step tool use, and your production server has no GPU.
 - LiteLLM routes to local or hosted models with the same code.
 
-**Production: one EU VPS with Coolify**
+**Production: one Railway project in EU West**
 
-- A VPS from an EU provider such as Hetzner or OVHcloud, with about 8 GB RAM as an initial experiment. Medusa alone needs at least 2 GB ([Medusa deployment guide](https://docs.medusajs.com/learn/deployment/general)). Set container limits, measure memory, and load-test checkout plus agent traffic before treating 8 GB as sufficient.
-- Coolify on the same server to begin with. Coolify recommends a separate server for itself, so move it later.
-- What runs there, as Coolify resources:
-  - Medusa in server mode and in worker mode (the deployment guide requires both);
+- A Railway project in EU West Metal (Amsterdam, `europe-west4-drams3a`). Railway bills per minute for RAM and CPU on top of the plan fee ([plans](https://docs.railway.com/reference/pricing/plans)). Medusa alone needs at least 2 GB ([Medusa deployment guide](https://docs.medusajs.com/learn/deployment/general)). Measure memory and load-test checkout plus agent traffic before fixing the monthly budget.
+- What runs there, one Railway service each, on private networking (`*.railway.internal`):
+  - Medusa in server mode and in worker mode (the deployment guide requires both), from the commit-SHA images in GHCR;
   - storefront;
   - agent;
-  - Postgres with pgvector;
-  - Redis.
+  - Postgres with pgvector, on a volume, with no public access;
+  - Redis, on a volume, with no public access.
 - Medusa production modules from its deployment guide: Redis for caching, the event bus, the workflow engine, and locking; S3 for files.
-- S3-compatible object storage from the same provider, for Medusa files and Coolify's database backups.
-- GitHub Actions runs evals and builds commit-SHA-tagged images to GitHub Container Registry. Configure and test the Coolify webhook or deployment trigger before claiming that merge deploys automatically.
-- Tracing in production: start with Langfuse Cloud in its EU region. Self-host only on separate capacity later. Its current Compose deployment recommends at least 4 CPU cores, 16 GB RAM, and about 100 GB storage, so it does not belong on the store's initial 8 GB VPS.
-- Uptime monitoring: Uptime Kuma (open source), deployed as a Coolify one-click service.
+- S3-compatible object storage in the EU, for Medusa files and off-platform database backups. Railway Buckets are private only and have no versioning, so pick the provider in the hosting ADR.
+- GitHub Actions runs evals and builds commit-SHA-tagged images to GitHub Container Registry, then sets each Railway service to the new image through Railway's API. Test that path before claiming that merge deploys automatically.
+- Tracing in production: start with Langfuse Cloud in its EU region. Self-host only on separate capacity later. Its current Compose deployment recommends at least 4 CPU cores, 16 GB RAM, and about 100 GB storage.
+- Uptime monitoring runs outside Railway, so it still alerts when Railway is down.
+- GDPR: Railway is a US company with a self-service DPA, and it stores all service logs in US West for 90 days, client IPs included. Keep personal data out of logs.
 - Not open source, and fine to use: the model API, Stripe, and a transactional email service. Don't self-host email.
 
 Repo layout: one monorepo, created by `create-medusa-app`:
@@ -242,7 +243,7 @@ Huyen's book follows the reading track below. The other items are named in each 
 - [tau-bench paper](https://arxiv.org/abs/2406.12045) and [repo](https://github.com/sierra-research/tau2-bench) (use its `retail` domain as your benchmark)
 - Designing Data-Intensive Applications, 2nd edition: only the topics listed in the schedule
 - [Google SRE book, Handling Overload](https://sre.google/sre-book/handling-overload/)
-- Official docs, only the parts each step names: [Medusa](https://docs.medusajs.com/learn/customization), [LangGraph persistence and interrupts](https://docs.langchain.com/oss/python/langgraph/persistence), LangGraph multi-agent, [Coolify](https://coolify.io/docs), NeMo Data Designer, NeMo Agent Toolkit, NeMo Guardrails, the chosen speech provider and voice framework, and the chosen fine-tuning library.
+- Official docs, only the parts each step names: [Medusa](https://docs.medusajs.com/learn/customization), [LangGraph persistence and interrupts](https://docs.langchain.com/oss/python/langgraph/persistence), LangGraph multi-agent, [Railway](https://docs.railway.com/), NeMo Data Designer, NeMo Agent Toolkit, NeMo Guardrails, the chosen speech provider and voice framework, and the chosen fine-tuning library.
 
 ## Book reading track
 
@@ -399,7 +400,7 @@ Steps run back to back and can cross week boundaries. The detailed plan below de
 |---|---|---|---|
 | 1 | 28 Sep to 3 Oct | Research (in the background), On-ramp, start of Setup 1 | Book ch. 1 and 2; [Medusa customization](https://docs.medusajs.com/learn/customization); the four research reports |
 | 2 | 5 to 10 Oct | End of Setup 1 Day 1 (slipped two build days), rest of Setup 1 | Book ch. 3; [Medusa installation](https://docs.medusajs.com/learn/installation); Stripe testing docs |
-| 3 | 12 to 17 Oct | Setup 2, start of Step 1 | Book ch. 4 and 10; [Medusa deployment guide](https://docs.medusajs.com/learn/deployment/general); [Coolify docs](https://coolify.io/docs); OpenAI guide |
+| 3 | 12 to 17 Oct | Setup 2, start of Step 1 | Book ch. 4 and 10; [Medusa deployment guide](https://docs.medusajs.com/learn/deployment/general); [Railway docs](https://docs.railway.com/); OpenAI guide |
 | 4 | 19 to 24 Oct | End of Step 1, Step 2, start of Step 3 | Book ch. 10, 6, and 5; "Building effective agents"; first half of "Demystifying evals" |
 | 5 | 26 to 31 Oct | End of Step 3, Step 4, Step 5 | Book ch. 5, 8, and 9; rest of "Demystifying evals" |
 | 6 | 2 to 7 Nov | Step 6, Step 7 | Book ch. 9 and 7, then second reads of ch. 6; "Writing effective tools"; DDIA on transactions |
@@ -565,7 +566,7 @@ This step runs in the background during the On-ramp. Background agents do the so
 
 **Learning objectives:**
 
-- Harden a fresh Linux VPS and explain each hardening step.
+- Set up a Railway project so only the storefront and the server are public, and explain each security setting.
 - Explain why Medusa needs separate server and worker instances in production.
 - Explain the difference between a backup and a proven restore.
 
@@ -607,37 +608,36 @@ Docker, Compose, and GitHub Actions are already familiar, so Days 1 to 3 should 
 9. Protect the default branch so required checks must pass.
 10. Test CI with one intentionally failing change, then revert it.
 
-**Day 4: EU VPS and Coolify, built twice**
+**Day 4: Railway, built twice**
 
-Do the list below twice. First on a cheap throwaway VPS, writing `docs/runbooks/vps-and-coolify.md` as you go. Then destroy that server and build the real one from the runbook alone. Fix the runbook wherever it was not enough. Use `/teach` in `learning/` for any hardening step you can't explain.
+Do the list below twice. First in a throwaway Railway project, writing `docs/runbooks/railway.md` as you go. Then delete that project and build the real one from the runbook alone. Fix the runbook wherever it was not enough. Use `/teach` in `learning/` for any setting you can't explain.
 
-1. Select the provider, region, initial machine size, and monthly budget. Record them in an ADR.
-2. Create a non-root administrative user, SSH key authentication, firewall rules, and automatic security updates.
-3. Install Coolify using its current official instructions.
-4. Add the repository or immutable images as Coolify resources.
-5. Create separate resources for Medusa server and worker.
-6. Set `MEDUSA_WORKER_MODE=server` and `DISABLE_MEDUSA_ADMIN=false` on the server. Set `MEDUSA_WORKER_MODE=worker` and `DISABLE_MEDUSA_ADMIN=true` on the worker.
-7. Configure production secrets in Coolify, including strong random cookie and JWT secrets. Do not paste them into Compose files.
-8. Provision PostgreSQL and Redis with persistent storage.
-9. Configure the current Medusa production modules for Redis-backed caching, event bus, workflow engine, and locking, plus S3-compatible file storage. Names and configuration change across Medusa releases, so copy them from the current [deployment guide](https://docs.medusajs.com/learn/deployment/general).
-10. Configure storefront, Admin, and auth CORS with exact HTTPS origins. Do not use wildcard origins.
-11. Configure DNS and HTTPS.
-12. Run `medusa db:migrate` once as a controlled release step. Never let multiple replicas race to migrate.
-13. Deploy the backend first. Create the production test publishable key and region, then configure and deploy the storefront.
-14. Confirm the server's `/health` endpoint returns `OK`, then open Admin and the storefront.
-15. Configure the actual Coolify webhook or image-deployment trigger and prove that a merge deploys the expected commit SHA. This behavior is not automatic merely because an image exists in GHCR.
-16. Deploy and complete a Stripe test purchase over the public HTTPS URL.
-17. Test rollback to the previous image.
+1. Select the region, plan, and monthly budget, and decide GHCR access (private images need the Pro plan) and object storage. Record them in an ADR, with the GDPR trade-offs.
+2. Turn on 2FA for the Railway account, limit the Railway GitHub app to this repo, and set a usage limit or alert at the budget.
+3. Create the project in EU West.
+4. Create separate services for Medusa server, Medusa worker, and storefront, each from an immutable GHCR image tag.
+5. Set `MEDUSA_WORKER_MODE=server` and `DISABLE_MEDUSA_ADMIN=false` on the server. Set `MEDUSA_WORKER_MODE=worker` and `DISABLE_MEDUSA_ADMIN=true` on the worker.
+6. Configure production secrets as Railway variables, including strong random cookie and JWT secrets. Do not paste them into Compose or config files.
+7. Provision PostgreSQL with pgvector and Redis on volumes. Leave Public Access off, so neither gets a TCP proxy, and connect over private networking.
+8. Configure the current Medusa production modules for Redis-backed caching, event bus, workflow engine, and locking, plus S3-compatible file storage. Names and configuration change across Medusa releases, so copy them from the current [deployment guide](https://docs.medusajs.com/learn/deployment/general).
+9. Configure storefront, Admin, and auth CORS with exact HTTPS origins. Do not use wildcard origins.
+10. Give public domains to the server and storefront only. Configure DNS and HTTPS.
+11. Run `medusa db:migrate` as the server's pre-deploy command, with a timeout, and never on the worker, so replicas never race to migrate.
+12. Deploy the backend first. Create the production test publishable key and region, then configure and deploy the storefront.
+13. Point Railway health checks at `/ready` on the server and `/api/health` on the storefront. Confirm the server's `/health` endpoint returns `OK`, then open Admin and the storefront.
+14. Add a CI job that sets each service to the new SHA image through Railway's API and deploys it, and prove that a merge deploys the expected commit SHA. The Railway CLI cannot set an image tag, and nothing deploys merely because an image exists in GHCR.
+15. Deploy and complete a Stripe test purchase over the public HTTPS URL.
+16. Test rollback to the previous image through the same path. Railway's one-click rollback keeps removed images for 72 hours on Hobby, so it is not enough on its own.
 
 **Day 5: backups and recovery**
 
-1. Inventory all durable state. At this stage it includes Medusa data, S3 files, and Coolify configuration. Add agent cases, approvals, idempotency records, LiteLLM data, and LangGraph checkpoints to the inventory when those components are introduced.
-2. Create nightly encrypted PostgreSQL backups to EU object storage. Include every database and schema that holds durable business or workflow state.
-3. Back up S3-compatible object storage and Coolify configuration with documented retention.
+1. Inventory all durable state. At this stage it includes Medusa data, S3 files, and Railway configuration (services, variables, volumes, domains). Add agent cases, approvals, idempotency records, LiteLLM data, and LangGraph checkpoints to the inventory when those components are introduced.
+2. Create nightly encrypted PostgreSQL backups to EU object storage with a Railway cron service. Include every database and schema that holds durable business or workflow state. Railway's own volume backups are useful but not enough: they restore only into the same project and environment, and wiping the volume deletes them.
+3. Back up S3-compatible object storage and Railway configuration with documented retention.
 4. Treat Redis as rebuildable only after verifying that no required business state exists solely there.
 5. Stop application writes, workers, and scheduled jobs for the restore drill.
 6. Download backups into an isolated restore environment.
-7. Restore PostgreSQL to a new database, never over the source database. Restore object files and Coolify configuration in isolation.
+7. Restore PostgreSQL to a new database, never over the source database. Restore object files and Railway configuration in isolation.
 8. Run integrity queries, open representative orders in Admin, and verify agent approval and idempotency records.
 9. Record recovery time, recovery point, and exact commands in `docs/runbooks/restore-all-state.md`.
 10. Add uptime checks for storefront, backend health, and agent health once it exists.
@@ -648,14 +648,14 @@ Do the list below twice. First on a cheap throwaway VPS, writing `docs/runbooks/
 - reproducible local Compose stack;
 - passing protected CI;
 - commit-SHA container images;
-- HTTPS test deployment, built from the runbook on a second server;
-- VPS, deploy, and rollback runbooks;
+- HTTPS test deployment, built from the runbook in a second Railway project;
+- Railway, deploy, and rollback runbooks;
 - backup and proven restore of all currently durable state;
 - week report.
 
 **Gate fails if:** only the server or only the worker is deployed, the production database is publicly exposed, rollback is untested, or backup success is inferred without a restore.
 
-**Learning gate:** without notes, list the hardening steps for a fresh VPS and the reason for each, and explain what the restore drill proved that a successful backup job did not.
+**Learning gate:** without notes, list the Railway settings that keep the store safe (private Postgres and Redis, public domains only where needed, secrets as variables, scoped tokens, account 2FA) and the reason for each, and explain what the restore drill proved that a successful backup job did not.
 
 ### Step 1: write the design before the agent
 
@@ -1253,7 +1253,7 @@ Run each destructive fault case against synthetic test payments only.
 6. Train with fixed seeds and record every hyperparameter.
 7. Evaluate on the held-out set and on the full agent suite with the fine-tuned model in place: accuracy, cost, latency, and wrong actions.
 8. Check for regressions outside the task, such as refusals and the language mix.
-9. Decide how it would run in production. The VPS has no GPU, so the options are a hosted fine-tuning service from an EU provider, or not shipping. Price it.
+9. Decide how it would run in production. Railway has no GPUs, so the options are a hosted fine-tuning service from an EU provider, or not shipping. Price it.
 10. Write the ADR: ship, do not ship, or retry with more data, with the numbers.
 
 **Gate:** the comparison on the held-out set is reproducible from committed config and data, no eval case was in the training data, and the ADR follows from the numbers.
@@ -1290,7 +1290,7 @@ Run each destructive fault case against synthetic test payments only.
 
 **Day 3: reproducibility and operations**
 
-1. Perform one final backup and isolated restore of all durable state: PostgreSQL, agent workflow data, object storage, and Coolify configuration.
+1. Perform one final backup and isolated restore of all durable state: PostgreSQL, agent workflow data, object storage, and Railway configuration.
 2. Perform one final deployment and rollback.
 3. Confirm monitoring and budget alerts.
 4. Check every runbook against the live system.
@@ -1384,7 +1384,7 @@ The core roadmap should leave public evidence for each skill below. The same evi
 | Fine-tuning | Step 15 | Dataset card, held-out comparison with prompting, and the ship decision |
 | Communication | Steps 1 and 16 | The design doc, the case study, and the explain-backs |
 
-Two enabling skills get learning gates but no public evidence: TypeScript with Medusa (On-ramp) and running a VPS (Setup 2).
+Two enabling skills get learning gates but no public evidence: TypeScript with Medusa (On-ramp) and running the store on Railway (Setup 2).
 
 ## Outside feedback
 
@@ -1411,7 +1411,7 @@ Your employer is fine with the business and a Polish lawyer has confirmed you ca
 1. Register the business in CEIDG (usually a sole proprietorship, JDG) and pick the tax form with your accountant.
 2. Settle VAT with your accountant: whether the small-business exemption applies to your products, and whether you need OSS registration for sales to consumers in other EU countries.
 3. Write the store terms (regulamin), the 14-day withdrawal right with a return form, the complaints process, and price display rules, including the lowest price from the last 30 days next to any discount.
-4. Write the privacy policy. Sign a data processing agreement with every processor: VPS host, model provider, speech provider, Langfuse, Stripe, and the email service. Record what you process and how long you keep it, including voice transcripts.
+4. Write the privacy policy. Sign a data processing agreement with every processor: Railway, model provider, speech provider, Langfuse, Stripe, and the email service. Record what you process and how long you keep it, including voice transcripts.
 5. Tell customers clearly that the chat is an AI, and give them a route to a human.
 6. Check product safety and labeling duties for the category chosen in the Research step.
 7. Switch Stripe to live mode and add BLIK and Przelewy24.

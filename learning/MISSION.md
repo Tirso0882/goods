@@ -8,7 +8,7 @@ Become a strong AI agent engineer by shipping a customer support agent for a Med
 - Explain why a Medusa workflow is safer than a plain API route for a multi-step change such as a return.
 - Pass every step's learning gate in the core roadmap without notes.
 - Explain the core ideas of Chip Huyen's *AI Engineering* (evals, agents, RAG, prompts, inference, architecture) as they show up in this project's code.
-- Harden a fresh EU VPS, deploy the store with Coolify, and explain each step and why a proven restore beats a backup.
+- Deploy the store to Railway in the EU with only the storefront and server public, and explain each setting and why a proven restore beats a backup.
 - Explain when a supervisor with specialist agents beats a single agent, and defend the choice with the Step 13 comparison report.
 - Explain the cascaded voice pipeline, where its latency goes, and why spoken identifiers need read-back before any write.
 - Explain when to fine-tune instead of prompting or retrieval, how LoRA and QLoRA work, and how to keep training data out of evals.

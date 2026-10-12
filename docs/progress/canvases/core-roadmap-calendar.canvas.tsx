@@ -131,15 +131,15 @@ const WEEKS: Day[][] = [
       "CI jobs, commit-SHA images to GHCR, pinned Actions",
       "Prove CI fails on an intentionally broken change",
     ]),
-    build("Setup 2", "Setup 2: first VPS build (throwaway)", [
-      "Rent a cheap throwaway VPS and harden it",
-      "Install Coolify, deploy server, worker, storefront, Postgres, Redis",
-      "Write docs/runbooks/vps-and-coolify.md as you go",
+    build("Setup 2", "Setup 2: MSI laptop, then first Railway build (throwaway)", [
+      "Set up the MSI laptop from a clean clone and run Ollama on the RTX 4070 (#48)",
+      "Railway ADR, then a throwaway EU West project: server, worker, storefront, private Postgres and Redis",
+      "Write docs/runbooks/railway.md as you go",
       "Legal track: CEIDG registration and tax form with the accountant",
     ]),
-    build("Setup 2", "Setup 2: real VPS from the runbook", [
-      "Destroy the throwaway server",
-      "Build the real VPS from the runbook alone, fixing the runbook where it fell short",
+    build("Setup 2", "Setup 2: real Railway project from the runbook", [
+      "Delete the throwaway project",
+      "Build the real project from the runbook alone, fixing the runbook where it fell short",
       "DNS, HTTPS, single migration step, deploy trigger proven",
       "Stripe test purchase over HTTPS, then test rollback",
     ]),
@@ -155,7 +155,7 @@ const WEEKS: Day[][] = [
       "Case states, transition table, and agent tables",
     ]),
     review("Spaced review", [
-      "/teach quiz on book ch. 4 and 10, and on VPS hardening and restore drills",
+      "/teach quiz on book ch. 4 and 10, and on Railway security settings and restore drills",
       "Review week 1 material: Medusa concepts",
       "Share the week's summary publicly",
     ]),
@@ -231,7 +231,7 @@ const WEEKS: Day[][] = [
     ], "Step 5"),
     review("Spaced review", [
       "/teach quiz on book ch. 5, 8, and 9, and on judge calibration",
-      "Review week 3 material: VPS, restore, design doc",
+      "Review week 3 material: Railway, restore, design doc",
       "Share the week's summary publicly",
     ]),
     OFF,
