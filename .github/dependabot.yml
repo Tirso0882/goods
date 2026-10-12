@@ -1,0 +1,57 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Medusa packages share one version and must move together.
+      medusa:
+        patterns:
+          - "@medusajs/*"
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/*
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # The node image in every FROM line of apps/backend/Dockerfile and
+  # apps/storefront/Dockerfile.
+  - package-ecosystem: docker
+    directories:
+      - /apps/*
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Postgres, Redis and Ollama in compose.yaml. The CI test job pins the same
+  # Postgres and Redis, which Dependabot leaves alone: copy each bump there.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+    ignore:
+      # Local tags of the images compose.yaml builds; not on any registry.
+      - dependency-name: goods-stack-backend
+      - dependency-name: goods-stack-storefront

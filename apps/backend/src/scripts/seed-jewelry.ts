@@ -261,8 +261,18 @@ async function ensureTaxInclusive(
 
 /** Gross PLN, like product prices. */
 const POLAND_SHIPPING = [
-  { name: 'Standard Shipping', code: 'standard', description: 'Delivered in 2-4 business days.', amount: 15 },
-  { name: 'Express Courier', code: 'express', description: 'Delivered in 1-2 business days.', amount: 25 },
+  {
+    name: 'Standard Shipping',
+    code: 'standard',
+    description: 'Delivered in 2-4 business days.',
+    amount: 15,
+  },
+  {
+    name: 'Express Courier',
+    code: 'express',
+    description: 'Delivered in 1-2 business days.',
+    amount: 25,
+  },
 ]
 
 /** The starter seed ships to its Europe zone only, which leaves Poland without checkout. */

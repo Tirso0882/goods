@@ -16,6 +16,8 @@ This system uses synthetic data and test payments only.
 - `docs/project-configuration.md`: machine, versions, and project decisions.
 - `docs/adr/`: architecture decision records.
 - `docs/runbooks/local-store.md`: start, stop, reset, seed, purchase, webhook and troubleshooting for the local store.
+- `docs/runbooks/compose-stack.md`: the whole store in Docker Compose, from a fresh clone to a seeded store.
+- `docs/architecture/containers.md`: production images, and each process's port, health check, volume and secrets.
 - `docs/progress/`: weekly reports with commands, results, decisions and the learning gate.
 - `CONTEXT.md`: project vocabulary.
 - `learning/`: lessons and learning records.
@@ -85,6 +87,19 @@ The repo is a pnpm monorepo: the Medusa backend and Admin are in `apps/backend`,
    ```
 
    Backend health: http://localhost:9000/health (returns `OK`). Admin: http://localhost:9000/app. Storefront: http://localhost:8000/pl.
+
+## Run with Docker Compose
+
+To run the store from the production images, without Node on the host:
+
+```bash
+cp .env.example .env   # then fill in the secrets
+docker compose up -d --build --wait
+docker compose run --rm medusa-seed
+docker compose run --rm medusa-admin-user
+```
+
+Details, Stripe, reset and GPU are in [docs/runbooks/compose-stack.md](docs/runbooks/compose-stack.md).
 
 ## Stripe test checkout
 

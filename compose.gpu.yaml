@@ -1,0 +1,16 @@
+# Optional NVIDIA GPU for Ollama. Needs Docker Desktop with WSL 2 on Windows,
+# or the NVIDIA Container Toolkit on Linux. Docker Desktop on macOS has no
+# NVIDIA passthrough, so the Mac uses compose.yaml alone (CPU).
+#
+#   docker compose -f compose.yaml -f compose.gpu.yaml up -d
+#
+# With neither count nor device_ids set, Ollama gets every GPU. Set one of
+# them, never both, to limit it.
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]

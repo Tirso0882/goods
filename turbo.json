@@ -15,8 +15,18 @@
     "lint": {
       "outputs": []
     },
-    "test": {
+    "typecheck": {
       "outputs": []
+    },
+    "test": {
+      "outputs": [],
+      "passThroughEnv": [
+        "DB_HOST",
+        "DB_PORT",
+        "DB_USERNAME",
+        "DB_PASSWORD",
+        "REDIS_URL"
+      ]
     },
     "seed": {
       "outputs": []

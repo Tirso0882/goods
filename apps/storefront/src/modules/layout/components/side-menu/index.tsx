@@ -11,7 +11,6 @@ import CountrySelect from "../country-select"
 import LanguageSelect from "../language-select"
 import { Locale } from "@lib/data/locales"
 
-
 const SideMenuItems = {
   Home: "/",
   Store: "/store",

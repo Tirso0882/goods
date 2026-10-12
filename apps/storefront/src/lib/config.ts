@@ -1,18 +1,45 @@
+import {
+  getBackendUrl,
+  getPublishableKey,
+  isServer,
+  type StoreConfig,
+} from "@lib/util/backend-env"
 import { getLocaleHeader } from "@lib/util/get-locale-header"
 import Medusa, { FetchArgs, FetchInput } from "@medusajs/js-sdk"
 
-// Defaults to standard port for Medusa server
-let MEDUSA_BACKEND_URL = "http://localhost:9000"
+const debug = process.env.NODE_ENV === "development"
 
-if (process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL) {
-  MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL
-}
-
+// In the browser these stay unset: requests go through a client built from
+// /api/store-config, so the bundle holds no environment-specific values.
 export const sdk = new Medusa({
-  baseUrl: MEDUSA_BACKEND_URL,
-  debug: process.env.NODE_ENV === "development",
-  publishableKey: process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY,
+  baseUrl: isServer ? getBackendUrl() : "/",
+  debug,
+  publishableKey: isServer ? getPublishableKey() : undefined,
 })
+
+let browserClient: Promise<Medusa["client"]> | undefined
+
+const getBrowserClient = () => {
+  if (!browserClient) {
+    browserClient = fetch("/api/store-config", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`/api/store-config returned ${res.status}`)
+        }
+        return res.json() as Promise<StoreConfig>
+      })
+      .then(({ backendUrl, publishableKey }) => {
+        if (!publishableKey) {
+          throw new Error("The storefront server has no publishable key")
+        }
+        return new Medusa({ baseUrl: backendUrl, debug, publishableKey }).client
+      })
+    browserClient.catch(() => {
+      browserClient = undefined
+    })
+  }
+  return browserClient
+}
 
 const originalFetch = sdk.client.fetch.bind(sdk.client)
 
@@ -35,5 +62,9 @@ sdk.client.fetch = async <T>(
     ...init,
     headers: newHeaders,
   }
-  return originalFetch(input, init)
+  if (isServer) {
+    return originalFetch(input, init)
+  }
+  const client = await getBrowserClient()
+  return client.fetch<T>(input, init)
 }

@@ -1,6 +1,7 @@
 packages:
   - "apps/**"
   - "!apps/backend/.medusa/**"
+  - "!apps/storefront/.next/**"
 
 # pnpm 11+
 allowBuilds:

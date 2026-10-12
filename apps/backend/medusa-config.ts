@@ -1,18 +1,60 @@
-import { loadEnv, defineConfig } from '@medusajs/framework/utils'
+import { loadEnv, defineConfig, MedusaError } from '@medusajs/framework/utils'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
+
+const WORKER_MODES = ['shared', 'worker', 'server'] as const
+
+// Unset means "shared": one process serves HTTP and runs jobs, as in `pnpm dev`.
+const workerMode = (() => {
+  const mode = process.env.MEDUSA_WORKER_MODE
+  if (!mode) {
+    return undefined
+  }
+  if (!(WORKER_MODES as readonly string[]).includes(mode)) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `MEDUSA_WORKER_MODE must be one of ${WORKER_MODES.join(', ')}, or unset for shared. Got "${mode}".`
+    )
+  }
+  return mode as (typeof WORKER_MODES)[number]
+})()
+
+const isLocalHttpUrl = (url: string | undefined) => {
+  if (!url) {
+    return false
+  }
+  try {
+    const { protocol, hostname } = new URL(url)
+    return protocol === 'http:' && (hostname === 'localhost' || hostname === '127.0.0.1')
+  } catch {
+    return false
+  }
+}
+
+// With NODE_ENV=production the session cookie is Secure, so Admin login over
+// plain http://localhost sets no cookie. The opt-out only applies when the
+// server's public URL is local, so a copied Compose file cannot ship it.
+const insecureLocalCookies =
+  process.env.INSECURE_LOCAL_COOKIES === 'true' && isLocalHttpUrl(process.env.MEDUSA_BACKEND_URL)
 
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
     redisUrl: process.env.REDIS_URL,
+    workerMode,
     http: {
       storeCors: process.env.STORE_CORS!,
       adminCors: process.env.ADMIN_CORS!,
       authCors: process.env.AUTH_CORS!,
       jwtSecret: process.env.JWT_SECRET,
       cookieSecret: process.env.COOKIE_SECRET,
-    }
+    },
+    ...(insecureLocalCookies ? { cookieOptions: { secure: false } } : {}),
+  },
+  // backendUrl is left to Medusa's default, which reads MEDUSA_BACKEND_URL.
+  // Setting it to undefined here would override that default.
+  admin: {
+    disable: process.env.DISABLE_MEDUSA_ADMIN === 'true',
   },
   modules: [
     {
@@ -59,6 +101,35 @@ module.exports = defineConfig({
         ],
       },
     },
+    // The File Module takes one provider. Without a bucket Medusa keeps its
+    // local provider, which writes to ./static and needs a volume to persist.
+    ...(process.env.S3_BUCKET
+      ? [
+          {
+            resolve: '@medusajs/medusa/file',
+            options: {
+              providers: [
+                {
+                  resolve: '@medusajs/medusa/file-s3',
+                  id: 's3',
+                  options: {
+                    file_url: process.env.S3_FILE_URL,
+                    access_key_id: process.env.S3_ACCESS_KEY_ID,
+                    secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
+                    region: process.env.S3_REGION,
+                    bucket: process.env.S3_BUCKET,
+                    endpoint: process.env.S3_ENDPOINT,
+                    // MinIO and some S3-compatible stores need path-style URLs.
+                    ...(process.env.S3_FORCE_PATH_STYLE === 'true'
+                      ? { additional_client_config: { forcePathStyle: true } }
+                      : {}),
+                  },
+                },
+              ],
+            },
+          },
+        ]
+      : []),
     // Without a key the store still boots, with only the system payment provider.
     ...(process.env.STRIPE_API_KEY
       ? [
