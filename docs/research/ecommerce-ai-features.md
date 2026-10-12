@@ -91,8 +91,8 @@ Don't build this yourself. Use an open-source commerce platform (see stack below
 | AI service | Python, FastAPI, LangGraph | Same as the NVIDIA blueprint and the core roadmap |
 | Model access | LiteLLM gateway | Swap between hosted APIs and open-weight models without code changes |
 | Guardrails | NeMo Guardrails | Open source, and used in the NVIDIA blueprint |
-| Tracing and evals | Langfuse Cloud EU plus OpenTelemetry; tau-bench plus pytest | Cost and trace dashboard, evals in CI. Self-host Langfuse later, on separate capacity: its stack is too big for the store's VPS |
-| Infrastructure | Docker, GitHub Actions, [Coolify](https://github.com/coollabsio/coolify) on an EU VPS | No Azure access. Coolify is an open-source, self-hosted alternative to Heroku and Vercel |
+| Tracing and evals | Langfuse Cloud EU plus OpenTelemetry; tau-bench plus pytest | Cost and trace dashboard, evals in CI. Self-host Langfuse later, on separate capacity: its stack needs 16 GB RAM by itself |
+| Infrastructure | Docker, GitHub Actions, [Railway](https://docs.railway.com/) in EU West (Amsterdam) | No Azure access. Chosen on 12 October 2026 over a VPS with Coolify: managed containers, Postgres and Redis, with no server to harden |
 | Local models | Ollama on the laptop RTX 4070 (8 GB VRAM), Nemotron 3 Nano 4B | Embeddings, small models, free eval runs; the main agent uses a hosted API |
 | Synthetic data and agent profiling | NeMo Data Designer, NeMo Agent Toolkit (both Apache 2.0) | Eval conversations in Step 9; token and latency profiling in Step 10 |
 | Payments | Stripe in test mode (not open source, but you shouldn't build payments) | Add Polish methods such as BLIK or Przelewy24 when you go live |

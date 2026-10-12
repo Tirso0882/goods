@@ -104,7 +104,32 @@ Use the package version shown in the current NVIDIA install guide instead of cop
 
 - GPU support is development-only and optional. The production deployment does not require Docker GPU configuration when inference uses a hosted API. VRAM fit estimates are model, quantization, and context-length dependent, so make `nvidia-smi` plus an actual load test the acceptance check rather than promising that every 4B or 8B model fits.
 
-## Coolify deployment and recovery
+## Railway deployment and recovery
+
+Railway replaced a VPS with Coolify on 12 October 2026. Checked against Railway's docs that day; the Coolify notes below are kept for reference.
+
+**Verified setup**
+
+- EU region: EU West Metal, Amsterdam, identifier `europe-west4-drams3a`. Volumes follow their service's region ([regions](https://docs.railway.com/reference/deployment-regions)).
+- Plans: Hobby is $5 a month including $5 of usage, Pro is $20 including $20. Usage is billed per minute: RAM $10 per GB-month, CPU $20 per vCPU-month, volumes $0.15 per GB-month, egress $0.05 per GB. Hobby allows 5 GB of volume storage per service ([plans](https://docs.railway.com/reference/pricing/plans)).
+- Services deploy from a GitHub repo, a local directory, or a Docker image. Public GHCR images work on any plan; private registry images need the Pro plan and, for GHCR, a classic personal access token ([services](https://docs.railway.com/guides/services)).
+- Databases are private by default. Adding Public Access creates a TCP proxy and a `DATABASE_PUBLIC_URL` variable ([PostgreSQL](https://docs.railway.com/guides/postgresql)). Railway's Postgres template ships no extensions; pgvector is a separate marketplace template.
+- Services in one environment reach each other at `SERVICE_NAME.railway.internal` over WireGuard; each environment has its own network ([private networking](https://docs.railway.com/reference/private-networking)).
+- A pre-deploy command runs between build and deploy, in a separate container with the service's variables and private network, and a failure stops the deploy. It has no time limit unless you set one (1 to 3600 seconds) ([pre-deploy command](https://docs.railway.com/guides/pre-deploy-command)). This fits `medusa db:migrate` on the server.
+- The CLI cannot set an image tag. To deploy a specific SHA image, call the public GraphQL API: `serviceInstanceUpdate` with `source.image`, then a deploy mutation (Railway staff answers on [Central Station](https://station.railway.com/questions/change-ghcr-image-tag-from-railway-cli-11ee5faa); check the current API reference before building on it).
+- One-click rollback restores a removed deployment's image only within the retention window: 72 hours on Hobby, 120 on Pro ([plans](https://docs.railway.com/reference/pricing/plans)).
+
+**Backups and storage**
+
+- Volume backups can be manual or scheduled (daily kept 6 days, weekly kept 27 days, monthly kept 89 days). They restore only into the same project and environment, and wiping a volume deletes all its backups ([backups](https://docs.railway.com/reference/backups)). They do not satisfy an isolated restore drill or an off-platform copy.
+- Railway Buckets are S3-compatible, at $0.015 per GB-month with free egress and API calls. They are private only, reachable only over the public network, and have no versioning, object lock, lifecycle rules or built-in backups. A deleted bucket can be restored for 52 hours ([buckets](https://docs.railway.com/guides/storage-buckets)).
+
+**GDPR**
+
+- Railway publishes a self-service DPA with EU SCCs; its primary processing is in the United States ([DPA](https://railway.com/legal/dpa), [compliance](https://docs.railway.com/enterprise/compliance)).
+- All service logs, including HTTP logs with client IPs, are stored in US West for 90 days whatever the deploy region, and cannot be deleted early (Railway staff answer on [Central Station](https://station.railway.com/questions/log-retention-and-data-processing-agreem-223bf7c1)).
+
+## Coolify deployment and recovery (superseded)
 
 **Verified setup**
 
@@ -151,8 +176,8 @@ Authenticate `docker/login-action` to `ghcr.io` with `${{ github.actor }}` and `
 
 - Pin third-party Actions to full commit SHAs, as GitHub's own example does.
 - Run unit tests and a small deterministic eval gate before image publication. Put costly multi-trial or hosted-model evals in a separately budgeted job.
-- Publish one image per deployable component tagged with the commit SHA. Let Coolify pull that immutable tag. A private GHCR package requires registry credentials in Coolify; making a demo image public avoids that credential but is a deliberate visibility choice.
-- Do not claim that Coolify automatically deploys a GHCR image "on merge" until its webhook or deployment trigger is configured and tested. Git source webhooks and registry-image deployments are different paths.
+- Publish one image per deployable component tagged with the commit SHA. Let Railway pull that immutable tag. A private GHCR package needs the Railway Pro plan and registry credentials; making the images public avoids both but is a deliberate visibility choice.
+- Do not claim that Railway deploys a GHCR image "on merge" until the CI step that sets the image through the API is configured and tested. Git source deploys and registry-image deployments are different paths.
 
 ## LangGraph persistence and approval interrupts
 
@@ -260,10 +285,10 @@ Status, 27 September 2026: all twelve are incorporated in `top-1-percent-ai-agen
 3. Make separate Medusa server and worker deployments, production Redis modules, S3 files, secrets, CORS, and a single migration step explicit acceptance criteria.
 4. Require a Stripe webhook secret and webhook failure/duplicate tests, not only a successful test-card checkout.
 5. Treat Docker GPU setup as Windows WSL 2 development setup only. Do not make it a production prerequisite.
-6. Expand backup work from "nightly database backup" to all PostgreSQL databases, object storage, Coolify configuration, and a write-frozen restore drill.
-7. Keep Langfuse Cloud EU in the initial production architecture. Its self-hosted stack exceeds the proposed single 8 GiB VPS budget.
+6. Expand backup work from "nightly database backup" to all PostgreSQL databases, object storage, Railway configuration, and a write-frozen restore drill.
+7. Keep Langfuse Cloud EU in the initial production architecture. Its self-hosted stack needs 16 GiB RAM by itself.
 8. Separate tau2's retail benchmark from proof of Medusa correctness. Add a Medusa-native eval suite and pin any tau2 adapter.
 9. State that LiteLLM budgets require PostgreSQL and that `LITELLM_SALT_KEY` is durable recovery material.
 10. Make LangGraph's Postgres checkpointer, stable `thread_id`, restart/resume test, and application-level idempotency separate requirements.
 11. Install NeMo Agent Toolkit optional extras deliberately. Do not assume profiling or eval support is included in the base package.
-12. Use immutable commit-SHA image tags and verify the actual Coolify deployment trigger. "Deploys on merge" is configuration, not a default guarantee.
+12. Use immutable commit-SHA image tags and verify the actual Railway deployment trigger. "Deploys on merge" is configuration, not a default guarantee.
