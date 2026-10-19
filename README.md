@@ -1,6 +1,6 @@
 # goods
 
-A learning project: a customer support agent for a Medusa e-commerce store. The store is the vehicle, not the goal.
+A learning project: a customer support agent for a Medusa e-commerce store.
 
 ## Synthetic data and test payments only
 
