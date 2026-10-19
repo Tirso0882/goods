@@ -18,10 +18,10 @@ Hosted model provider: Amazon Bedrock, eu-central-1, through LiteLLM
 Primary model: Claude Sonnet (EU cross-region inference profile)
 Embedding model: BLOCKED
 Monthly model budget: BLOCKED
-Hosting provider, region and plan: Railway (decided 12 October 2026, replacing a VPS with Coolify); region, plan and monthly budget BLOCKED until the #15 ADR (planned: EU West, Amsterdam)
-Domain: BLOCKED
-Object storage provider: BLOCKED
-Transactional email provider: BLOCKED
+Hosting provider, region and plan: Railway, EU West Metal (Amsterdam, europe-west4-drams3a); Trial plan until 12 November 2026 at the latest, then Hobby with a $10 monthly budget (see docs/adr/0006-railway-hosts-the-test-store.md)
+Domain: redkraken.tech, storefront at www.redkraken.tech; the other hostnames are set in #16
+Object storage provider: Cloudflare R2, EU jurisdiction buckets, separate buckets for Medusa files and backups (see docs/adr/0006-railway-hosts-the-test-store.md)
+Transactional email provider: BLOCKED (contact address: tirso.gomez@redkraken.tech)
 Data retention period for conversations: BLOCKED
 Remote: https://github.com/Tirso0882/goods (public), default branch main
 Default branch protection enabled: Yes (main: PR required with 0 approvals, applies to admins, no force pushes, no deletion)
