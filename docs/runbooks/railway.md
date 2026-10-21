@@ -75,6 +75,148 @@ redis-cli PING                                                                  
 
 Result on 19 October 2026: all five as expected.
 
+## Medusa server
+
+Added with + Create → Docker Image, renamed `medusa-server` (other services reference it by that name). Serves the Store API, the Admin at `/app` and Stripe webhooks.
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Image | `ghcr.io/tirso0882/goods-backend:<sha>`, the full commit SHA of a green `main` CI run (first deploy: `b162024f1af7328c7e5deeb3057626be2533dd40`) | One tag is one exact build, so a rollback is redeploying an older SHA. A moving tag such as `latest` can't be rolled back to. |
+| Region | EU West (Amsterdam) | Next to Postgres and Redis, and customer data stays in the EU. |
+| Public domain | Railway-provided, `medusa-server-production-166b.up.railway.app`, target port 9000 (Settings → Networking → Public Networking → Generate Domain) | Browsers (Admin, Store API from the storefront) and Stripe webhooks start connections from outside Railway. Railway only detects the target port once the service is running, so after the first deploy check it with the edit icon next to the domain. |
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}?sslmode=disable` | A reference, so the password lives only on Postgres. Medusa uses SSL for any host but localhost, and the pgvector image has no TLS; the connection stays on Railway's encrypted private network. |
+| `REDIS_URL` | `${{Redis.REDIS_URL}}` | The private address with the password. It feeds the Redis caching, event bus, workflow engine and locking modules in `apps/backend/medusa-config.ts`. |
+| `MEDUSA_WORKER_MODE` | `server` | This process only serves HTTP; jobs and subscribers run on the worker, so a slow job can't hold up a checkout. |
+| `DISABLE_MEDUSA_ADMIN` | `false` | The server serves the Admin at `/app`. |
+| `PORT` | `9000` | Without it Railway injects its own `PORT`, which overrides the image's. Pinning it keeps the app, the domain's target port and the health check on one port. |
+| `MEDUSA_BACKEND_URL` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` | The public HTTPS URL the Admin calls. The reference follows the service's own domain if it changes. Over `http://` the browser drops the Secure session cookie and Admin login fails. |
+| `ADMIN_CORS` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` | Only the Admin's own origin may call `/admin/*` from a browser. Exact origin, no wildcard. |
+| `AUTH_CORS` | `https://${{RAILWAY_PUBLIC_DOMAIN}}`, plus the storefront origin once it has a domain | The origins allowed to log in: Admin and storefront. |
+| `JWT_SECRET`, `COOKIE_SECRET` | Each its own `openssl rand -hex 32`, added with + New Variable and then sealed (⋮ → Seal) | Either one lets someone forge an admin login. Sealed values reach the deploy but never show in the dashboard, API, `railway variables` or `railway run`, and aren't copied to duplicated or PR environments. Never the local `.env` values. Rotate with ⋮ → Edit and a redeploy. |
+| `STRIPE_API_KEY` | `sk_test_...` from the **goods sandbox**, sealed | The seed enables Stripe in the Poland region only when the key is set. The storefront key and the webhook must come from the same sandbox. |
+| Pre-deploy command | `sh -c 'S3_BUCKET="" JWT_SECRET="${JWT_SECRET:-migrate-only}" COOKIE_SECRET="${COOKIE_SECRET:-migrate-only}" exec ./node_modules/.bin/medusa db:migrate'` (Settings → Deploy) | Migrates once per release, before the new version takes traffic; a failure stops the deploy and the old version keeps serving. It runs in a separate container from the same image, and in #16 sealed secrets were empty there (JWT, cookie, S3) while they also failed to reach the server until re-added (see "Sealing a variable" below), so whether pre-deploy gets sealed values is not settled; the command doesn't depend on it. Medusa refuses to load its config without the JWT and cookie secrets, and the S3 provider refuses to start without its keys. Migrations sign nothing and touch no files, so the placeholders are used only when the real value is missing, only in that container, and an empty `S3_BUCKET` leaves the S3 provider out. The server starts with the real values, and would fail its health check without them. Any new sealed variable that config loading requires needs the same treatment here. Only the server has a pre-deploy command, so two migrations never race. |
+| Pre-deploy timeout | 600 seconds | No limit by default, so a migration stuck on a lock would hang the release. A fresh migrate takes 1–2 minutes. |
+| Healthcheck path | `/ready`, default timeout 300 seconds (Settings → Deploy) | Railway switches traffic only after a 2xx. `/ready` also needs Postgres to answer within 3 seconds; `/health` only says the process booted. The check uses `PORT`. Railway stops checking once the deploy is live, so it isn't monitoring. |
+
+### Check the server
+
+```bash
+curl -i https://medusa-server-production-166b.up.railway.app/ready    # 200 OK
+curl -i https://medusa-server-production-166b.up.railway.app/health   # 200 OK
+```
+
+`/app` opens the Admin login. The pre-deploy log ends with `Migration scripts completed`; until the Stripe webhook exists it also warns that `webhookSecret` is missing. Result on 19 October 2026: all as expected.
+
+## Medusa worker
+
+Added with + Create → Docker Image, renamed `medusa-worker`. Runs subscribers, scheduled jobs and workflow steps, including the Stripe webhooks the server queues.
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Image | The same `goods-backend:<sha>` as the server | One image, two roles chosen by variables. Server and worker share the database and Redis queues, so they always run the same release. |
+| Region | EU West (Amsterdam) | Same as the rest of the store. |
+| Public domain | None | Nothing outside Railway connects to it: it reaches Postgres and Redis itself over the private network. A domain would expose a process holding the store's secrets. |
+| Pre-deploy command | None | The server migrates once per release; a second migration would race it. |
+| Healthcheck path | `/health` | Worker mode loads no API routes, so there's no `/ready`, but Medusa answers `/health` on `PORT` once booted. Railway checks over its own network, so no domain is needed. |
+| `MEDUSA_WORKER_MODE`, `DISABLE_MEDUSA_ADMIN` | `worker`, `true` | The documented worker role: no API, no Admin. |
+| `DATABASE_URL`, `REDIS_URL`, `PORT` | As on the server | Same database and queues; `PORT` for the health check. |
+| `JWT_SECRET`, `COOKIE_SECRET`, `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, `S3_*` | `${{medusa-server.<NAME>}}` | One source of truth, so a rotation on the server reaches the worker on its next deploy. References to sealed variables resolve to the real value: in #16 the worker started with the S3 provider, which refuses to start without its keys. The worker processes Stripe webhooks with the Stripe provider, so it needs both Stripe values. |
+
+The worker needs no CORS and no `MEDUSA_BACKEND_URL`: nothing calls it from a browser. Its first deploy log shows it picking up the events queued by the first migration (`Processing sales-channel.created ...`) and seeding the product search index, which proves the event bus between server and worker works.
+
+## Storefront
+
+Added with + Create → Docker Image, renamed `storefront`.
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Image | `ghcr.io/tirso0882/goods-storefront:<sha>`, the same SHA as the backend | Storefront and backend of a release come from one commit. |
+| Region | EU West (Amsterdam) | Same as the rest of the store. |
+| Public domain | Railway-provided, `storefront-production-f245.up.railway.app`, target port 8000 | Shoppers' browsers load its pages. |
+| Healthcheck path | `/api/health` | OK only when the publishable key is set and the backend answers, so a storefront that would serve error pages never takes traffic. No pre-deploy command. |
+| `PORT` | `8000` | The image's port; keeps Railway's injected `PORT` out and the health check on the right port. |
+| `MEDUSA_BACKEND_URL` | `http://${{medusa-server.RAILWAY_PRIVATE_DOMAIN}}:9000` | The storefront's own server (page rendering, health check) reaches the backend over the private network: no egress, no public hop. Plain HTTP inside Railway's WireGuard network. Environments created after 16 October 2025 are dual-stack, so no IPv6 binding is needed. |
+| `PUBLIC_MEDUSA_BACKEND_URL` | `https://${{medusa-server.RAILWAY_PUBLIC_DOMAIN}}` | Shoppers' browsers call the Store API here; they can't resolve `*.railway.internal`. |
+| `PUBLIC_BASE_URL` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` | The storefront's own URL, for absolute links. |
+| `MEDUSA_PUBLISHABLE_KEY` | The `pk_...` from Admin → Settings → Publishable API Keys → Default Publishable API Key | Created by the first migration. Plain, not sealed: it's sent to every browser by design and grants no secret access. |
+| `PUBLIC_STRIPE_KEY` | `pk_test_...` from the **goods sandbox** | Publishable, so plain. Same sandbox as the server's `sk_test_...`. |
+
+Then on `medusa-server`, now that the storefront has a domain:
+
+| Variable | Value | Why |
+| --- | --- | --- |
+| `STORE_CORS` | `https://${{storefront.RAILWAY_PUBLIC_DOMAIN}}` | Only the storefront's origin may call the Store API from a browser, so another site can't use a shopper's cart session. |
+| `AUTH_CORS` | `https://${{RAILWAY_PUBLIC_DOMAIN}},https://${{storefront.RAILWAY_PUBLIC_DOMAIN}}` | Admin login and customer login. |
+
+### Check the storefront and CORS
+
+```bash
+curl -i https://storefront-production-f245.up.railway.app/api/health    # 200 OK
+S=https://medusa-server-production-166b.up.railway.app
+curl -s -o /dev/null -D - -X OPTIONS -H "Origin: https://storefront-production-f245.up.railway.app" \
+  -H "Access-Control-Request-Method: GET" $S/store/regions | grep -i allow-origin   # the storefront origin
+curl -s -o /dev/null -D - -X OPTIONS -H "Origin: https://evil.example" \
+  -H "Access-Control-Request-Method: GET" $S/store/regions | grep -i allow-origin   # nothing
+```
+
+`/pl` shows the jewelry catalog in PLN. Result on 20 October 2026: all as expected.
+
+## R2 bucket for product images
+
+In the Cloudflare dashboard, not Railway.
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Bucket | `goods-throwaway-media`, R2 Object Storage → Create bucket, Location → Specify jurisdiction → **European Union (EU)**, Standard storage class | The EU jurisdiction keeps objects in the EU and can't be changed later. The name says which bucket #18 deletes. Backups get their own bucket in #19. |
+| Public access | Bucket Settings → Public Development URL → Allow (`https://pub-....r2.dev`) | Shoppers' browsers load product images directly. `r2.dev` is rate-limited and meant for development; a custom domain replaces it once the domain field is unblocked. |
+| API token | R2 → Manage API tokens → Create Account API token, **Object Read & Write**, this bucket only | A leaked key can't reach backups, other buckets or account settings. The secret is shown once; keep it in the password manager. Rotate by creating a new token, editing the variables, then deleting the old token. |
+| CORS | None | Admin uploads go to the Medusa server, which writes to R2; browsers only GET images. |
+
+Variables on `medusa-server` (the S3 provider loads only when `S3_BUCKET` is set):
+
+| Variable | Value |
+| --- | --- |
+| `S3_BUCKET` | `goods-throwaway-media` |
+| `S3_REGION` | `auto` (Medusa's R2 setting) |
+| `S3_ENDPOINT` | `https://<ACCOUNT_ID>.eu.r2.cloudflarestorage.com`; an EU bucket fails through the endpoint without `.eu.` |
+| `S3_FILE_URL` | the `r2.dev` URL |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | from the token, sealed |
+
+`S3_FORCE_PATH_STYLE` stays unset; it's for MinIO.
+
+To check, upload an image to any product in the deployed Admin (Media → Upload → Save) and open it in a new tab: the URL starts with the `r2.dev` URL, and the object shows under R2 → `goods-throwaway-media` → Objects. A URL under `/static/` means the S3 provider isn't loaded. The seed's product images are hotlinked from the supplier's CDN, so they don't test R2. Result on 20 October 2026: as expected.
+
+## Seed the store and create the Admin user
+
+Once, after the first green deploy of the server, from a laptop over `railway ssh` (never a pre-deploy step: it's test-store setup, not part of a release).
+
+```bash
+railway ssh --service medusa-server -i ~/.ssh/id_ed25519_railway -- ./node_modules/.bin/medusa exec ./src/scripts/seed-jewelry.js
+```
+
+The image holds the compiled build, so the script is `.js`. The log must say Stripe is enabled (or already enabled) in the Poland region and `Catalog ready: 16 products.`; `Stripe is not configured` means the server has no `STRIPE_API_KEY`.
+
+Create the Admin user from an interactive session, so the password is neither on screen nor in the laptop's shell history:
+
+```sh
+railway ssh --service medusa-server -i ~/.ssh/id_ed25519_railway
+# the container shell may show no prompt
+read -rs ADMIN_PASSWORD
+./node_modules/.bin/medusa user -e <your email> -p "$ADMIN_PASSWORD"
+unset ADMIN_PASSWORD
+exit
+```
+
+Not `admin@example.com`: this Admin is on the public internet. The password goes in the password manager. Logging in at `/app` proves the Secure session cookie works over HTTPS.
+
+### SSH key for `railway ssh`
+
+A dedicated key, `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_railway`, with its passphrase in the password manager, registered with `railway ssh keys add` and checked with `railway ssh keys list`. Remove keys you can no longer unlock with `railway ssh keys remove`. On GNOME the default agent (`gcr-ssh-agent`) asks for the passphrase in a desktop dialog, so `railway ssh` seems to hang until it's answered; `ssh-add` in the terminal asks there instead. In #16 Railway accepted the key and the login then stalled on exactly that.
+
+## Sealing a variable
+
+Add the variable, apply the change and wait for a green deploy, then seal it (⋮ → Seal) and redeploy to check it still reaches the service. In #16, variables sealed before their change was applied reached the deploy empty (`COOKIE_SECRET`, `STRIPE_API_KEY`, the S3 keys): Medusa failed with `http.cookieSecret not found` or `Access key ID and secret access key are required`. The fix was to delete the variable and add it again in this order. A sealed value can't be read back, so the deploy log is the only check.
+
 ## Applying changes
 
 Railway stages setting changes until you click the **Apply / Deploy changes** banner on the canvas. In #15 the first Redis deploy went out with the template's image and start command, though the edits showed in Settings. After every change, check over `railway ssh` what is actually running instead of trusting the dashboard.
