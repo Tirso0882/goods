@@ -1,4 +1,5 @@
 import { getBackendUrl, getPublishableKey } from "@lib/util/backend-env"
+import { isIndexingAllowed } from "@lib/util/env"
 import { HttpTypes } from "@medusajs/types"
 import { NextRequest, NextResponse } from "next/server"
 
@@ -101,9 +102,20 @@ async function getCountryCode(
 }
 
 /**
- * Middleware to handle region selection and onboarding status.
+ * Middleware to handle region selection and onboarding status, and to keep
+ * deployments that aren't production out of search and AI indexes.
  */
 export async function middleware(request: NextRequest) {
+  const response = await routeToRegion(request)
+
+  if (!isIndexingAllowed()) {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow")
+  }
+
+  return response
+}
+
+async function routeToRegion(request: NextRequest) {
   if (request.nextUrl.pathname.includes(".")) {
     return NextResponse.next()
   }
