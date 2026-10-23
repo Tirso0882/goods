@@ -12,10 +12,6 @@ Triage uses the five default canonical labels. See `docs/agents/triage-labels.md
 
 Domain documentation uses a single-context layout. See `docs/agents/domain.md`.
 
-## GitHub publication
-
-When the user explicitly requests commit by category/subject, push, publish, or PR creation, skip HTTPS `git push` and invoke the Git Data API publisher (`scripts/publish-via-github-api.sh`) immediately. Never publish automatically at the beginning of unrelated work.
-
 <!-- BEGIN:turborepo-agent-rules -->
 
 # This is NOT the Turborepo you know
