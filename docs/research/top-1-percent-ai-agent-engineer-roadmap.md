@@ -2,13 +2,13 @@
 
 Goal: become a strong AI agent engineer by building a production-grade customer support agent for a Medusa e-commerce store, while reading Chip Huyen's *AI Engineering*. The order of priorities is: the skill first, then public evidence of it, then the store. The same skills should serve three outcomes: an agent engineering job, consulting work, and your own e-commerce business.
 
-Time: 40 project hours a week, Monday to Friday from 10:00 to 18:00. Saturday is a light day of spaced review only (10:00 to 12:30), and Sunday is fully off. The core roadmap runs about 13 weeks, from Monday 28 September to Wednesday 23 December 2026 (shifted two build days after Setup 1 Day 1 slipped, then three weeks when multi-agent, voice, and fine-tuning came into scope; see `docs/adr/0004-multi-agent-voice-and-fine-tuning-are-in-scope.md`). Product research runs in the background during week 1, alongside the On-ramp. After the core roadmap, run a retro before choosing the pace for the second project.
+Time: 40 project hours a week, Monday to Friday from 10:00 to 18:00. Saturday is a light day of spaced review only (10:00 to 12:30), and Sunday is fully off. The core roadmap runs about 14 weeks, from Monday 28 September to Thursday 31 December 2026 (shifted two build days after Setup 1 Day 1 slipped, then three weeks when multi-agent, voice, and fine-tuning came into scope, then six more build days after Setup 2 slipped; see `docs/adr/0004-multi-agent-voice-and-fine-tuning-are-in-scope.md`). Product research runs in the background during week 1, alongside the On-ramp. After the core roadmap, run a retro before choosing the pace for the second project.
 
 The project runs in production with synthetic data and test payments only. Your employer and a Polish lawyer have confirmed you can run the business, so the only remaining blockers for real orders are the business registration, tax, consumer-law, privacy, and security work in "Before taking real orders" at the end of this file. That work runs in parallel from week 1.
 
 This roadmap is an execution checklist, not a promise that mistakes are impossible. APIs and installation commands change. Every step therefore has a gate and a learning gate. Do not continue because the calendar says to continue. Continue only when both gates pass and the evidence is committed.
 
-Terms used here (gate, learning gate, stop condition, step, week, explain-back) are defined in `CONTEXT.md` at the repo root. Decisions are recorded in `docs/adr/`.
+Terms used here (gate, learning gate, stop condition, step, week, explain-back) are defined in `GLOSSARY.md` at the repo root. Decisions are recorded in `docs/adr/`.
 
 ## How to use this roadmap
 
@@ -130,7 +130,7 @@ Create these files during the Setup steps:
 .nvmrc or .node-version         # pinned Node version
 .python-version                 # Python 3.12 baseline
 uv.lock                         # pinned Python dependencies
-CONTEXT.md                      # glossary of project terms
+GLOSSARY.md                     # glossary of project terms
 docs/adr/                       # short architecture decision records
 docs/progress/                  # weekly evidence and explain-backs
 docs/runbooks/                  # deploy, rollback, backup, restore, incident
@@ -257,27 +257,27 @@ Priority, highest first: ch. 6, 4, 3, 5, 10, 2, 8, 1, 9, 7.
 | 2 | 2. Understanding Foundation Models | 1 to 2 Oct | Sampling; Structured Outputs; The Probabilistic Nature of AI. Skim training and modeling | Model choice; Step 2 sampling and structured outputs |
 | 3 | 3. Evaluation Methodology | 7 to 9 Oct | Exact Evaluation; AI as a Judge. Skim language modeling metrics | Step 3 exact checks; Step 4 judge |
 | 4 | 4. Evaluate AI Systems | 12 to 14 Oct | Evaluation Criteria; Model Selection; Design Your Evaluation Pipeline | Step 1 metrics and eval guideline; Steps 3 and 4 |
-| 5 | 10. AI Engineering Architecture and User Feedback | 15, 16, 19 Oct | The five architecture steps; Monitoring and Observability | Step 1 component map; Steps 10 to 12 |
-| 6 | 6. RAG and Agents | 20 to 22 Oct | Agents first (tools, planning, failure modes), then RAG and Memory | Step 2 agent loop; Steps 6 to 8 |
-| 7 | 5. Prompt Engineering | 23, 26, 27 Oct | Defensive Prompt Engineering; Organize and Version Prompts | Step 5 |
-| 8 | 8. Dataset Engineering | 28 to 29 Oct | Data Coverage; Acquisition and Annotation; AI-Powered Data Synthesis; Deduplicate Data | Step 4 hand labels; Step 9 |
-| 9 | 9. Inference Optimization | 30 Oct, 2 Nov | Inference Performance Metrics; Inference Service Optimization | Step 10 |
-| 10 | 7. Finetuning | 3 to 4 Nov | When to Finetune; Finetuning and RAG. Skim the rest; the full chapter is read in Step 15 | Step 7 "RAG instead of finetuning" ADR; Step 15 |
+| 5 | 10. AI Engineering Architecture and User Feedback | 15, 26, 27 Oct | The five architecture steps; Monitoring and Observability | Step 1 component map; Steps 10 to 12 |
+| 6 | 6. RAG and Agents | 28 to 30 Oct | Agents first (tools, planning, failure modes), then RAG and Memory | Step 2 agent loop; Steps 6 to 8 |
+| 7 | 5. Prompt Engineering | 2 to 4 Nov | Defensive Prompt Engineering; Organize and Version Prompts | Step 5 |
+| 8 | 8. Dataset Engineering | 5 to 6 Nov | Data Coverage; Acquisition and Annotation; AI-Powered Data Synthesis; Deduplicate Data | Step 4 hand labels; Step 9 |
+| 9 | 9. Inference Optimization | 9 to 10 Nov | Inference Performance Metrics; Inference Service Optimization | Step 10 |
+| 10 | 7. Finetuning | 11 to 12 Nov | When to Finetune; Finetuning and RAG. Skim the rest; the full chapter is read in Step 15 | Step 7 "RAG instead of finetuning" ADR; Step 15 |
 
-From 5 November the block becomes a spaced second read of the sections the current step uses:
+From 13 November the block becomes a spaced second read of the sections the current step uses:
 
 | Dates | Second read | For |
 |---|---|---|
-| 5 to 6 Nov | Ch. 6 RAG and Memory | Step 7 |
-| 9 to 11 Nov | Ch. 6 Agents: planning and failure modes | Step 8 |
-| 12 to 13 Nov | Ch. 8 Data Augmentation and Synthesis; Data Processing | Step 9 |
-| 16 to 18 Nov | Ch. 9 service optimization; ch. 10 router, gateway, and caches | Step 10 |
-| 19 to 20 Nov | Ch. 10 Put in Guardrails; ch. 5 Defensive Prompt Engineering | Step 11 |
-| 23 to 25 Nov | Ch. 10 Monitoring and Observability; User Feedback | Step 12 |
-| 26 Nov to 2 Dec | Ch. 6 Agents: planning, multi-agent, and failure modes; ch. 4 Model Selection | Step 13 multi-agent experiment |
-| 3 to 9 Dec | Ch. 9 Inference Performance Metrics (latency budgets); ch. 10 Put in Guardrails | Step 14 voice |
-| 10 to 16 Dec | Ch. 7 in full (memory math, PEFT and LoRA, model merging); ch. 8 Data Coverage again | Step 15 fine-tuning |
-| 17 to 23 Dec | All chapter summaries and your explain-backs | Step 16 case study and walkthrough |
+| 13 to 16 Nov | Ch. 6 RAG and Memory | Step 7 |
+| 17 to 19 Nov | Ch. 6 Agents: planning and failure modes | Step 8 |
+| 20 to 23 Nov | Ch. 8 Data Augmentation and Synthesis; Data Processing | Step 9 |
+| 24 to 26 Nov | Ch. 9 service optimization; ch. 10 router, gateway, and caches | Step 10 |
+| 27 to 30 Nov | Ch. 10 Put in Guardrails; ch. 5 Defensive Prompt Engineering | Step 11 |
+| 1 to 3 Dec | Ch. 10 Monitoring and Observability; User Feedback | Step 12 |
+| 4 to 10 Dec | Ch. 6 Agents: planning, multi-agent, and failure modes; ch. 4 Model Selection | Step 13 multi-agent experiment |
+| 11 to 17 Dec | Ch. 9 Inference Performance Metrics (latency budgets); ch. 10 Put in Guardrails | Step 14 voice |
+| 18 to 24 Dec | Ch. 7 in full (memory math, PEFT and LoRA, model merging); ch. 8 Data Coverage again | Step 15 fine-tuning |
+| 25 to 31 Dec | All chapter summaries and your explain-backs | Step 16 case study and walkthrough |
 
 ## What the agent may do
 
@@ -400,19 +400,20 @@ Steps run back to back and can cross week boundaries. The detailed plan below de
 |---|---|---|---|
 | 1 | 28 Sep to 3 Oct | Research (in the background), On-ramp, start of Setup 1 | Book ch. 1 and 2; [Medusa customization](https://docs.medusajs.com/learn/customization); the four research reports |
 | 2 | 5 to 10 Oct | End of Setup 1 Day 1 (slipped two build days), rest of Setup 1 | Book ch. 3; [Medusa installation](https://docs.medusajs.com/learn/installation); Stripe testing docs |
-| 3 | 12 to 17 Oct | Setup 2, start of Step 1 | Book ch. 4 and 10; [Medusa deployment guide](https://docs.medusajs.com/learn/deployment/general); [Railway docs](https://docs.railway.com/); OpenAI guide |
-| 4 | 19 to 24 Oct | End of Step 1, Step 2, start of Step 3 | Book ch. 10, 6, and 5; "Building effective agents"; first half of "Demystifying evals" |
-| 5 | 26 to 31 Oct | End of Step 3, Step 4, Step 5 | Book ch. 5, 8, and 9; rest of "Demystifying evals" |
-| 6 | 2 to 7 Nov | Step 6, Step 7 | Book ch. 9 and 7, then second reads of ch. 6; "Writing effective tools"; DDIA on transactions |
-| 7 | 9 to 14 Nov | Step 8, Step 9 | Second reads of ch. 6 and 8; LangGraph persistence and interrupt docs; Data Designer docs |
-| 8 | 16 to 21 Nov | Step 10, Step 11 | Second reads of ch. 9, 10, and 5; SRE Handling Overload; Guardrails docs |
-| 9 | 23 to 28 Nov | Step 12, start of Step 13 | Second reads of ch. 10 and 6; DDIA on consistency and derived data; the two multi-agent posts |
-| 10 | 30 Nov to 5 Dec | End of Step 13, start of Step 14 | Second reads of ch. 4, 9, and 10; LangGraph multi-agent docs; speech provider and voice framework docs |
-| 11 | 7 to 12 Dec | End of Step 14, start of Step 15 | Ch. 7 in full; fine-tuning library docs |
-| 12 | 14 to 19 Dec | End of Step 15, start of Step 16 | Ch. 8 again; chapter summaries |
-| 13 | 21 to 23 Dec | End of Step 16, retro | Your explain-backs |
+| 3 | 12 to 17 Oct | Setup 2 (catch-up begins Friday after the gate slipped) | Book ch. 4 and 10 (day 1); [Medusa deployment guide](https://docs.medusajs.com/learn/deployment/general); [Railway docs](https://docs.railway.com/) |
+| 4 | 19 to 24 Oct | Setup 2 catch-up and gate (slipped six build days from 15 Oct) | Railway runbooks; restore drill evidence |
+| 5 | 26 to 31 Oct | Step 1, Step 2 | Book ch. 10 (days 2 to 3) and 6; "Building effective agents"; OpenAI guide |
+| 6 | 2 to 7 Nov | Step 3, Step 4, start of Step 5 | Book ch. 5, 8; first half then rest of "Demystifying evals" |
+| 7 | 9 to 14 Nov | End of Step 5, Step 6, start of Step 7 | Book ch. 9 and 7, then second reads of ch. 6; "Writing effective tools"; DDIA on transactions |
+| 8 | 16 to 21 Nov | End of Step 7, Step 8, start of Step 9 | Second reads of ch. 6 and 8; LangGraph persistence and interrupt docs; Data Designer docs |
+| 9 | 23 to 28 Nov | End of Step 9, Step 10, start of Step 11 | Second reads of ch. 9, 10, and 5; SRE Handling Overload; Guardrails docs |
+| 10 | 30 Nov to 5 Dec | End of Step 11, Step 12, start of Step 13 | Second reads of ch. 10 and 6; DDIA on consistency and derived data; the two multi-agent posts |
+| 11 | 7 to 12 Dec | End of Step 13, start of Step 14 | Second reads of ch. 4, 9, and 10; LangGraph multi-agent docs; speech provider and voice framework docs |
+| 12 | 14 to 19 Dec | End of Step 14, start of Step 15 | Ch. 7 in full; fine-tuning library docs |
+| 13 | 21 to 26 Dec | End of Step 15, start of Step 16 | Ch. 8 again; chapter summaries |
+| 14 | 28 to 31 Dec | End of Step 16, retro | Your explain-backs |
 
-Slow down if you're skipping evals or learning gates, or if Steps 6 to 8 run past the end of week 7. Steps 13 to 15 are five build days each. Do not start them until Step 12's gate passes.
+Slow down if you're skipping evals or learning gates, or if Steps 6 to 8 run past the end of week 8. Steps 13 to 15 are five build days each. Do not start them until Step 12's gate passes.
 
 ## Detailed execution plan
 
