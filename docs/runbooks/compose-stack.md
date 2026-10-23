@@ -71,27 +71,6 @@ docker compose exec postgres psql -U postgres -d medusa-goods -c \
 
 A freshly seeded store shows 16 products, 10 customers and 12 orders. Then open http://localhost:8000/pl and http://localhost:9000/app (log in with `ADMIN_EMAIL` and `ADMIN_PASSWORD`).
 
-## Crawlers
-
-The stack runs with `ALLOW_INDEXING` empty, so crawlers are kept out (ADR 0007). Check it:
-
-```bash
-curl -s localhost:8000/robots.txt                          # User-Agent: *, Disallow: /
-curl -sI localhost:8000/pl | grep -iE "^HTTP|x-robots"     # 200, x-robots-tag: noindex, nofollow
-curl -sI localhost:8000/pl/store | grep -iE "^HTTP|x-robots"
-```
-
-To see what the real production store will send, restart only the storefront with indexing on, then switch it back:
-
-```bash
-ALLOW_INDEXING=true docker compose up -d --wait storefront
-curl -s localhost:8000/robots.txt                          # Allow: /
-curl -sI localhost:8000/pl | grep -iE "^HTTP|x-robots"     # 200, no x-robots-tag
-docker compose up -d --wait storefront
-```
-
-The header comes from the middleware, so `/api/*` and static files don't carry it; `Disallow: /` covers them. Result on 23 October 2026: all as expected.
-
 ## Publishable key
 
 Nothing to copy. Every fresh database gets a new key from the migration. On each `up`, the `publishable-key` service reads it from Postgres and writes it to the `publishable-key` volume, and the storefront reads it from there when it starts. Check which key, backend URL and Stripe key the storefront hands to the browser with `curl -s localhost:8000/api/store-config`.

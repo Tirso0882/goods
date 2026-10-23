@@ -7,8 +7,3 @@ export const getBaseURL = () => {
     "https://localhost:8000"
   )
 }
-
-// Read at runtime, so the same image hides the test store and opens the real
-// one. Anything but "true" keeps crawlers out: forgetting the variable must not
-// leak synthetic products into search and AI answers (ADR 0007).
-export const isIndexingAllowed = () => process.env.ALLOW_INDEXING === "true"

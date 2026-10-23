@@ -186,8 +186,6 @@ services:
       PUBLIC_STRIPE_KEY: ${PUBLIC_STRIPE_KEY:-}
       # Empty means "use the key from the publishable-key volume".
       MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
-      # Empty keeps crawlers out (ADR 0007). Only the real production store sets true.
-      ALLOW_INDEXING: ${ALLOW_INDEXING:-}
     command:
       - sh
       - -ec
