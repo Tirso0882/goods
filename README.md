@@ -19,7 +19,7 @@ This system uses synthetic data and test payments only.
 - `docs/runbooks/compose-stack.md`: the whole store in Docker Compose, from a fresh clone to a seeded store.
 - `docs/architecture/containers.md`: production images, and each process's port, health check, volume and secrets.
 - `docs/progress/`: weekly reports with commands, results, decisions and the learning gate.
-- `CONTEXT.md`: project vocabulary.
+- `GLOSSARY.md`: project vocabulary.
 - `learning/`: lessons and learning records.
 
 ## Requirements
