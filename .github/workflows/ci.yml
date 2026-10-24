@@ -173,3 +173,7 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       sha: ${{ github.sha }}
+    # Only this secret. Its value comes from the production environment, which
+    # the called job names; without passing it, it arrives empty.
+    secrets:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

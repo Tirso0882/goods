@@ -9,6 +9,9 @@ on:
       sha:
         type: string
         required: true
+    secrets:
+      RAILWAY_TOKEN:
+        required: true
   workflow_dispatch:
     inputs:
       sha:
@@ -30,8 +33,9 @@ jobs:
     name: deploy
     runs-on: ubuntu-24.04
     timeout-minutes: 75
-    # Holds the RAILWAY_TOKEN secret. A called workflow can't receive
-    # environment secrets from its caller, so the job names the environment.
+    # Holds the RAILWAY_TOKEN secret. A called job takes the secret's value
+    # from the environment it names, but only when the caller passes the
+    # secret: otherwise it's an empty string, with no error.
     environment:
       name: production
       url: https://storefront-production-7294.up.railway.app
