@@ -14,6 +14,7 @@
     "format:check": "prettier --check .",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
+    "check:migrations": "node scripts/check-migrations.mjs",
     "backend:seed": "turbo seed --filter=@dtc/backend",
     "reset": "bash scripts/reset-local-data.sh",
     "backend:dev": "turbo dev --filter=@dtc/backend",
