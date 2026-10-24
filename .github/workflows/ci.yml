@@ -162,3 +162,11 @@ jobs:
           push-to-registry: true
           # Storage records only exist for organization-owned repositories.
           create-storage-record: false
+
+  deploy:
+    name: deploy
+    needs: [publish]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      sha: ${{ github.sha }}

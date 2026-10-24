@@ -1,0 +1,45 @@
+name: Deploy
+
+# CI calls this after publishing a commit on main. Run it by hand with an
+# older SHA to roll back: the same path, so rollback is tested every release
+# (docs/runbooks/deploy-and-rollback.md).
+on:
+  workflow_call:
+    inputs:
+      sha:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full commit SHA whose images to deploy (a green main CI run)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+# One release at a time, and never cancel one halfway: a cancelled run could
+# leave the server on a new release and the worker on the old one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    # Holds the RAILWAY_TOKEN secret. A called workflow can't receive
+    # environment secrets from its caller, so the job names the environment.
+    environment:
+      name: production
+      url: https://storefront-production-7294.up.railway.app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: scripts/railway-deploy.sh "$SHA"
+        env:
+          SHA: ${{ inputs.sha }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
