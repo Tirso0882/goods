@@ -19,22 +19,33 @@ How the test store's Railway project is set up, with the reason for every settin
 | Setting | Value | Why |
 | --- | --- | --- |
 | Project | `goods-throwaway`, created as an Empty project (https://railway.com/new) | The name says which project #18 deletes. Starting empty means every service is added on purpose and written down here. |
-| Project ID | `b259ae5d-641b-41bb-8624-08a02d9643a6` (project Settings) | Needed by the Railway API in #17. Not secret. |
+| Project ID | `59613d42-0f2d-482c-b313-b7725287e919` (project Settings) | Needed by the Railway API in #17. Not secret. |
 | Environment | `production` | Railway's default environment. |
+
+The first project (`b259ae5d-...`, 13–23 October 2026) was deleted on 24 October 2026 and rebuilt from this runbook; see "Rebuild after Railway's security notice" below.
 
 ## Postgres
 
-Added from Railway's pgvector template (https://railway.com/deploy/3jJFCA), renamed from `pgvector` to `Postgres` (other services reference it as `${{Postgres.DATABASE_URL}}`), then changed as below before the first deploy. Postgres only reads `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` when it first initializes the volume, so set them before deploying.
+Added from Railway's pgvector template (https://railway.com/deploy/3jJFCA), renamed from `pgvector` to `Postgres` (other services reference it as `${{Postgres.DATABASE_URL}}`), then changed as below. Postgres only reads `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` when it first initializes the volume, so set them before it initializes.
+
+Three traps, all hit in #16:
+
+- **The template deploys at once, on `pg18`.** That first run initializes the volume as Postgres 18, and the pinned Postgres 17 image then crash-loops with `unrecognized configuration parameter "autovacuum_worker_slots"`. After switching the image and setting the variables, wipe the volume (volume card → Settings → Wipe volume) and redeploy, so Postgres 17 initializes it with the right name and password.
+- **Renaming the service doesn't rename its private domain.** Set Settings → Networking → Private Networking to `postgres`, so the address is `postgres.railway.internal` and matches the name.
+- **Replacing the Raw Editor contents deletes the template's variables.** Add to them; don't paste over them. Without `DATABASE_URL` on Postgres, `${{Postgres.DATABASE_URL}}` resolves to nothing, and the server's pre-deploy retries an empty host (`ENOTFOUND ... "hostname":"base"`) until it times out.
 
 | Setting | Value | Why |
 | --- | --- | --- |
 | Image | `pgvector/pgvector:0.8.7-pg17-bookworm` (service Settings → Source) | The template uses `pgvector/pgvector:pg18`, a moving tag on a newer major. CI tests on exactly this image (`.github/workflows/ci.yml`) and Compose runs Postgres 17, so a dump from Railway restores locally in the #19 drill. |
 | Region | EU West (Amsterdam) | Customer data stays in the EU. |
-| Volume | Mounted at `/var/lib/postgresql` | Without a volume, every redeploy loses the data. |
+| Private domain | `postgres.railway.internal` (Settings → Networking → Private Networking) | Matches the service name; the template's `pgvector` survives a rename. |
+| Volume | Mounted at `/var/lib/postgresql/data` (the template's mount path, kept) | Without a volume, every redeploy loses the data. It's the Postgres 17 image's data path. |
 | `PGDATA` | `/var/lib/postgresql/data/pgdata` | A new volume holds a `lost+found` folder, and Postgres refuses to initialize a data directory that isn't empty, so the data goes in a subfolder on the volume. |
 | `POSTGRES_DB` | `medusa-goods` | The template says `railway`. One database name everywhere (Compose, dumps, restore drill). |
 | `POSTGRES_PASSWORD` | `openssl rand -hex 32`, typed into the Raw Editor and nowhere else | Letters and digits only, because it goes into a URL. It lives only in Railway variables, never in the repo, chat or notes. |
-| `DATABASE_URL` | `postgresql://${{PGUSER}}:${{POSTGRES_PASSWORD}}@${{RAILWAY_PRIVATE_DOMAIN}}:5432/${{PGDATABASE}}` (from the template, kept) | The private address `*.railway.internal` only resolves inside the project, so the database is reached without leaving Railway's network. |
+| `POSTGRES_USER`, `PGUSER` | `postgres` | The superuser Postgres creates on first start. Without `POSTGRES_USER`, `psql -U "$POSTGRES_USER"` in the container falls back to `root`, which doesn't exist. |
+| `PGPASSWORD`, `PGDATABASE`, `PGHOST`, `PGPORT` | `${{POSTGRES_PASSWORD}}`, `${{POSTGRES_DB}}`, `${{RAILWAY_PRIVATE_DOMAIN}}`, `5432` | The template's connection variables; `DATABASE_URL` is built from them. |
+| `DATABASE_URL` | `postgresql://${{PGUSER}}:${{POSTGRES_PASSWORD}}@${{RAILWAY_PRIVATE_DOMAIN}}:5432/${{PGDATABASE}}` | The private address `*.railway.internal` only resolves inside the project, so the database is reached without leaving Railway's network. |
 | Public access | None: no TCP Proxy (Settings → Networking), and `DATABASE_PUBLIC_URL` deleted in the Variables Raw Editor (the variable list has no delete icon for it) | A TCP proxy would put the database on the internet, guarded by its password alone. The Setup 2 gate fails if the production database is publicly exposed. |
 
 ### Check pgvector from inside the project
@@ -43,11 +54,11 @@ The database has no public address, so check it from a shell inside its containe
 
 ```bash
 railway link                       # workspace → project → production
-railway ssh --service Postgres
-psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "BEGIN; CREATE EXTENSION vector; SELECT version(); SELECT extversion FROM pg_extension WHERE extname = 'vector'; SELECT '[1,2,3]'::vector <-> '[1,2,4]'::vector AS distance; ROLLBACK;"
+railway ssh --service Postgres -i ~/.ssh/id_ed25519_railway
+psql -U postgres -d medusa-goods -c "BEGIN; CREATE EXTENSION vector; SELECT version(); SELECT extversion FROM pg_extension WHERE extname = 'vector'; SELECT '[1,2,3]'::vector <-> '[1,2,4]'::vector AS distance; ROLLBACK;"
 ```
 
-Expected: `PostgreSQL 17.11`, `extversion` `0.8.7`, `distance` `1`, then `ROLLBACK`, which leaves no extension behind. Result on 19 October 2026: all four as expected.
+Expected: `PostgreSQL 17.11`, `extversion` `0.8.7`, `distance` `1`, then `ROLLBACK`, which leaves no extension behind. Result on 19 October 2026: all four as expected. Rebuilt project, 24 October 2026: `PostgreSQL 17.11` and `vector` `0.8.7` available.
 
 ## Redis
 
@@ -81,9 +92,9 @@ Added with + Create → Docker Image, renamed `medusa-server` (other services re
 
 | Setting | Value | Why |
 | --- | --- | --- |
-| Image | `ghcr.io/tirso0882/goods-backend:<sha>`, the full commit SHA of a green `main` CI run (first deploy: `b162024f1af7328c7e5deeb3057626be2533dd40`) | One tag is one exact build, so a rollback is redeploying an older SHA. A moving tag such as `latest` can't be rolled back to. |
+| Image | `ghcr.io/tirso0882/goods-backend:<sha>`, the full commit SHA of a green `main` CI run (first deploy: `b162024f1af7328c7e5deeb3057626be2533dd40`; rebuilt project: `88dce76af614727b604e2650efe851f02f0821f2`) | One tag is one exact build, so a rollback is redeploying an older SHA. A moving tag such as `latest` can't be rolled back to. |
 | Region | EU West (Amsterdam) | Next to Postgres and Redis, and customer data stays in the EU. |
-| Public domain | Railway-provided, `medusa-server-production-166b.up.railway.app`, target port 9000 (Settings → Networking → Public Networking → Generate Domain) | Browsers (Admin, Store API from the storefront) and Stripe webhooks start connections from outside Railway. Railway only detects the target port once the service is running, so after the first deploy check it with the edit icon next to the domain. |
+| Public domain | Railway-provided, `medusa-server-production-0b75.up.railway.app`, target port 9000 (Settings → Networking → Public Networking → Generate Domain) | Browsers (Admin, Store API from the storefront) and Stripe webhooks start connections from outside Railway. Railway only detects the target port once the service is running, so after the first deploy check it with the edit icon next to the domain. |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}?sslmode=disable` | A reference, so the password lives only on Postgres. Medusa uses SSL for any host but localhost, and the pgvector image has no TLS; the connection stays on Railway's encrypted private network. |
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` | The private address with the password. It feeds the Redis caching, event bus, workflow engine and locking modules in `apps/backend/medusa-config.ts`. |
 | `MEDUSA_WORKER_MODE` | `server` | This process only serves HTTP; jobs and subscribers run on the worker, so a slow job can't hold up a checkout. |
@@ -93,7 +104,8 @@ Added with + Create → Docker Image, renamed `medusa-server` (other services re
 | `ADMIN_CORS` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` | Only the Admin's own origin may call `/admin/*` from a browser. Exact origin, no wildcard. |
 | `AUTH_CORS` | `https://${{RAILWAY_PUBLIC_DOMAIN}}`, plus the storefront origin once it has a domain | The origins allowed to log in: Admin and storefront. |
 | `JWT_SECRET`, `COOKIE_SECRET` | Each its own `openssl rand -hex 32`, added with + New Variable and then sealed (⋮ → Seal) | Either one lets someone forge an admin login. Sealed values reach the deploy but never show in the dashboard, API, `railway variables` or `railway run`, and aren't copied to duplicated or PR environments. Never the local `.env` values. Rotate with ⋮ → Edit and a redeploy. |
-| `STRIPE_API_KEY` | `sk_test_...` from the **goods sandbox**, sealed | The seed enables Stripe in the Poland region only when the key is set. The storefront key and the webhook must come from the same sandbox. |
+| `STRIPE_API_KEY` | A secret key from the **goods sandbox** (Developers → API keys → Create secret key), named `goods-railway-medusa-server`, template **Full access, except sensitive operations**, sealed | The seed enables Stripe in the Poland region only when the key is set. The storefront key and the webhook must come from the same sandbox. Full access could also move money out and manage the account; a custom set risks missing one of the PaymentIntents, Refunds, Customers and PaymentMethods calls Medusa makes. Its own key, not the local `.env` one, so either can be revoked alone. |
+| `STRIPE_WEBHOOK_SECRET` | The `whsec_...` of the goods sandbox webhook destination (see "Stripe webhook" below), sealed after the first green deploy that uses it | Medusa rejects webhook calls whose signature doesn't match, so a forged "payment succeeded" can't complete an order. It's a different secret from the one `stripe listen` prints locally. |
 | Pre-deploy command | `sh -c 'S3_BUCKET="" JWT_SECRET="${JWT_SECRET:-migrate-only}" COOKIE_SECRET="${COOKIE_SECRET:-migrate-only}" exec ./node_modules/.bin/medusa db:migrate'` (Settings → Deploy) | Migrates once per release, before the new version takes traffic; a failure stops the deploy and the old version keeps serving. It runs in a separate container from the same image, and in #16 sealed secrets were empty there (JWT, cookie, S3) while they also failed to reach the server until re-added (see "Sealing a variable" below), so whether pre-deploy gets sealed values is not settled; the command doesn't depend on it. Medusa refuses to load its config without the JWT and cookie secrets, and the S3 provider refuses to start without its keys. Migrations sign nothing and touch no files, so the placeholders are used only when the real value is missing, only in that container, and an empty `S3_BUCKET` leaves the S3 provider out. The server starts with the real values, and would fail its health check without them. Any new sealed variable that config loading requires needs the same treatment here. Only the server has a pre-deploy command, so two migrations never race. |
 | Pre-deploy timeout | 600 seconds | No limit by default, so a migration stuck on a lock would hang the release. A fresh migrate takes 1–2 minutes. |
 | Healthcheck path | `/ready`, default timeout 300 seconds (Settings → Deploy) | Railway switches traffic only after a 2xx. `/ready` also needs Postgres to answer within 3 seconds; `/health` only says the process booted. The check uses `PORT`. Railway stops checking once the deploy is live, so it isn't monitoring. |
@@ -101,11 +113,31 @@ Added with + Create → Docker Image, renamed `medusa-server` (other services re
 ### Check the server
 
 ```bash
-curl -i https://medusa-server-production-166b.up.railway.app/ready    # 200 OK
-curl -i https://medusa-server-production-166b.up.railway.app/health   # 200 OK
+curl -i https://medusa-server-production-0b75.up.railway.app/ready    # 200 OK
+curl -i https://medusa-server-production-0b75.up.railway.app/health   # 200 OK
 ```
 
-`/app` opens the Admin login. The pre-deploy log ends with `Migration scripts completed`; until the Stripe webhook exists it also warns that `webhookSecret` is missing. Result on 19 October 2026: all as expected.
+`/app` opens the Admin login. The pre-deploy log ends with `Migration scripts completed`; until the Stripe webhook exists it also warns that `webhookSecret` is missing. Result on 19 October 2026: all as expected. Rebuilt project, 24 October 2026: `/ready`, `/health` and `/app` 200.
+
+### Stripe webhook
+
+In the **goods sandbox**: Workbench → Webhooks → add a destination. A destination is tied to one server domain, so a rebuilt server needs a new one; delete the old destination.
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Scope | Your account | Connected accounts are for Stripe Connect platforms. |
+| Payload style | Snapshot | Medusa reads the payment intent from `data.object`; a thin payload carries only its ID. |
+| API version | The default | |
+| Destination type | Webhook endpoint | |
+| Endpoint URL | `https://medusa-server-production-0b75.up.railway.app/hooks/payment/stripe_stripe` | The route of the Stripe provider with id `stripe` in `apps/backend/medusa-config.ts`. Stripe calls the server's public HTTPS domain; the worker has none. |
+| Events | `payment_intent.created`, `.processing`, `.canceled`, `.payment_failed`, `.requires_action`, `.amount_capturable_updated`, `.partially_funded`, `.succeeded` | The same set as `stripe listen` in the local runbook, so the test store behaves like the local one. |
+| Signing secret | Copied into `STRIPE_WEBHOOK_SECRET` on `medusa-server`; the worker references it | Never in the repo, chat or notes. |
+
+With the destination in place, the server and worker logs no longer warn that `webhookSecret` is missing.
+
+### Check a test purchase
+
+On the storefront, buy any product with a Polish address and the test card `4242 4242 4242 4242` (any future date, any CVC). Expected: the order confirmation page; the order in Admin → Orders with payment **Captured**; and in the destination's Event deliveries, `payment_intent.created` and `payment_intent.succeeded` delivered (`pending_webhooks: 0`). Result on 24 October 2026, rebuilt project: all three as expected (244.00 zł, card).
 
 ## Medusa worker
 
@@ -132,7 +164,7 @@ Added with + Create → Docker Image, renamed `storefront`.
 | --- | --- | --- |
 | Image | `ghcr.io/tirso0882/goods-storefront:<sha>`, the same SHA as the backend | Storefront and backend of a release come from one commit. |
 | Region | EU West (Amsterdam) | Same as the rest of the store. |
-| Public domain | Railway-provided, `storefront-production-f245.up.railway.app`, target port 8000 | Shoppers' browsers load its pages. |
+| Public domain | Railway-provided, `storefront-production-7294.up.railway.app`, target port 8000 | Shoppers' browsers load its pages. |
 | Healthcheck path | `/api/health` | OK only when the publishable key is set and the backend answers, so a storefront that would serve error pages never takes traffic. No pre-deploy command. |
 | `PORT` | `8000` | The image's port; keeps Railway's injected `PORT` out and the health check on the right port. |
 | `MEDUSA_BACKEND_URL` | `http://${{medusa-server.RAILWAY_PRIVATE_DOMAIN}}:9000` | The storefront's own server (page rendering, health check) reaches the backend over the private network: no egress, no public hop. Plain HTTP inside Railway's WireGuard network. Environments created after 16 October 2025 are dual-stack, so no IPv6 binding is needed. |
@@ -140,6 +172,7 @@ Added with + Create → Docker Image, renamed `storefront`.
 | `PUBLIC_BASE_URL` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` | The storefront's own URL, for absolute links. |
 | `MEDUSA_PUBLISHABLE_KEY` | The `pk_...` from Admin → Settings → Publishable API Keys → Default Publishable API Key | Created by the first migration. Plain, not sealed: it's sent to every browser by design and grants no secret access. |
 | `PUBLIC_STRIPE_KEY` | `pk_test_...` from the **goods sandbox** | Publishable, so plain. Same sandbox as the server's `sk_test_...`. |
+| `ALLOW_INDEXING` | Not set on the test store. `true` only on the real production project | Unset, the storefront serves a robots.txt with `Disallow: /` and sends `X-Robots-Tag: noindex, nofollow`, so the synthetic catalog and test prices never reach search or AI answers under the brand (ADR 0007). Only the exact value `true` lets crawlers in, so a missing or mistyped variable keeps the store hidden. |
 
 Then on `medusa-server`, now that the storefront has a domain:
 
@@ -151,15 +184,18 @@ Then on `medusa-server`, now that the storefront has a domain:
 ### Check the storefront and CORS
 
 ```bash
-curl -i https://storefront-production-f245.up.railway.app/api/health    # 200 OK
-S=https://medusa-server-production-166b.up.railway.app
-curl -s -o /dev/null -D - -X OPTIONS -H "Origin: https://storefront-production-f245.up.railway.app" \
+curl -i https://storefront-production-7294.up.railway.app/api/health    # 200 OK
+S=https://medusa-server-production-0b75.up.railway.app
+curl -s -o /dev/null -D - -X OPTIONS -H "Origin: https://storefront-production-7294.up.railway.app" \
   -H "Access-Control-Request-Method: GET" $S/store/regions | grep -i allow-origin   # the storefront origin
 curl -s -o /dev/null -D - -X OPTIONS -H "Origin: https://evil.example" \
   -H "Access-Control-Request-Method: GET" $S/store/regions | grep -i allow-origin   # nothing
+F=https://storefront-production-7294.up.railway.app
+curl -s $F/robots.txt                                   # User-Agent: *, Disallow: /
+curl -sI $F/pl | grep -iE '^HTTP|x-robots'               # 200, x-robots-tag: noindex, nofollow
 ```
 
-`/pl` shows the jewelry catalog in PLN. Result on 20 October 2026: all as expected.
+`/pl` shows the jewelry catalog in PLN. Result on 20 October 2026: all as expected. Rebuilt project, 24 October 2026: health, CORS (exact origin, none for a foreign one) and catalog as expected.
 
 ## R2 bucket for product images
 
@@ -184,7 +220,7 @@ Variables on `medusa-server` (the S3 provider loads only when `S3_BUCKET` is set
 
 `S3_FORCE_PATH_STYLE` stays unset; it's for MinIO.
 
-To check, upload an image to any product in the deployed Admin (Media → Upload → Save) and open it in a new tab: the URL starts with the `r2.dev` URL, and the object shows under R2 → `goods-throwaway-media` → Objects. A URL under `/static/` means the S3 provider isn't loaded. The seed's product images are hotlinked from the supplier's CDN, so they don't test R2. Result on 20 October 2026: as expected.
+To check, upload an image to any product in the deployed Admin (Media → Upload → Save) and open it in a new tab: the URL starts with the `r2.dev` URL, and the object shows under R2 → `goods-throwaway-media` → Objects. A URL under `/static/` means the S3 provider isn't loaded. The seed's product images are hotlinked from the supplier's CDN, so they don't test R2. Result on 20 October 2026: as expected. Rebuilt project, 24 October 2026: as expected, with a new token.
 
 ## Seed the store and create the Admin user
 
