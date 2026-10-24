@@ -108,4 +108,13 @@ When `pnpm check:migrations` fails, ours or Medusa's:
 
 ## Results
 
-To be filled in by the first deploy and the rollback test.
+24 October 2026, project `goods-throwaway`, environment `production`:
+
+| What | Run | Result |
+| --- | --- | --- |
+| First merge (#63) | [CI 40105656548](https://github.com/Tirso0882/goods/actions/runs/40105656548) | `deploy` failed before reaching Railway: `RAILWAY_TOKEN` was empty, because a called workflow only gets an environment secret the caller passes. Fixed in #64. The store kept running `88dce76`. |
+| Deploy on merge (#64), `35da4c30` | [CI 40106728751](https://github.com/Tirso0882/goods/actions/runs/40106728751) | Server, worker, storefront each `INITIALIZING` → `DEPLOYING` → `SUCCESS`, about 2 minutes in all. The project token was allowed to set the image and pre-deploy command, and Railway applied them without staging. `/ready`, `/app`, `/api/health`, `/pl` all 200. |
+| Rollback to `88dce76` | [Deploy 40109100496](https://github.com/Tirso0882/goods/actions/runs/40109100496) | All three `SUCCESS` on `88dce76`. Pre-deploy ended with `Migration scripts completed`. Endpoints 200, a test purchase with `4242 4242 4242 4242` completed and showed in Admin → Orders. |
+| Roll forward to `35da4c30` | [Deploy 40109563089](https://github.com/Tirso0882/goods/actions/runs/40109563089) | All three `SUCCESS`, endpoints 200. |
+
+No app code changed between `88dce76` and `35da4c30`, so the drill proved the path (API calls, order, waiting, the token, the unprompted migrate) but not old code on a newer schema. Repeat it per rule 5 when a release changes the schema.

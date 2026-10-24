@@ -94,7 +94,7 @@ Legend: rectangles are Railway services we deploy, cylinders are datastores (the
 
 ## 3. Build and release pipeline
 
-A push to `main` runs five required CI jobs, then the `publish` matrix pushes both images to GHCR tagged with the full commit SHA and attests their provenance. Today a person sets that SHA on each Railway service and deploys; [#17](https://github.com/Tirso0882/goods/issues/17) replaces the manual steps with a CI job that calls Railway's public API, server first. Rollback is the same path with an older SHA.
+A push to `main` runs five required CI jobs, then the `publish` matrix pushes both images to GHCR tagged with the full commit SHA and attests their provenance. The `deploy` job then points the Railway services at that SHA through Railway's public API, server first, and waits for each deployment to succeed before the next ([#17](https://github.com/Tirso0882/goods/issues/17), [deploy and rollback runbook](../runbooks/deploy-and-rollback.md)). Rollback is the same workflow run by hand with an older SHA.
 
 ```mermaid
 flowchart TB
@@ -112,16 +112,8 @@ flowchart TB
   pub["publish (backend)<br/>publish (storefront)<br/>linux/amd64"]
   ghcr[["GHCR<br/>goods-backend:SHA<br/>goods-storefront:SHA<br/>+ build attestation"]]
 
-  subgraph manual["Manual today"]
-    direction TB
-    set["set image tag on medusa-server,<br/>medusa-worker, storefront<br/>(Railway dashboard)"]
-    apply["Apply / Deploy changes"]
-  end
-
-  subgraph auto["#17 automates (planned)"]
-    direction TB
-    job["CI deploy job after publish<br/>serviceInstanceUpdate, then deploy<br/>server first · scoped Railway token"]
-  end
+  job["deploy job (deploy.yml)<br/>serviceInstanceUpdate, then deploy<br/>server → worker → storefront<br/>project token · environment production"]
+  rb["Deploy run by hand<br/>older SHA = rollback"]
 
   pull[["Railway pulls images"]]
   mig["medusa-server pre-deploy:<br/>medusa db:migrate"]
@@ -132,20 +124,18 @@ flowchart TB
   push --> ci
   fmt & lint & tc & test & build -->|"all green"| pub
   pub -->|"images · HTTPS (docker push)"| ghcr
-  ghcr --> set --> apply --> pull
-  ghcr -.->|"planned · HTTPS (Railway API)"| job
-  job -.-> pull
+  pub --> job
+  rb --> job
+  job -->|"image tag · HTTPS (Railway API)"| pull
+  ghcr -->|"image · HTTPS"| pull
   pull -->|"image · HTTPS"| mig
   mig -->|"exit 0"| hc
   mig -->|"fails"| fail
   hc -->|"2xx"| live
   hc -->|"no 2xx within 300 s"| fail
-
-  classDef planned stroke-dasharray: 5 5
-  class job planned
 ```
 
-Legend: rectangles are pipeline steps, double-sided boxes are external platforms, the dashed box and arrows are what #17 adds. Pull request runs stop after `build`: `publish` only runs on `main`.
+Legend: rectangles are pipeline steps, double-sided boxes are external platforms. Pull request runs stop after `build`: `publish` only runs on `main`.
 
 ## 4. Runtime request flows
 
