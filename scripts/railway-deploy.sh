@@ -24,6 +24,13 @@ SERVICES=(
   "medusa-worker goods-backend"
   "storefront goods-storefront"
 )
+# Set on the server with every release, so it lives here and not only in the
+# dashboard. The placeholders are explained in docs/runbooks/railway.md. The
+# --execute-safe-* flags answer Medusa's link and search sync without a prompt
+# (there is no terminal in pre-deploy): create what's new, never drop or change
+# what the image doesn't know, which is what a rollback finds.
+# shellcheck disable=SC2016 # expanded by sh -c in the container, not here
+MIGRATE='sh -c '\''S3_BUCKET="" JWT_SECRET="${JWT_SECRET:-migrate-only}" COOKIE_SECRET="${COOKIE_SECRET:-migrate-only}" exec ./node_modules/.bin/medusa db:migrate --execute-safe-links --execute-safe-search'\'
 # Pre-deploy is capped at 600 seconds, plus pulling and the health check.
 DEPLOY_TIMEOUT_SECONDS=${DEPLOY_TIMEOUT_SECONDS:-1200}
 
@@ -56,28 +63,33 @@ INSTANCES=$(gql 'query ($id: String!) {
 echo "Deploying $SHA to Railway environment $(jq -r '.environment.name' <<<"$INSTANCES")"
 
 deploy() {
-  local name=$1 image="$REGISTRY/$2:$SHA" service_id vars deployment_id status deadline
+  local name=$1 image="$REGISTRY/$2:$SHA" service_id ids input deployment_id status deadline
   service_id=$(jq -r --arg n "$name" \
     '.environment.serviceInstances.edges[].node | select(.serviceName == $n) | .serviceId' <<<"$INSTANCES")
   [[ -n $service_id ]] || { echo "No service named $name in this environment" >&2; exit 1; }
-  vars=$(jq -n --arg s "$service_id" --arg e "$ENVIRONMENT_ID" --arg i "$image" \
-    '{serviceId: $s, environmentId: $e, image: $i}')
+  ids=$(jq -n --arg s "$service_id" --arg e "$ENVIRONMENT_ID" '{serviceId: $s, environmentId: $e}')
+  # Only the server migrates, so two migrations never race.
+  input=$(jq -n --arg i "$image" --arg m "$MIGRATE" --arg n "$name" \
+    '{source: {image: $i}} + if $n == "medusa-server" then {preDeployCommand: [$m]} else {} end')
 
   echo "::group::$name -> $image"
-  gql 'mutation ($serviceId: String!, $environmentId: String!, $image: String!) {
-    serviceInstanceUpdate(serviceId: $serviceId, environmentId: $environmentId, input: {source: {image: $image}})
-  }' "$vars" >/dev/null
+  gql 'mutation ($serviceId: String!, $environmentId: String!, $input: ServiceInstanceUpdateInput!) {
+    serviceInstanceUpdate(serviceId: $serviceId, environmentId: $environmentId, input: $input)
+  }' "$(jq --argjson input "$input" '. + {input: $input}' <<<"$ids")" >/dev/null
   # Railway can stage a settings change instead of applying it. Deploying then
-  # would quietly ship the old image, so check what the service now points at.
+  # would quietly ship the old settings, so check what the service now has.
   local current
   current=$(gql 'query ($serviceId: String!, $environmentId: String!) {
-    serviceInstance(serviceId: $serviceId, environmentId: $environmentId) { source { image } }
-  }' "$(jq 'del(.image)' <<<"$vars")" | jq -r '.serviceInstance.source.image')
-  [[ $current == "$image" ]] || { echo "$name still points at $current after the update" >&2; exit 1; }
+    serviceInstance(serviceId: $serviceId, environmentId: $environmentId) { source { image } preDeployCommand }
+  }' "$ids" | jq -c '.serviceInstance | {source: {image: .source.image}} + if (.preDeployCommand // []) | length > 0 then {preDeployCommand} else {} end')
+  if ! jq -e --argjson want "$input" '. == $want' <<<"$current" >/dev/null; then
+    echo "$name settings after the update: $current, wanted $input" >&2
+    exit 1
+  fi
 
   deployment_id=$(gql 'mutation ($serviceId: String!, $environmentId: String!) {
     serviceInstanceDeployV2(serviceId: $serviceId, environmentId: $environmentId)
-  }' "$(jq 'del(.image)' <<<"$vars")" | jq -r '.serviceInstanceDeployV2')
+  }' "$ids" | jq -r '.serviceInstanceDeployV2')
   echo "deployment $deployment_id"
 
   deadline=$((SECONDS + DEPLOY_TIMEOUT_SECONDS))

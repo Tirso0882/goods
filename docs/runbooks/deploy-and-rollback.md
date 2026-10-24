@@ -19,8 +19,10 @@ The server goes first so the schema is migrated before the worker and storefront
 `scripts/railway-deploy.sh <sha>` does the work, through Railway's public GraphQL API (`https://backboard.railway.com/graphql/v2`). The Railway CLI can't set an image tag. For each service in order it:
 
 1. Checks first that both images exist on GHCR, so a mistyped SHA changes nothing.
-2. Sets the image with `serviceInstanceUpdate(input: {source: {image: ...}})`, then reads the service back to confirm the image changed. If Railway staged the change instead of applying it, deploying would ship the old image, so the script stops.
+2. Sets the image with `serviceInstanceUpdate(input: {source: {image: ...}})`, and on the server also the pre-deploy command (below), then reads the service back to confirm both changed. If Railway staged the change instead of applying it, deploying would ship the old settings, so the script stops.
 3. Deploys with `serviceInstanceDeployV2` and polls `deployment(id) { status }` every 10 seconds until `SUCCESS`. `FAILED`, `CRASHED`, `REMOVED`, `SKIPPED` or 20 minutes without an end stops the release.
+
+The server's pre-deploy command is set from `MIGRATE` in the script on every release, so it's reviewed in git and an edit in the dashboard lasts only until the next deploy. It runs `medusa db:migrate --execute-safe-links --execute-safe-search`. Besides migrations, `db:migrate` syncs module link tables and the search index to what the image defines. When the database has a link table the image doesn't define, which is what a rollback past a release that added a link finds (ours, or one from a Medusa upgrade), Medusa without these flags asks in a prompt which tables to delete. Pre-deploy has no terminal, so the rollback would fail or hang until the 600-second timeout. With them it creates what's new and never deletes or changes anything unprompted. A link table left behind is unused and harmless; drop it on purpose later if the link is really gone.
 
 `.github/workflows/deploy.yml` runs the script. The `deploy` job at the end of `ci.yml` calls it with the pushed SHA once both `publish` jobs succeed, so every merge to `main` deploys. The same workflow runs by hand for a rollback. Its concurrency group lets one release run at a time and never cancels one halfway, which could leave the server and worker on different releases.
 
@@ -77,10 +79,32 @@ The next merge to `main` deploys again, so fix or revert the bad commit on `main
 
 ### What a rollback does not undo
 
-- **Migrations.** The rollback deploys old code; it doesn't reverse the schema. The server's pre-deploy runs `medusa db:migrate` from the old image, which only applies migrations that old image knows and finds none pending. Old code then runs against the new schema. That works when the migration only added things (tables, nullable columns), and breaks when it renamed, dropped or tightened something the old code uses. Before rolling back past a migration, read it. If the old code can't run on the new schema, restore the database from the backup taken before the release instead (the restore runbook, #19), or fix forward.
-- **Data.** Orders, customers and anything the new release wrote stay. Data the new code wrote in a new shape stays in that shape.
-- **Variables and settings.** Only the image changes. A variable added or changed for the bad release is still there; change it back by hand.
-- **Side effects outside Railway.** Stripe charges and webhooks, emails, R2 uploads.
+- **Migrations.** The rollback deploys old code; it doesn't reverse the schema. The server's pre-deploy runs `medusa db:migrate` from the old image, which only applies migrations that old image knows and finds none pending. Old code then runs against the new schema. That works when the migration only added things (tables, nullable columns, columns with a default), and breaks when it renamed, dropped or tightened something the old code uses. The rules below keep every release on the side that works.
+- **Link tables.** A link the new release added keeps its table; `--execute-safe-links` leaves it, and the old code ignores it.
+- **Data.** Orders, customers and anything the new release wrote stay. Data the new code wrote in a new shape (a new status value, new metadata keys) stays in that shape, and old code has to cope with it.
+- **Queued events and running workflows.** Events the new code queued in Redis and workflows it started (checkout and payment run as workflows, stored in Postgres and Redis) stay. If the old worker doesn't know an event, a workflow or one of its steps, those fail or stall.
+- **Variables and settings.** Only the image and the server's pre-deploy command change. A variable added or changed for the bad release is still there; change it back by hand.
+- **Side effects outside Railway.** Stripe charges and refunds, emails, R2 uploads. Stripe retries webhooks, so none are lost, but the old code receives them.
+
+## Release rules that keep rollback safe
+
+A rollback is only as safe as the release it undoes. These rules make "deploy the previous SHA" always work, without reading the release first.
+
+1. **Expand, then contract.** A release only adds to the schema: new tables, nullable columns, columns with a default, new indexes. Code that stops using a column, table or link ships first; removing, renaming or tightening it (a type change, `NOT NULL`, a new unique or check constraint) ships in a later release, once the release before it no longer reads it. A rename is three releases: add the new column and write both, backfill and read the new one, drop the old one. This is required for every deploy, not only rollbacks: between the server's deployment and the worker's, the old worker runs on the new schema.
+2. **The same for anything stored that old code reads.** Workflow, step and event names, and the shape of their payloads, are only added. A workflow or subscriber is removed one release after nothing starts or emits it, so the release before still knows everything in flight.
+3. **CI checks every migration.** `pnpm check:migrations` (in the `lint` job) reads the `up()` of every migration `db:migrate` runs: ours in `apps/backend/src`, and the installed `@medusajs/*` packages', so a Medusa upgrade (Dependabot's `medusa` group) is checked too. A migration that drops a table or column, renames, changes a column type, sets `NOT NULL` or adds a required column without a default fails the check until it's listed in `apps/backend/migrations-reviewed.txt`. The list starts with the 52 such migrations in Medusa 2.21.2, which production ran before this check. The check doesn't see constraints, data changes or code, so rules 1 and 2 still need a reviewer.
+4. **Variables are only added.** A release that needs a variable changed adds a new one and reads it, so the previous release still finds the old one. Remove the old one a release later.
+5. **Drill the rollback.** After every Medusa upgrade and every release that carries a migration, roll back to the previous SHA and forward again, with the checks under Deploy. A rollback that's never run isn't a rollback path.
+
+### Releasing a migration that breaks rollback
+
+When `pnpm check:migrations` fails, ours or Medusa's:
+
+1. Read each listed migration. For ours, split it per rule 1 instead if you can, and the check passes.
+2. If it has to ship (a contract step, or a Medusa upgrade), check that the release before it doesn't use what it removes or tightens. For Medusa, read the release notes for the version and the migration's `up()`.
+3. Run `node scripts/check-migrations.mjs --accept` and commit `migrations-reviewed.txt` in the same pull request, saying in its description which migrations and why they're safe to release.
+4. Before merging, take a database backup (#19). Rolling back past this release then means restoring that backup as well as deploying the older SHA, and losing what was written after it; fixing forward is usually better.
+5. Ship it alone, not with other changes, so a problem in anything else can still roll back to the release just before it.
 
 ## Results
 
