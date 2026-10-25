@@ -12,7 +12,7 @@
 # Both FROM lines use the same node image. Dependabot bumps them together;
 # they are literal because it does not resolve ARGs in FROM.
 
-FROM node:24.21.0-alpine3.24@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS base
+FROM node:24.22.1-alpine3.24@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS base
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     MEDUSA_DISABLE_TELEMETRY=true
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
@@ -43,7 +43,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
       --config.inject-workspace-packages=true \
       --store-dir /pnpm/store /prod/backend
 
-FROM node:24.21.0-alpine3.24@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS runtime
+FROM node:24.22.1-alpine3.24@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS runtime
 ENV NODE_ENV=production \
     MEDUSA_DISABLE_TELEMETRY=true \
     PORT=9000
