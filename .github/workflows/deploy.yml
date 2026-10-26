@@ -32,6 +32,10 @@ concurrency:
 jobs:
   deploy:
     name: deploy
+    # CI's automatic rollback calls this after a failed job in the same run.
+    # Without this, the implicit success() might count that failure and skip
+    # the rollback. Changes nothing when the run has no failure.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     # Holds the RAILWAY_TOKEN secret. A called job takes the secret's value
