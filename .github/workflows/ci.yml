@@ -166,13 +166,44 @@ jobs:
           # Storage records only exist for organization-owned repositories.
           create-storage-record: false
 
-  deploy:
-    name: deploy
+  # Opens or updates the Release PR, and on the merge of that PR tags the
+  # release and publishes it (docs/runbooks/deploy-and-rollback.md). After
+  # publish, so a release's images exist before anything deploys it.
+  release:
+    name: release
     needs: [publish]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Everything goes through the app token below.
+    permissions: {}
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+    steps:
+      # The GitHub App's token, not GITHUB_TOKEN: a pull request opened with
+      # GITHUB_TOKEN doesn't trigger workflows, so the Release PR would never
+      # get the required checks.
+      - id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write # release commits, tags and releases
+          permission-pull-requests: write # the Release PR
+          permission-issues: write # its labels
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+  # Only a release deploys. An ordinary merge stops after release.
+  deploy:
+    name: deploy
+    needs: [release]
+    if: needs.release.outputs.release_created == 'true'
     uses: ./.github/workflows/deploy.yml
     with:
-      sha: ${{ github.sha }}
+      release: ${{ github.sha }}
     # Only this secret. Its value comes from the production environment, which
     # the called job names; without passing it, it arrives empty.
     secrets:

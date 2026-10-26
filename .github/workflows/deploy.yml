@@ -1,12 +1,13 @@
 name: Deploy
+run-name: Deploy ${{ inputs.release }}
 
-# CI calls this after publishing a commit on main. Run it by hand with an
-# older SHA to roll back: the same path, so rollback is tested every release
+# CI calls this when a release is published. Run it by hand with an older
+# release to roll back: the same path, so rollback is tested every release
 # (docs/runbooks/deploy-and-rollback.md).
 on:
   workflow_call:
     inputs:
-      sha:
+      release:
         type: string
         required: true
     secrets:
@@ -14,8 +15,8 @@ on:
         required: true
   workflow_dispatch:
     inputs:
-      sha:
-        description: Full commit SHA whose images to deploy (a green main CI run)
+      release:
+        description: Release tag (v0.1.0), or the full SHA of a green main CI run
         type: string
         required: true
 
@@ -43,7 +44,21 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Images are tagged by commit, so a release tag becomes its commit here.
+      # A tag that doesn't exist fails the run before Railway is touched.
+      - id: resolve
+        run: |
+          if [[ $RELEASE =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE" --jq .sha)
+            echo "$RELEASE is $sha"
+          else
+            sha=$RELEASE
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+        env:
+          RELEASE: ${{ inputs.release }}
+          GH_TOKEN: ${{ github.token }}
       - run: scripts/railway-deploy.sh "$SHA"
         env:
-          SHA: ${{ inputs.sha }}
+          SHA: ${{ steps.resolve.outputs.sha }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
