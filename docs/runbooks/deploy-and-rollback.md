@@ -118,3 +118,13 @@ When `pnpm check:migrations` fails, ours or Medusa's:
 | Roll forward to `35da4c30` | [Deploy 40109563089](https://github.com/Tirso0882/goods/actions/runs/40109563089) | All three `SUCCESS`, endpoints 200. |
 
 No app code changed between `88dce76` and `35da4c30`, so the drill proved the path (API calls, order, waiting, the token, the unprompted migrate) but not old code on a newer schema. Repeat it per rule 5 when a release changes the schema.
+
+26 October 2026, project `goods-production`, environment `production`, with a new `RAILWAY_TOKEN` (#18):
+
+| What | Run | Result |
+| --- | --- | --- |
+| Deploy on merge (#74), `93c458d` | [CI 40300883813](https://github.com/Tirso0882/goods/actions/runs/40300883813) | First attempt: server and worker `SUCCESS`, then `No service named storefront in this environment`: the service was still named `goods-storefront`. The script stopped as designed, leaving the storefront on `2f9956ed` (same app code). After renaming it `storefront`, the re-run deployed all three. Endpoints 200, CORS exact origin. |
+| Rollback to `2f9956ed` | [Deploy 40302731944](https://github.com/Tirso0882/goods/actions/runs/40302731944) | All three `SUCCESS`, about 40 seconds. `/ready`, `/app`, `/api/health`, `/pl` all 200. |
+| Roll forward to `93c458d` | [Deploy 40303047194](https://github.com/Tirso0882/goods/actions/runs/40303047194) | All three `SUCCESS`, endpoints 200, CORS exact origin. |
+
+As on 24 October, no app code changed between the two SHAs, so this proved the path on the real project, not old code on a newer schema.

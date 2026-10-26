@@ -249,3 +249,6 @@ docs/personal-docs
 
 # Turborepo's local cache
 .turbo/
+
+# Personal files
+learning/ai-engineering-book-notes.md
