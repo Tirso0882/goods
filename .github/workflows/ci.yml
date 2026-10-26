@@ -16,6 +16,9 @@ env:
   NEXT_TELEMETRY_DISABLED: "1"
   TURBO_TELEMETRY_DISABLED: "1"
   MEDUSA_DISABLE_TELEMETRY: "true"
+  # Where the smoke test reaches the store. Same as the url in deploy.yml
+  # (docs/runbooks/railway.md#current-domains).
+  STOREFRONT_URL: https://goods-storefront-production.up.railway.app
 
 # Job names are required status checks in branch protection. Renaming one
 # means updating the protection rule too.
@@ -208,3 +211,65 @@ jobs:
     # the called job names; without passing it, it arrives empty.
     secrets:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # Checks from the outside that the store works on the new release: what
+  # Railway's health checks can't see. On failure the jobs below roll back, and
+  # this job stays red so the bad release is noticed
+  # (docs/runbooks/deploy-and-rollback.md#smoke-test).
+  smoke:
+    name: smoke
+    needs: [deploy]
+    runs-on: ubuntu-24.04
+    # Above the script's worst case, about 5 minutes when every request hangs:
+    # a job that times out is cancelled, not failed, and nothing rolls back.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: scripts/smoke-test.sh "$STOREFRONT_URL"
+
+  # The release before this one, unless rolling back past this one isn't safe.
+  rollback-target:
+    name: rollback target
+    needs: [smoke]
+    if: failure() && needs.smoke.result == 'failure'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      release: ${{ steps.target.outputs.release }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # the tags and the history between them
+      - id: target
+        run: |
+          release=$(scripts/rollback-target.sh "$GITHUB_SHA")
+          echo "Rolling back to $release"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+
+  # Once: nothing rolls back the rollback, so a failure the previous release
+  # shares (Railway down) can't loop.
+  rollback:
+    name: rollback
+    needs: [rollback-target]
+    # A grandparent failed (smoke), so the default success() would skip it.
+    if: ${{ !cancelled() && needs.rollback-target.result == 'success' }}
+    uses: ./.github/workflows/deploy.yml
+    with:
+      release: ${{ needs.rollback-target.outputs.release }}
+    secrets:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  rollback-smoke:
+    name: smoke after rollback
+    needs: [rollback]
+    if: ${{ !cancelled() && needs.rollback.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: scripts/smoke-test.sh "$STOREFRONT_URL"
