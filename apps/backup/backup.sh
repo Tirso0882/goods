@@ -22,9 +22,24 @@
 #   MEDIA_BUCKET                      bucket on the `media` remote
 #   RCLONE_CONFIG_MEDIA_*             the `media` rclone remote, read access
 #   RAILWAY_CONFIG_TOKEN              a project token for the store's environment
+#   HEARTBEAT_URL                     optional: Better Stack heartbeat, told how
+#                                     every run ended
 #   BACKUP_PARTS                      which parts, default: all of them
 # shellcheck disable=SC2016 # $names in the GraphQL queries are GraphQL variables
 set -euo pipefail
+
+# Runs on every exit, a failed setting check included. Better Stack opens an
+# incident on a failure, and also when no run reports within the heartbeat's
+# period, which catches a cron that never started.
+finish() {
+  local status=$? url=${HEARTBEAT_URL:-}
+  [[ -z ${OUT:-} ]] || rm -rf "$OUT"
+  if [[ -n $url ]]; then
+    ((status == 0)) || url+="/$status"
+    curl -fsS -m 10 --retry 3 -o /dev/null "$url" || echo "could not reach the heartbeat" >&2
+  fi
+}
+trap finish EXIT
 
 : "${AGE_RECIPIENT:?set AGE_RECIPIENT to the backup public key}"
 : "${BACKUP_BUCKET:?set BACKUP_BUCKET}"
@@ -33,7 +48,6 @@ read -ra RECIPIENTS <<<"$AGE_RECIPIENT"
 STAMP=$(date -u +%Y-%m-%dT%H%M%SZ)
 DEST="backups:$BACKUP_BUCKET/nightly/$STAMP"
 OUT=$(mktemp -d)
-trap 'rm -rf "$OUT"' EXIT
 mkdir "$OUT/plain" "$OUT/sealed"
 # Where the running part writes. Its files reach plain/ only if it finishes.
 PART_DIR=

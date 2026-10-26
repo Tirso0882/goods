@@ -88,6 +88,7 @@ in_image() {
     -e RCLONE_CONFIG_MEDIA_TYPE=local -e MEDIA_BUCKET=/w/media \
     -e AGE_RECIPIENT="$RECIPIENT" -e AGE_IDENTITY_FILE=/w/key.txt \
     -e BACKUP_PARTS="${BACKUP_PARTS:-postgres}" \
+    -e HEARTBEAT_URL="${HEARTBEAT_URL:-}" \
     -e RAILWAY_API="http://$RUN-railway:4000/graphql/v2" -e RAILWAY_CONFIG_TOKEN="${RAILWAY_TOKEN_OVERRIDE:-test-token}" \
     "$IMAGE" "$@"
 }
@@ -142,9 +143,15 @@ pass "a file deleted from the store is kept under media/deleted/"
 # --- Railway config saved ----------------------------------------------------
 
 # Answers the export's queries the way Railway's API does, for one project
-# token, with references left unrendered.
+# token, with references left unrendered. Also stands in for the Better Stack
+# heartbeat: GET requests are recorded, and /hits lists them.
 cat >"$WORK/railway.js" <<'JS'
+const hits = []
 require('http').createServer((req, res) => {
+  if (req.method === 'GET') {
+    if (req.url !== '/hits') hits.push(req.url)
+    return res.end(JSON.stringify(hits))
+  }
   let body = ''
   req.on('data', (c) => (body += c))
   req.on('end', () => {
@@ -197,5 +204,16 @@ night=$(comm -13 <(echo "$before") <(find "$WORK/bucket/nightly" -mindepth 1 -ma
 [[ -f $night/medusa.dump.age && -f $night/SHA256SUMS ]] || fail "the Railway failure dropped the database dump"
 [[ ! -e $night/railway.json.age ]] || fail "a failed Railway export was uploaded"
 pass "a failed part still uploads the others, and the run fails"
+
+# --- Failures alert -----------------------------------------------------------
+
+hits() { docker exec "$RUN-railway" wget -qO- http://localhost:4000/hits; }
+HEARTBEAT_URL="http://$RUN-railway:4000/heartbeat" BACKUP_PARTS=postgres \
+  in_image "$RUN-source" backup.sh >/dev/null 2>&1 || fail "backup failed"
+[[ $(hits | jq -r 'last') == /heartbeat ]] || fail "a good run didn't report success: $(hits)"
+HEARTBEAT_URL="http://$RUN-railway:4000/heartbeat" BACKUP_PARTS="postgres railway" RAILWAY_TOKEN_OVERRIDE=wrong \
+  in_image "$RUN-source" backup.sh >/dev/null 2>&1 && fail "backup succeeded although the Railway export failed"
+[[ $(hits | jq -r 'last') == /heartbeat/1 ]] || fail "a failed run didn't report its exit code: $(hits)"
+pass "the heartbeat hears about every run, failures with their exit code"
 
 echo "all backup tests passed"
