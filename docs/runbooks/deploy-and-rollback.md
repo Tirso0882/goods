@@ -1,10 +1,10 @@
 # Deploy and rollback
 
-How a commit on `main` reaches the test store on Railway, and how to put back an earlier release. The service settings themselves are in the [Railway runbook](railway.md).
+How a release of `main` reaches the store on Railway, and how to put back an earlier one. The service settings themselves are in the [Railway runbook](railway.md).
 
 ## What a release is
 
-One commit SHA. CI's `publish` job pushes `ghcr.io/tirso0882/goods-backend:<sha>` and `ghcr.io/tirso0882/goods-storefront:<sha>`, and a release points all three services at that SHA:
+A version (`v0.1.0`), its changelog, and one commit SHA. Every push to `main` runs CI's `publish` job, which pushes `ghcr.io/tirso0882/goods-backend:<sha>` and `ghcr.io/tirso0882/goods-storefront:<sha>`, but only a release deploys. A release points all three services at its SHA:
 
 | Order | Service | Image |
 | --- | --- | --- |
@@ -13,6 +13,69 @@ One commit SHA. CI's `publish` job pushes `ghcr.io/tirso0882/goods-backend:<sha>
 | 3 | `storefront` | `goods-storefront:<sha>` |
 
 The server goes first so the schema is migrated before the worker and storefront run new code against it. If the server's deployment doesn't reach `SUCCESS` (a failed migration, a failed health check, a crash), the script stops: the server keeps serving its old deployment, as Railway only switches traffic after the new one is healthy, and the worker and storefront are never touched.
+
+The whole shop has one version: server, worker and storefront are released together, so they never need versions of their own. It starts at `0.1.0`. Below `1.0.0`, a feature bumps the minor version (`0.1.0` → `0.2.0`), a fix or performance change the patch (`0.2.0` → `0.2.1`), and a breaking change also only the minor.
+
+## Releases
+
+[release-please](https://github.com/googleapis/release-please) (googleapis/release-please-action, configured in `release-please-config.json`) runs as the `release` job in `ci.yml`, after both `publish` jobs on every push to `main`:
+
+```text
+merge a pull request into main
+  CI: checks → publish goods-*:<sha> → release
+    opens or updates the Release PR: next version, CHANGELOG.md entries
+    no deploy
+
+merge the Release PR
+  CI: checks → publish goods-*:<sha> → release
+    tags v<version>, publishes the GitHub Release with the changelog
+  → deploy <sha>
+```
+
+The Release PR is a normal pull request titled `chore(main): release <version>`, on the branch `release-please--branches--main`. It changes only `CHANGELOG.md`, `version.txt` and `.release-please-manifest.json`, and release-please rewrites it after every merge, so its changelog always lists what merging it would release. It runs the required checks like any pull request.
+
+### Cut a release
+
+1. Open the Release PR (Pull requests, label `autorelease: pending`) and read the changelog and the version. If it has a migration, follow [Releasing a migration that breaks rollback](#releasing-a-migration-that-breaks-rollback) first.
+2. Merge it when the checks pass.
+3. In that merge's CI run, `release` publishes the GitHub Release, then `deploy / deploy` deploys it (see [Deploy](#deploy)).
+
+Nothing has to be released at once. Merges pile up in the Release PR until you merge it.
+
+### Commits that reach the changelog
+
+release-please reads the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) that reach `main` since the last release. With a squash merge that is one commit per pull request, whose message is the PR title, so the PR title is what counts; with a merge commit, each commit of the branch.
+
+| Type | Changelog section | Version bump below 1.0 |
+| --- | --- | --- |
+| `feat` | Features | minor |
+| `fix` | Bug Fixes | patch |
+| `perf` | Performance | patch |
+| `docs`, `ci`, `chore`, `test`, `refactor`, `build`, `style`, `revert` | not listed | none |
+| any type with `!` (`feat!:`) or a `BREAKING CHANGE:` footer | its type's section, flagged breaking | minor |
+
+The notes are for developers. Write the subject as what changed for someone using the shop or the code: `feat(checkout): pay with BLIK`, `fix(storefront): keep the cart after sign-in`. A commit that isn't a Conventional Commit, such as `Merge pull request #64 …`, is skipped. Only hidden types since the last release means no new version: the Release PR stays as it is, or isn't opened.
+
+To release a different version than the commits give, add `Release-As: 1.0.0` as a footer in a commit's message.
+
+### Hotfixes
+
+A fix is still a release. Merge the fix (`fix(...)`) into `main`, then merge the Release PR, which now holds it as a patch. Everything merged since the last release goes out with it; if something else in there isn't ready, revert it on `main` first, or roll back (below) while you prepare the fix.
+
+### Release token
+
+release-please opens the Release PR and pushes tags with a token from the GitHub App `goods-releases-tirso`, not the workflow's `GITHUB_TOKEN`. GitHub doesn't start workflows for events made with `GITHUB_TOKEN`, so a Release PR opened with it would never run the checks and couldn't be merged under branch protection.
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| App | `goods-releases-tirso` (your settings → Developer settings → GitHub Apps), webhook off, installable only on this account | Only mints tokens, so it needs no webhook and no user authorization. |
+| Repository permissions | Contents, Pull requests and Issues: read and write | Release commits, tags and releases; the Release PR; its labels, through the issues API. |
+| Installed on | `goods` only | |
+| Where | Repository variable `RELEASE_APP_CLIENT_ID` (the Client ID isn't secret), repository secret `RELEASE_APP_PRIVATE_KEY` | `actions/create-github-app-token` mints an installation token per run that lasts one hour, so nothing expires. |
+
+To rotate the key: generate a new private key in the app's settings, `gh secret set RELEASE_APP_PRIVATE_KEY < key.pem`, delete the file, then delete the old key in the app's settings.
+
+A fine-grained personal token would also work, but it expires within a year, breaking releases until it's renewed, and everything it does shows up as you.
 
 ## How it runs
 
@@ -24,7 +87,7 @@ The server goes first so the schema is migrated before the worker and storefront
 
 The server's pre-deploy command is set from `MIGRATE` in the script on every release, so it's reviewed in git and an edit in the dashboard lasts only until the next deploy. It runs `medusa db:migrate --execute-safe-links --execute-safe-search`. Besides migrations, `db:migrate` syncs module link tables and the search index to what the image defines. When the database has a link table the image doesn't define, which is what a rollback past a release that added a link finds (ours, or one from a Medusa upgrade), Medusa without these flags asks in a prompt which tables to delete. Pre-deploy has no terminal, so the rollback would fail or hang until the 600-second timeout. With them it creates what's new and never deletes or changes anything unprompted. A link table left behind is unused and harmless; drop it on purpose later if the link is really gone.
 
-`.github/workflows/deploy.yml` runs the script. The `deploy` job at the end of `ci.yml` calls it with the pushed SHA once both `publish` jobs succeed, so every merge to `main` deploys. The same workflow runs by hand for a rollback. Its concurrency group lets one release run at a time and never cancels one halfway, which could leave the server and worker on different releases.
+`.github/workflows/deploy.yml` runs the script. The `deploy` job at the end of `ci.yml` calls it with the pushed SHA only when the `release` job reports a release created, so a merge that isn't the Release PR builds and publishes images but doesn't deploy. The same workflow runs by hand for a rollback, with a release tag or a SHA; it turns a tag into its commit SHA before calling the script. Its concurrency group lets one release run at a time and never cancels one halfway, which could leave the server and worker on different releases.
 
 ## Railway token
 
@@ -56,26 +119,28 @@ The `production` environment is created in repo Settings → Environments → Ne
 
 ## Deploy
 
-Merge a pull request into `main`. In the CI run, `deploy / deploy` follows the two `publish` jobs; its log has one group per service with the deployment ID and status changes, and ends with `All services run <sha>`.
+Merge the Release PR ([Cut a release](#cut-a-release)). In the CI run, `deploy / deploy` follows `release`; its log has one group per service with the deployment ID and status changes, and ends with `All services run <sha>`. In the CI run of any other merge, `deploy` shows as skipped.
 
 Check afterwards that the store runs that commit:
 
 - Railway dashboard: each of the three services shows `...:<sha>` as its image and its latest deployment as Active.
 - The checks in the [Railway runbook](railway.md): server `/ready` and `/app`, storefront `/api/health` and a page, and for a release that touches checkout, a test purchase.
 
-To redeploy the same SHA, re-run the `deploy` job of that CI run.
+To redeploy the same release, re-run the `deploy` job of that CI run, or run Deploy by hand with its tag.
 
 ## Rollback
 
-Deploy the previous good SHA through the same workflow:
+Deploy the previous good release through the same workflow:
 
-1. Find the SHA: the last green CI run on `main` before the bad one (Actions → CI → branch `main`), or `git log --first-parent main`. It must be the full 40-character SHA.
-2. Actions → Deploy → Run workflow, branch `main`, paste the SHA. Or `gh workflow run deploy.yml --ref main -f sha=<sha>`.
+1. Find it: Releases on GitHub, or `gh release list`. Use the tag, such as `v0.1.0`.
+2. Actions → Deploy → Run workflow, branch `main`, enter the tag. Or `gh workflow run deploy.yml --ref main -f release=v0.1.0`.
 3. Run the same checks as for a deploy.
 
-The images stay on GHCR, so any SHA that passed `publish` can come back, unlike Railway's own Rollback button, which can only restore images Railway still keeps: 24 hours on the Trial, 72 on Hobby, 120 on Pro. That button is fine for a fast undo of the last deploy of one service, but the next CI deploy overwrites it, and it doesn't keep the three services on one SHA.
+The Deploy workflow also takes a full 40-character commit SHA, for any commit whose CI run passed `publish`, released or not. Prefer tags: a tag is a version someone read the changelog of.
 
-The next merge to `main` deploys again, so fix or revert the bad commit on `main` before merging anything else.
+The images stay on GHCR, so any release can come back, unlike Railway's own Rollback button, which can only restore images Railway still keeps: 24 hours on the Trial, 72 on Hobby, 120 on Pro. That button is fine for a fast undo of the last deploy of one service, but the next deploy overwrites it, and it doesn't keep the three services on one SHA.
+
+Merging to `main` doesn't deploy anymore, but the Release PR now holds the bad change. Fix or revert it on `main` before merging the Release PR again ([Hotfixes](#hotfixes)).
 
 ### What a rollback does not undo
 
@@ -88,13 +153,13 @@ The next merge to `main` deploys again, so fix or revert the bad commit on `main
 
 ## Release rules that keep rollback safe
 
-A rollback is only as safe as the release it undoes. These rules make "deploy the previous SHA" always work, without reading the release first.
+A rollback is only as safe as the release it undoes. These rules make "deploy the previous release" always work, without reading the release first.
 
 1. **Expand, then contract.** A release only adds to the schema: new tables, nullable columns, columns with a default, new indexes. Code that stops using a column, table or link ships first; removing, renaming or tightening it (a type change, `NOT NULL`, a new unique or check constraint) ships in a later release, once the release before it no longer reads it. A rename is three releases: add the new column and write both, backfill and read the new one, drop the old one. This is required for every deploy, not only rollbacks: between the server's deployment and the worker's, the old worker runs on the new schema.
 2. **The same for anything stored that old code reads.** Workflow, step and event names, and the shape of their payloads, are only added. A workflow or subscriber is removed one release after nothing starts or emits it, so the release before still knows everything in flight.
 3. **CI checks every migration.** `pnpm check:migrations` (in the `lint` job) reads the `up()` of every migration `db:migrate` runs: ours in `apps/backend/src`, and the installed `@medusajs/*` packages', so a Medusa upgrade (Dependabot's `medusa` group) is checked too. A migration that drops a table or column, renames, changes a column type, sets `NOT NULL` or adds a required column without a default fails the check until it's listed in `apps/backend/migrations-reviewed.txt`. The list starts with the 52 such migrations in Medusa 2.21.2, which production ran before this check. The check doesn't see constraints, data changes or code, so rules 1 and 2 still need a reviewer.
 4. **Variables are only added.** A release that needs a variable changed adds a new one and reads it, so the previous release still finds the old one. Remove the old one a release later.
-5. **Drill the rollback.** After every Medusa upgrade and every release that carries a migration, roll back to the previous SHA and forward again, with the checks under Deploy. A rollback that's never run isn't a rollback path.
+5. **Drill the rollback.** After every Medusa upgrade and every release that carries a migration, roll back to the previous release and forward again, with the checks under Deploy. A rollback that's never run isn't a rollback path.
 
 ### Releasing a migration that breaks rollback
 
@@ -103,8 +168,8 @@ When `pnpm check:migrations` fails, ours or Medusa's:
 1. Read each listed migration. For ours, split it per rule 1 instead if you can, and the check passes.
 2. If it has to ship (a contract step, or a Medusa upgrade), check that the release before it doesn't use what it removes or tightens. For Medusa, read the release notes for the version and the migration's `up()`.
 3. Run `node scripts/check-migrations.mjs --accept` and commit `migrations-reviewed.txt` in the same pull request, saying in its description which migrations and why they're safe to release.
-4. Before merging, take a database backup (#19). Rolling back past this release then means restoring that backup as well as deploying the older SHA, and losing what was written after it; fixing forward is usually better.
-5. Ship it alone, not with other changes, so a problem in anything else can still roll back to the release just before it.
+4. Before merging the Release PR that carries it, take a database backup (#19). Rolling back past this release then means restoring that backup as well as deploying the older release, and losing what was written after it; fixing forward is usually better.
+5. Release it alone: merge the pending Release PR first, then merge this pull request and release it before merging anything else, so a problem in anything else can still roll back to the release just before it.
 
 ## Results
 
