@@ -3,6 +3,7 @@
 *.html
 docs/
 learning/
+.release-please-manifest.json
 pnpm-lock.yaml
 skills-lock.json
 
