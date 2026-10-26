@@ -385,7 +385,7 @@ Better Stack Uptime (https://betterstack.com), outside Railway, so it still aler
 | `goods storefront` | `$F/api/health` | Fails when the storefront is down, can't reach the backend, or has a wrong publishable key. |
 | `goods backend ready` | `$S/ready` | Fails when Medusa or Postgres is down. Not `/health`, which stays `OK` with the database down. |
 
-Both: type `status` (any 2xx is up), every 180 seconds, from the `eu`, `us`, `as` and `au` regions, request timeout 30 seconds, alerts by email and push to the Better Stack phone app. No phone calls, SMS or integrations: one person, a test store. Update both URLs when a domain changes (see "Current domains").
+Both: type `status` (any 2xx is up), every 180 seconds, from the `eu`, `us`, `as` and `au` regions, request timeout 30 seconds, alerts by email and push to the Better Stack phone app. No phone calls, SMS or integrations: one person, a test store. Update both URLs when a domain changes (see "Current domains"). The backup cron reports to a third check, the heartbeat `goods backup` ([restore all state](restore-all-state.md#set-it-up)).
 
 Account setup, by hand: sign up with 2FA on, confirm the email, install the phone app and log in, skip the integrations step. The onboarding creates the first monitor; the second was created through the Uptime API (`POST https://incidents.betterstack.com/api/v2/monitors`, `Authorization: Bearer <team Uptime API token>`), with the token kept in a `chmod 600` file outside the repo, never on screen. Delete the token when it's no longer needed: the monitors keep running.
 

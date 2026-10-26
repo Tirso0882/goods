@@ -37,7 +37,8 @@ goods-production-backups/
 - **Encryption:** dumps and the Railway export are encrypted with [age](https://age-encryption.org) to a public key. The cron holds only the public key, so neither it nor anyone reading the bucket can decrypt a backup. The private key lives only in the password manager and on paper. Media isn't encrypted: product images are public on the store.
 - **Media:** R2 has no versioning, so a plain mirror would lose a file the night the store deleted it. `rclone sync --backup-dir` moves deleted or replaced files to `media/deleted/<UTC time>/` instead.
 - **Railway configuration:** the environment's config (every service's settings, variable names, volumes, domains) plus each service's variables with `${{...}}` references as written, and every volume's backup schedules, from Railway's GraphQL API with a project token.
-- **A failed run:** each part runs on its own, so a failing Railway export or media sync doesn't cost the night's database dump. A failed part uploads nothing, the parts that finished are uploaded, and the run exits with an error, which Railway shows as a failed cron run. Check the cron's run history weekly until backup alerts exist (Step 12).
+- **A failed run:** each part runs on its own, so a failing Railway export or media sync doesn't cost the night's database dump. A failed part uploads nothing, the parts that finished are uploaded, and the run exits with an error, which Railway shows as a failed cron run.
+- **Alerts:** every run, however it ends, reports to a Better Stack heartbeat: success, or the exit code on a failure. Better Stack alerts on a failure, and also when no run reports for a day, which catches a cron that never started. A failed setting check reports too.
 
 `apps/backup/test.sh` runs all of this in CI, as the `backup` job, against throwaway databases, a local folder in place of R2 and a fake Railway API: every database restores with the same row counts, stored files are encrypted, restore refuses an existing database, deleted media is kept, the Railway export is complete, and a failing part doesn't cost the others. Add `backup` to the branch protection's required checks (Settings → Branches → `main`), so a pull request that breaks the backup can't merge.
 
@@ -97,7 +98,8 @@ Once, in this order. Each secret goes into the password manager before Railway (
    - `goods-backup-media-reader`: **Object Read only**, bucket `goods-production-media` only. The media token Medusa uses can write, so it isn't reused.
 6. **Railway project token** `backup-cron`: Project Settings → Tokens, environment `production`. It can also deploy, which is why it lives only in the sealed `RAILWAY_CONFIG_TOKEN` and nowhere else.
 7. **GHCR package:** the first CI run on `main` after this change pushes `goods-backup`. GitHub → Packages → `goods-backup` → Package settings → Change visibility → Public, as for the other two ([ADR 0006](../adr/0006-railway-hosts-the-test-store.md)).
-8. **The cron service:** + Create → Docker Image → `ghcr.io/tirso0882/goods-backup:<sha>`, renamed `backup`, with the settings below. Apply, wait for the first run (or trigger it), then seal the secrets ([sealing a variable](railway.md#sealing-a-variable)).
+8. **Better Stack heartbeat:** Better Stack → Uptime → Heartbeats → Create heartbeat, named `goods backup`, expected every **1 day**, grace period **3 hours** (time for a slow run), alerts by email and push like the [uptime monitors](railway.md#uptime-monitoring). Copy its URL for `HEARTBEAT_URL`. It stays Pending until the first run reports.
+9. **The cron service:** + Create → Docker Image → `ghcr.io/tirso0882/goods-backup:<sha>`, renamed `backup`, with the settings below. Apply, wait for the first run (or trigger it), then seal the secrets ([sealing a variable](railway.md#sealing-a-variable)).
 
 | Setting | Value | Why |
 | --- | --- | --- |
@@ -116,8 +118,11 @@ Once, in this order. Each secret goes into the password manager before Railway (
 | `RCLONE_CONFIG_MEDIA_TYPE`, `_PROVIDER`, `_ENDPOINT`, `_NO_CHECK_BUCKET` | `s3`, `Cloudflare`, `${{medusa-server.S3_ENDPOINT}}`, `true` | |
 | `RCLONE_CONFIG_MEDIA_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY` | From `goods-backup-media-reader`, sealed | |
 | `RAILWAY_CONFIG_TOKEN` | The `backup-cron` project token, sealed | Not `RAILWAY_TOKEN`, which the Railway CLI would pick up. |
+| `HEARTBEAT_URL` | The `goods backup` heartbeat URL, sealed | Anyone holding it could report a run that never happened. Without it the script still runs but tells nobody. |
 
-Check the first run's log: `dumped medusa-goods`, `mirrored media`, `exported Railway environment production`, `uploaded nightly/<UTC time>`, `backup complete`. Then in R2 → `goods-production-backups` → Objects, the folder holds the four files.
+Check the first run's log: `dumped medusa-goods`, `mirrored media`, `exported Railway environment production`, `uploaded nightly/<UTC time>`, `backup complete`. Then in R2 → `goods-production-backups` → Objects, the folder holds the four files, and the `goods backup` heartbeat is Up.
+
+To test the alert, set `BACKUP_PARTS` on the cron to `none` and trigger a run: the script exits with code 2, and Better Stack opens an incident and sends the alert. Delete the variable, trigger again, and the incident resolves.
 
 ### Update the backup image
 
