@@ -28,10 +28,10 @@ flowchart LR
   admin(("Store admin"))
   dev(("Developer laptop"))
 
-  store["goods test store<br/>on Railway<br/>(goods-throwaway)"]
+  store["goods test store<br/>on Railway<br/>(goods-production)"]
 
   stripe[["Stripe<br/>test mode, goods sandbox"]]
-  r2[("Cloudflare R2<br/>goods-throwaway-media<br/>EU jurisdiction")]
+  r2[("Cloudflare R2<br/>goods-production-media<br/>EU jurisdiction")]
   github[["GitHub<br/>repo, Actions CI"]]
   ghcr[["GHCR<br/>goods-backend, goods-storefront"]]
   railway[["Railway platform<br/>dashboard, CLI, API"]]
@@ -55,16 +55,16 @@ Legend: circles are people, rectangles are services we run, cylinders are datast
 
 ## 2. Deployment on Railway
 
-The `goods-throwaway` project in EU West (Amsterdam), environment `production`. Only `medusa-server` and `storefront` have public domains; everything else is reached on `*.railway.internal`. Postgres and Redis keep data on volumes and have no TCP proxy. The server migrates in a pre-deploy container before each release, and Railway switches traffic only after the health check passes.
+The `goods-production` project in EU West (Amsterdam), environment `production`. Only `medusa-server` and `storefront` have public domains; everything else is reached on `*.railway.internal`. Postgres and Redis keep data on volumes and have no TCP proxy. The server migrates in a pre-deploy container before each release, and Railway switches traffic only after the health check passes.
 
 ```mermaid
 flowchart TB
   shopper(("Shopper"))
   admin(("Store admin"))
   stripe[["Stripe"]]
-  r2[("Cloudflare R2<br/>goods-throwaway-media")]
+  r2[("Cloudflare R2<br/>goods-production-media")]
 
-  subgraph rw["Railway project goods-throwaway · env production · EU West"]
+  subgraph rw["Railway project goods-production · env production · EU West"]
     direction TB
     sf["storefront<br/>goods-storefront:SHA<br/>:8000 · health /api/health<br/>public: storefront-production-f245.up.railway.app"]
     srv["medusa-server<br/>goods-backend:SHA<br/>MEDUSA_WORKER_MODE=server · :9000<br/>health /ready · public: medusa-server-production-166b.up.railway.app"]
@@ -347,10 +347,10 @@ Legend: shapes as in diagram 1; dashed outlines and arrows are planned. Redis, S
 ```mermaid
 flowchart LR
   uptime[["Uptime monitor<br/>outside Railway (planned)"]]
-  r2m[("R2 media bucket<br/>goods-throwaway-media")]
+  r2m[("R2 media bucket<br/>goods-production-media")]
   r2b[("R2 backups bucket<br/>EU, separate token (planned)")]
 
-  subgraph rw["Real Railway project · EU West (planned)<br/>rebuilt from the runbook, Hobby plan, replaces goods-throwaway"]
+  subgraph rw["Railway project goods-production · EU West<br/>rebuilt from the runbook in #18"]
     direction TB
     sf["storefront"]
     srv["medusa-server"]

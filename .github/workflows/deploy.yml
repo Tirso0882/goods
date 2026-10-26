@@ -38,7 +38,7 @@ jobs:
     # secret: otherwise it's an empty string, with no error.
     environment:
       name: production
-      url: https://storefront-production-7294.up.railway.app
+      url: https://goods-storefront-production.up.railway.app
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
