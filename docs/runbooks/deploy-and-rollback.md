@@ -29,7 +29,8 @@ merge a pull request into main
 merge the Release PR
   CI: checks → publish goods-*:<sha> → release
     tags v<version>, publishes the GitHub Release with the changelog
-  → deploy <sha>
+  → deploy <sha> → smoke
+    on a smoke failure: rollback target → rollback (deploy the release before) → smoke after rollback
 ```
 
 The Release PR is a normal pull request titled `chore(main): release <version>`, on the branch `release-please--branches--main`. It changes only `CHANGELOG.md` and `.release-please-manifest.json`, and release-please rewrites it after every merge, so its changelog always lists what merging it would release. It runs the required checks like any pull request.
@@ -38,7 +39,7 @@ The Release PR is a normal pull request titled `chore(main): release <version>`,
 
 1. Open the Release PR (Pull requests, label `autorelease: pending`) and read the changelog and the version. If it has a migration, follow [Releasing a migration that breaks rollback](#releasing-a-migration-that-breaks-rollback) first.
 2. Merge it when the checks pass.
-3. In that merge's CI run, `release` publishes the GitHub Release, then `deploy / deploy` deploys it (see [Deploy](#deploy)).
+3. In that merge's CI run, `release` publishes the GitHub Release, then `deploy / deploy` deploys it and `smoke` checks the store (see [Deploy](#deploy)).
 
 Nothing has to be released at once. Merges pile up in the Release PR until you merge it.
 
@@ -121,12 +122,64 @@ The `production` environment is created in repo Settings → Environments → Ne
 
 Merge the Release PR ([Cut a release](#cut-a-release)). In the CI run, `deploy / deploy` follows `release`; its log has one group per service with the deployment ID and status changes, and ends with `All services run <sha>`. In the CI run of any other merge, `deploy` shows as skipped.
 
-Check afterwards that the store runs that commit:
+Then `smoke` runs the [smoke test](#smoke-test). Green means the store works on the new release. Red means it doesn't, and the [automatic rollback](#automatic-rollback) has put back the release before it, or says why it didn't.
+
+Check by hand what the smoke test doesn't:
 
 - Railway dashboard: each of the three services shows `...:<sha>` as its image and its latest deployment as Active.
-- The checks in the [Railway runbook](railway.md): server `/ready` and `/app`, storefront `/api/health` and a page, and for a release that touches checkout, a test purchase.
+- Server `/app` (the Admin) from the [Railway runbook](railway.md), and for a release that touches checkout, a test purchase ([Check a test purchase](railway.md#check-a-test-purchase)).
 
-To redeploy the same release, re-run the `deploy` job of that CI run, or run Deploy by hand with its tag.
+To redeploy the same release, re-run the `deploy` job of that CI run, or run Deploy by hand with its tag. Neither runs the smoke test: run it by hand (below).
+
+## Smoke test
+
+Railway only switches traffic to a deployment that passes its health check, so a migration, start or health check that fails keeps the old release serving. What that misses is a release that deploys fine and then breaks the store: pages error, the Store API returns 500s. `scripts/smoke-test.sh` checks that from the outside, the way a shopper reaches the store:
+
+| Check | Passes when |
+| --- | --- |
+| Storefront `/api/store-config` | 200 with the server's URL and the publishable key. The other checks use these, so the Store API is called with the key the storefront really uses. |
+| Server `/ready` | 200: the server answers and reaches Postgres. |
+| Storefront `/api/health` | 200: the storefront has its key and reaches the server. |
+| Storefront `/pl/categories/rings` | 200 with links to products. A category page renders its products on the server; `/store` loads them in the browser, so its HTML has none. |
+| Store API `/store/products?limit=1&fields=id` with `x-publishable-api-key` | 200 with at least one product. |
+
+Each check tries 5 times, 3 seconds apart, with 10 seconds per request: enough for a fresh deployment to warm up, short enough that a broken store fails the test within a minute or so (about 5 minutes if every request hangs) and the rollback starts. All checks run even after one fails, so the log shows everything that's broken, as `::error::` lines.
+
+The `smoke` job in `ci.yml` runs it after `deploy`, against `STOREFRONT_URL` at the top of `ci.yml`. Run it by hand after a deploy or rollback from the Deploy workflow, which doesn't run it:
+
+```sh
+scripts/smoke-test.sh https://goods-storefront-production.up.railway.app
+```
+
+### Why there's no test checkout
+
+A scripted checkout (cart, shipping, Stripe test payment, order) would test the flow that matters most, and the smoke test doesn't do it:
+
+- **It writes to the store every release.** Each run leaves an order in Admin, a payment in Stripe's test dashboard and an inventory reservation on a seeded product, until the stock runs out and the smoke test fails on its own data.
+- **It fails for reasons a rollback can't fix.** A Stripe outage or a declined test payment would roll back a good release; the previous release fails the same way.
+- **The other checks cover most of what it shares with them.** The Store API call proves the server, Postgres, the publishable key and its sales channel; the category page proves the storefront renders from the Store API.
+
+Checkout code changes rarely and on purpose, so a release that touches it gets a test purchase by hand, as under [Deploy](#deploy). Revisit this if the store gets a separate test environment, where test orders don't matter.
+
+## Automatic rollback
+
+When `smoke` fails, CI rolls back on its own, once:
+
+1. `rollback target` runs `scripts/rollback-target.sh <sha>`. It finds the previous release, the nearest `v*` tag before this commit, and checks that rolling back to it is safe.
+2. `rollback / deploy` deploys that tag through the Deploy workflow, the same path as a manual rollback.
+3. `smoke after rollback` runs the smoke test against it.
+
+`smoke` stays red either way, so the run is red and the bad release is noticed. Then fix or revert it on `main` before releasing again ([Hotfixes](#hotfixes)).
+
+It doesn't roll back when:
+
+- **The release accepted a migration that breaks rollback.** If `apps/backend/migrations-reviewed.txt` gained a line since the previous release, `rollback target` fails and names the migrations. Old code may not survive that schema ([Releasing a migration that breaks rollback](#releasing-a-migration-that-breaks-rollback)): fix forward, or restore the backup and deploy the previous release by hand.
+- **There's no previous release.** The first release (`v0.1.0`) has nothing to go back to.
+- **`deploy` failed.** Railway kept serving the old deployment of the service that failed, and the services after it weren't touched, so there's nothing the smoke test can judge. Re-run `deploy` or roll back by hand.
+
+It rolls back at most once. If `smoke after rollback` fails too, the failure is probably outside the release (Railway, the database, the network), and nothing rolls the rollback back. The store is left on the previous release; find the cause before deploying anything.
+
+"Previous release" is the tag before this one, even if that release was itself rolled back. Rolling back to a release that was bad makes `smoke after rollback` fail; then roll back by hand to the last release whose `smoke` passed.
 
 ## Rollback
 
@@ -134,7 +187,7 @@ Deploy the previous good release through the same workflow:
 
 1. Find it: Releases on GitHub, or `gh release list`. Use the tag, such as `v0.1.0`.
 2. Actions → Deploy → Run workflow, branch `main`, enter the tag. Or `gh workflow run deploy.yml --ref main -f release=v0.1.0`.
-3. Run the same checks as for a deploy.
+3. Run the [smoke test](#smoke-test) by hand, and the other checks under [Deploy](#deploy).
 
 The Deploy workflow also takes a full 40-character commit SHA, for any commit whose CI run passed `publish`, released or not. Prefer tags: a tag is a version someone read the changelog of.
 
@@ -161,6 +214,17 @@ A rollback is only as safe as the release it undoes. These rules make "deploy th
 4. **Variables are only added.** A release that needs a variable changed adds a new one and reads it, so the previous release still finds the old one. Remove the old one a release later.
 5. **Drill the rollback.** After every Medusa upgrade and every release that carries a migration, roll back to the previous release and forward again, with the checks under Deploy. A rollback that's never run isn't a rollback path.
 
+### Drill the automatic rollback
+
+Proves the smoke test catches a broken release and CI puts back the one before it, with different app code on each side. It takes two releases.
+
+1. Merge a pull request titled `fix(storefront): break the category page for the rollback drill` (a `fix` so it releases) that makes `/pl/categories/[...category]` throw, such as `throw new Error("rollback drill")` at the top of its page component. Nothing else in it, and no migration.
+2. Merge the Release PR. In that CI run: `deploy` green, `smoke` red on `storefront /pl/categories/rings lists products`, `rollback target` prints the previous tag, `rollback / deploy` and `smoke after rollback` green.
+3. Check that the three Railway services show the previous release's SHA and that a category page lists products.
+4. Revert the drill pull request (`fix(storefront): revert the rollback drill`) and release it. Its `smoke` must pass. The drill's own release stays in the changelog and on GitHub; don't roll back to it.
+
+Record the run in [Results](#results).
+
 ### Releasing a migration that breaks rollback
 
 When `pnpm check:migrations` fails, ours or Medusa's:
@@ -168,7 +232,7 @@ When `pnpm check:migrations` fails, ours or Medusa's:
 1. Read each listed migration. For ours, split it per rule 1 instead if you can, and the check passes.
 2. If it has to ship (a contract step, or a Medusa upgrade), check that the release before it doesn't use what it removes or tightens. For Medusa, read the release notes for the version and the migration's `up()`.
 3. Run `node scripts/check-migrations.mjs --accept` and commit `migrations-reviewed.txt` in the same pull request, saying in its description which migrations and why they're safe to release.
-4. Before merging the Release PR that carries it, take a database backup (#19). Rolling back past this release then means restoring that backup as well as deploying the older release, and losing what was written after it; fixing forward is usually better.
+4. Before merging the Release PR that carries it, take a database backup (#19). Rolling back past this release then means restoring that backup as well as deploying the older release, and losing what was written after it; fixing forward is usually better. The [automatic rollback](#automatic-rollback) is off for this release for the same reason.
 5. Release it alone: merge the pending Release PR first, then merge this pull request and release it before merging anything else, so a problem in anything else can still roll back to the release just before it.
 
 ## Results

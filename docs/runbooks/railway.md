@@ -34,7 +34,7 @@ S=https://medusa-server-production-f0ee.up.railway.app      # medusa-server
 F=https://goods-storefront-production.up.railway.app        # storefront
 ```
 
-Update these two lines, the Stripe webhook endpoint and the `url` in `.github/workflows/deploy.yml` whenever a domain changes.
+Update these two lines, the Stripe webhook endpoint, the `url` in `.github/workflows/deploy.yml` and `STOREFRONT_URL` in `.github/workflows/ci.yml` (the smoke test) whenever a domain changes. The smoke test reads the server's domain from the storefront.
 
 ### Custom domain
 
