@@ -32,7 +32,7 @@ merge the Release PR
   → deploy <sha>
 ```
 
-The Release PR is a normal pull request titled `chore(main): release <version>`, on the branch `release-please--branches--main`. It changes only `CHANGELOG.md`, `version.txt` and `.release-please-manifest.json`, and release-please rewrites it after every merge, so its changelog always lists what merging it would release. It runs the required checks like any pull request.
+The Release PR is a normal pull request titled `chore(main): release <version>`, on the branch `release-please--branches--main`. It changes only `CHANGELOG.md` and `.release-please-manifest.json`, and release-please rewrites it after every merge, so its changelog always lists what merging it would release. It runs the required checks like any pull request.
 
 ### Cut a release
 
