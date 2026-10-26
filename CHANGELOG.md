@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Tirso0882/goods/compare/v0.1.1...v0.1.2) (2026-10-26)
+
+
+### Bug Fixes
+
+* **storefront:** revert the rollback drill ([#66](https://github.com/Tirso0882/goods/issues/66)) ([#85](https://github.com/Tirso0882/goods/issues/85)) ([24a6b33](https://github.com/Tirso0882/goods/commit/24a6b33312f751a4b90c21196001eaa6325d69d4))
+
 ## [0.1.1](https://github.com/Tirso0882/goods/compare/v0.1.0...v0.1.1) (2026-10-26)
 
 
