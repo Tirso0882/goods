@@ -40,7 +40,9 @@ updates:
           - "*"
 
   # The node image in every FROM line of apps/backend/Dockerfile and
-  # apps/storefront/Dockerfile.
+  # apps/storefront/Dockerfile, and the Postgres image of apps/backup/Dockerfile,
+  # which must stay on the server's major. apps/backup/test.sh pins the node
+  # and pgvector images too: copy their bumps there.
   - package-ecosystem: docker
     directories:
       - /apps/*

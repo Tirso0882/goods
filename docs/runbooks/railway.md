@@ -21,7 +21,7 @@ How the test store's Railway project is set up, with the reason for every settin
 | Project | `goods-production`, created as an Empty project (https://railway.com/new) | Starting empty means every service is added on purpose and written down here. |
 | Project ID | Project Settings → General | Checked against the deploy token in [deploy and rollback](deploy-and-rollback.md#set-it-up). Not secret. |
 | Environment | `production` | Railway's default environment. |
-| Service names | Exactly `Postgres`, `Redis`, `medusa-server`, `medusa-worker`, `storefront` | Other services reference them by name (`${{Postgres.DATABASE_URL}}`, `${{storefront.RAILWAY_PUBLIC_DOMAIN}}`), and `scripts/railway-deploy.sh` finds the three app services by name. A reference to a service that doesn't exist resolves to nothing without an error: in #18, `STORE_CORS` came out empty and the Store API refused the storefront's origin. |
+| Service names | Exactly `Postgres`, `Redis`, `medusa-server`, `medusa-worker`, `storefront`, and the cron `backup` ([#19](https://github.com/Tirso0882/goods/issues/19)) | Other services reference them by name (`${{Postgres.DATABASE_URL}}`, `${{storefront.RAILWAY_PUBLIC_DOMAIN}}`), and `scripts/railway-deploy.sh` finds the three app services by name. A reference to a service that doesn't exist resolves to nothing without an error: in #18, `STORE_CORS` came out empty and the Store API refused the storefront's origin. |
 
 History: the throwaway project `goods-throwaway` was built in #15, rebuilt on 24 October 2026, and deleted on 24 October 2026 in #18, when `goods-production` was built from this runbook (images `2f9956edf964cedf781915b93a592d32d6d1fe38`).
 
@@ -110,6 +110,7 @@ Postgres only reads `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` when 
 | `POSTGRES_USER`, `PGUSER` | Both `postgres` | Two readers: `POSTGRES_USER` is read by the image once, to create the superuser; `PGUSER` by clients (`psql`, and `DATABASE_URL`, built from it). They must match, or the URL logs in as a user that doesn't exist. Without `POSTGRES_USER`, `psql -U "$POSTGRES_USER"` in the container falls back to `root`. |
 | `PGPASSWORD`, `PGDATABASE`, `PGHOST`, `PGPORT` | `${{POSTGRES_PASSWORD}}`, `${{POSTGRES_DB}}`, `${{RAILWAY_PRIVATE_DOMAIN}}`, `5432` | The template's connection variables; `DATABASE_URL` is built from them. |
 | `DATABASE_URL` | `postgresql://${{PGUSER}}:${{POSTGRES_PASSWORD}}@${{RAILWAY_PRIVATE_DOMAIN}}:5432/${{PGDATABASE}}` | The private address `*.railway.internal` only resolves inside the project, so the database is reached without leaving Railway's network. |
+| Volume backups | Backups tab → schedules **Daily** (kept 6 days) and **Weekly** (kept 27 days) | The quickest way back from a bad migration. Not enough alone: they restore only into this project and environment, and wiping the volume deletes them, so the `backup` cron also writes `pg_dump`s to R2 ([restore all state](restore-all-state.md)). |
 | Public access | None: no TCP Proxy (Settings → Networking), and `DATABASE_PUBLIC_URL` deleted in the Variables Raw Editor (the variable list has no delete icon for it) | A TCP proxy would put the database on the internet, guarded by its password alone. The Setup 2 gate fails if the production database is publicly exposed. |
 
 ### Check pgvector from inside the project
@@ -371,6 +372,10 @@ The last check of a new project, because it needs every piece: server, worker, s
 
 On the storefront, buy any product with a Polish address and the test card `4242 4242 4242 4242` (any future date, any CVC). Expected: the order confirmation page; the order in Admin → Orders with payment **Captured**; and in the destination's Event deliveries, `payment_intent.created` and `payment_intent.succeeded` delivered (`pending_webhooks: 0`). Result on 24 October 2026, rebuilt project: all three as expected (244.00 zł, card). `goods-production`, 26 October 2026: all three as expected.
 
+## Backup cron
+
+The service `backup` runs nightly and writes encrypted dumps of every database, a mirror of the media bucket and an export of this environment's settings to the R2 bucket `goods-production-backups`. Its settings, the R2 bucket and tokens, retention and the restore drill are in [restore all state](restore-all-state.md#set-it-up).
+
 ## Uptime monitoring
 
 Better Stack Uptime (https://betterstack.com), outside Railway, so it still alerts when Railway itself is down. Railway's health checks only gate a deploy; nothing watches a live service.
@@ -380,7 +385,7 @@ Better Stack Uptime (https://betterstack.com), outside Railway, so it still aler
 | `goods storefront` | `$F/api/health` | Fails when the storefront is down, can't reach the backend, or has a wrong publishable key. |
 | `goods backend ready` | `$S/ready` | Fails when Medusa or Postgres is down. Not `/health`, which stays `OK` with the database down. |
 
-Both: type `status` (any 2xx is up), every 180 seconds, from the `eu`, `us`, `as` and `au` regions, request timeout 30 seconds, alerts by email and push to the Better Stack phone app. No phone calls, SMS or integrations: one person, a test store. Update both URLs when a domain changes (see "Current domains").
+Both: type `status` (any 2xx is up), every 180 seconds, from the `eu`, `us`, `as` and `au` regions, request timeout 30 seconds, alerts by email and push to the Better Stack phone app. No phone calls, SMS or integrations: one person, a test store. Update both URLs when a domain changes (see "Current domains"). The backup cron reports to a third check, the heartbeat `goods backup` ([restore all state](restore-all-state.md#set-it-up)).
 
 Account setup, by hand: sign up with 2FA on, confirm the email, install the phone app and log in, skip the integrations step. The onboarding creates the first monitor; the second was created through the Uptime API (`POST https://incidents.betterstack.com/api/v2/monitors`, `Authorization: Bearer <team Uptime API token>`), with the token kept in a `chmod 600` file outside the repo, never on screen. Delete the token when it's no longer needed: the monitors keep running.
 

@@ -1,5 +1,5 @@
-# Allowlist: both images build from the repo root and only need the workspace
-# manifests and the two apps. Everything else, including .git, docs, learning
+# Allowlist: every image builds from the repo root and needs only the workspace
+# manifests and its own app. Everything else, including .git, docs, learning
 # and agent files, stays out of the build context.
 *
 !package.json
@@ -8,6 +8,7 @@
 !.npmrc
 !apps/backend
 !apps/storefront
+!apps/backup
 
 # Secrets. Next.js loads .env* from the app folder during build, so a leaked
 # .env.local would bake development values into the image.
