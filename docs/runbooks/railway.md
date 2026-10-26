@@ -371,6 +371,23 @@ The last check of a new project, because it needs every piece: server, worker, s
 
 On the storefront, buy any product with a Polish address and the test card `4242 4242 4242 4242` (any future date, any CVC). Expected: the order confirmation page; the order in Admin → Orders with payment **Captured**; and in the destination's Event deliveries, `payment_intent.created` and `payment_intent.succeeded` delivered (`pending_webhooks: 0`). Result on 24 October 2026, rebuilt project: all three as expected (244.00 zł, card). `goods-production`, 26 October 2026: all three as expected.
 
+## Uptime monitoring
+
+Better Stack Uptime (https://betterstack.com), outside Railway, so it still alerts when Railway itself is down. Railway's health checks only gate a deploy; nothing watches a live service.
+
+| Monitor | URL | Why |
+| --- | --- | --- |
+| `goods storefront` | `$F/api/health` | Fails when the storefront is down, can't reach the backend, or has a wrong publishable key. |
+| `goods backend ready` | `$S/ready` | Fails when Medusa or Postgres is down. Not `/health`, which stays `OK` with the database down. |
+
+Both: type `status` (any 2xx is up), every 180 seconds, from the `eu`, `us`, `as` and `au` regions, request timeout 30 seconds, alerts by email and push to the Better Stack phone app. No phone calls, SMS or integrations: one person, a test store. Update both URLs when a domain changes (see "Current domains").
+
+Account setup, by hand: sign up with 2FA on, confirm the email, install the phone app and log in, skip the integrations step. The onboarding creates the first monitor; the second was created through the Uptime API (`POST https://incidents.betterstack.com/api/v2/monitors`, `Authorization: Bearer <team Uptime API token>`), with the token kept in a `chmod 600` file outside the repo, never on screen. Delete the token when it's no longer needed: the monitors keep running.
+
+### Test an alert
+
+Point a monitor at a path that doesn't exist (`$S/ready-alert-test`, a 404), wait for the incident and the alert, then restore the URL. Production isn't touched. Result on 26 October 2026: incident `Status 404` opened at 10:30:01 UTC within seconds of the change; after the URL was restored it was resolved at 10:33:15, once the recovery check passed. Both alerts, down and resolved, arrived by email.
+
 ## Sealing a variable
 
 Add the variable, apply the change and wait for a green deploy, then seal it (⋮ → Seal) and redeploy to check it still reaches the service. In #16, variables sealed before their change was applied reached the deploy empty (`COOKIE_SECRET`, `STRIPE_API_KEY`, the S3 keys): Medusa failed with `http.cookieSecret not found` or `Access key ID and secret access key are required`. The fix was to delete the variable and add it again in this order. A sealed value can't be read back, so the deploy log is the only check.

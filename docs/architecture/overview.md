@@ -346,7 +346,7 @@ Legend: shapes as in diagram 1; dashed outlines and arrows are planned. Redis, S
 
 ```mermaid
 flowchart LR
-  uptime[["Uptime monitor<br/>outside Railway (planned)"]]
+  uptime[["Better Stack Uptime<br/>outside Railway"]]
   r2m[("R2 media bucket<br/>goods-production-media")]
   r2b[("R2 backups bucket<br/>EU, separate token (planned)")]
 
@@ -361,11 +361,11 @@ flowchart LR
   srv -->|"product files · HTTPS (S3 API)"| r2m
   cron -.->|"pg_dump · Postgres (planned)"| pg
   cron -.->|"encrypted dumps · HTTPS S3 API (planned)"| r2b
-  uptime -.->|"/api/health · HTTPS (planned)"| sf
-  uptime -.->|"/ready · HTTPS (planned)"| srv
+  uptime -->|"/api/health every 3 min · HTTPS"| sf
+  uptime -->|"/ready every 3 min · HTTPS"| srv
 
   classDef planned stroke-dasharray: 5 5
-  class cron,uptime,r2b planned
+  class cron,r2b planned
 ```
 
 Legend: shapes as in diagram 1; dashed means planned. Media and backups use separate buckets, so a credential leaked from the store can't touch the backups (ADR 0006). The restore drill in #19 restores into an isolated environment, which is not drawn.
