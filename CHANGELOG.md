@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.1](https://github.com/Tirso0882/goods/compare/v0.1.0...v0.1.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **storefront:** break the category page for the rollback drill ([#66](https://github.com/Tirso0882/goods/issues/66)) ([1c37d39](https://github.com/Tirso0882/goods/commit/1c37d39224ea3b0ef073def7d86539888fdccd58))
+* **storefront:** break the category page for the rollback drill ([#66](https://github.com/Tirso0882/goods/issues/66)) ([2a6fd73](https://github.com/Tirso0882/goods/commit/2a6fd73d365c7ad7831f8e1409ca6494195be829))
+
 ## 0.1.0 (2026-10-26)
 
 
