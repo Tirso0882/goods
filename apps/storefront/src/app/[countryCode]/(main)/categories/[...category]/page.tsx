@@ -43,9 +43,6 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 }
 
 export default async function CategoryPage(props: Props) {
-  // Rollback drill (#66): breaks every category page so the smoke test fails
-  // and CI rolls back. Revert right after the drill.
-  throw new Error("rollback drill")
   const searchParams = await props.searchParams
   const params = await props.params
   const { sortBy, page } = searchParams
