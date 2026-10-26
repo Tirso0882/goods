@@ -34,6 +34,8 @@ merge the Release PR
 
 The Release PR is a normal pull request titled `chore(main): release <version>`, on the branch `release-please--branches--main`. It changes only `CHANGELOG.md` and `.release-please-manifest.json`, and release-please rewrites it after every merge, so its changelog always lists what merging it would release. It runs the required checks like any pull request.
 
+release-please only rewrites the Release PR when its changelog or version changes. After a merge of hidden types only (`chore`, `ci`, `docs`), the Release PR stays on the older `main`, and its checks don't run again. If such a merge fixes a check the Release PR fails, close and reopen the Release PR: that runs the checks again against the current `main`. The repo doesn't require branches to be up to date, so GitHub shows no Update branch button.
+
 ### Cut a release
 
 1. Open the Release PR (Pull requests, label `autorelease: pending`) and read the changelog and the version. If it has a migration, follow [Releasing a migration that breaks rollback](#releasing-a-migration-that-breaks-rollback) first.
@@ -193,3 +195,15 @@ No app code changed between `88dce76` and `35da4c30`, so the drill proved the pa
 | Roll forward to `93c458d` | [Deploy 40303047194](https://github.com/Tirso0882/goods/actions/runs/40303047194) | All three `SUCCESS`, endpoints 200, CORS exact origin. |
 
 As on 24 October, no app code changed between the two SHAs, so this proved the path on the real project, not old code on a newer schema.
+
+26 October 2026, `goods-production`, the first release with release-please (#76):
+
+| What | Run | Result |
+| --- | --- | --- |
+| Merge without a release (#77), `e18b9fe` | [CI 40327485400](https://github.com/Tirso0882/goods/actions/runs/40327485400) | `publish` and `release` passed; `release` opened the Release PR #78 for `0.1.0`. `deploy` skipped, so the services kept `3379865`. The same for #79, [CI 40328617949](https://github.com/Tirso0882/goods/actions/runs/40328617949). |
+| Release PR #78 checks | [CI 40327872466](https://github.com/Tirso0882/goods/actions/runs/40327872466) | `format` failed: release-please wrote the manifest as `{".":"0.1.0"}`, in the style of the `{}` it found, which prettier rejects. #79 leaves the manifest out of prettier. #79 is a `chore`, so the Release PR wasn't rewritten; closing and reopening it ran the checks again, all passing. |
+| Release `v0.1.0`, `40cc26b` | [CI 40330934477](https://github.com/Tirso0882/goods/actions/runs/40330934477) | [GitHub Release v0.1.0](https://github.com/Tirso0882/goods/releases/tag/v0.1.0) with 2 features and 4 fixes. `deploy` followed `release`: all three `SUCCESS`, `All services run 40cc26b…`. `/ready`, `/app`, `/api/health`, `/pl` all 200. |
+| Rollback to `3379865` (by SHA, the release before release-please) | [Deploy 40331714268](https://github.com/Tirso0882/goods/actions/runs/40331714268) | All three `SUCCESS`, about 40 seconds. Endpoints 200. |
+| Roll forward by tag `v0.1.0` | [Deploy 40332045743](https://github.com/Tirso0882/goods/actions/runs/40332045743) | `v0.1.0 is 40cc26b…`, then all three `SUCCESS`, `All services run 40cc26b…`. Endpoints 200. |
+
+No app code changed between `3379865` and `v0.1.0` either. The first rollback from one tag to another needs a second release.
