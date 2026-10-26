@@ -47,7 +47,7 @@ Nothing has to be released at once. Merges pile up in the Release PR until you m
 
 ### Commits that reach the changelog
 
-release-please reads the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) that reach `main` since the last release. With a squash merge that is one commit per pull request, whose message is the PR title, so the PR title is what counts; with a merge commit, each commit of the branch.
+release-please reads the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) that reach `main` since the last release. With a squash merge that is one commit per pull request, whose message is the PR title, so the PR title is what counts; with a merge commit, each commit of the branch, plus the merge commit itself, whose message repeats the PR title, so a `fix` PR is listed twice (`v0.1.1`). Squash-merge.
 
 | Type | Changelog section | Version bump below 1.0 |
 | --- | --- | --- |
@@ -271,3 +271,13 @@ As on 24 October, no app code changed between the two SHAs, so this proved the p
 | Roll forward by tag `v0.1.0` | [Deploy 40332045743](https://github.com/Tirso0882/goods/actions/runs/40332045743) | `v0.1.0 is 40cc26b…`, then all three `SUCCESS`, `All services run 40cc26b…`. Endpoints 200. |
 
 No app code changed between `3379865` and `v0.1.0` either. The first rollback from one tag to another needs a second release.
+
+26 October 2026, `goods-production`, the automatic rollback drill (#66), following [Drill the automatic rollback](#drill-the-automatic-rollback):
+
+| What | Run | Result |
+| --- | --- | --- |
+| Smoke test and rollback merged (#81) | [CI 40346520426](https://github.com/Tirso0882/goods/actions/runs/40346520426) | `ci` and `docs` commits only, so no release: `deploy`, `smoke` and the rollback jobs skipped. |
+| Release `v0.1.1`, `9c72341`, with every category page throwing (#82) | [CI 40351853923](https://github.com/Tirso0882/goods/actions/runs/40351853923) | `deploy` green: `All services run 9c72341…`. `smoke` red after 20 seconds: four checks `ok`, then `storefront /pl/categories/rings lists products failed 5 times. Last: curl: (22) The requested URL returned error: 500`. `rollback target` printed `Rolling back to v0.1.0`. `rollback / deploy`: `v0.1.0 is 40cc26b…`, `All services run 40cc26b…`. `smoke after rollback` green, `The store works`. The run ended red. Category pages were broken for about 3 minutes, from the storefront's deploy to the rollback's. |
+| Release `v0.1.2`, `c98a562`, reverting the break (#85) | [CI 40354513223](https://github.com/Tirso0882/goods/actions/runs/40354513223) | `deploy` green, `smoke` green in 7 seconds, rollback jobs skipped. |
+
+This is the first rollback with different app code on each side: `v0.1.1`'s storefront errored, `v0.1.0`'s didn't. No schema changed, so old code on a newer schema is still undrilled. #82 was merged with a merge commit, and the `v0.1.1` changelog lists its fix twice: once from the branch's commit, once from the merge commit, whose message repeats the PR title. Squash-merge pull requests that should reach the changelog.
