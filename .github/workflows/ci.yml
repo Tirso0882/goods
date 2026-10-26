@@ -115,16 +115,30 @@ jobs:
         env:
           NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_ci_placeholder
 
+  # Backs up throwaway databases with the backup image and restores them
+  # (apps/backup/test.sh). Railway and R2 are not touched.
+  backup:
+    name: backup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: apps/backup/test.sh
+
   # Lives in this workflow because `needs:` only reaches jobs in the same run.
   publish:
     name: publish (${{ matrix.image }})
-    needs: [format, lint, typecheck, test, build]
+    needs: [format, lint, typecheck, test, build, backup]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       matrix:
-        image: [backend, storefront]
+        # backup is the cron service; releases don't deploy it
+        # (docs/runbooks/restore-all-state.md#update-the-backup-image).
+        image: [backend, storefront, backup]
     permissions:
       contents: read # check out the build context
       packages: write # push images, and the attestation, to GHCR
