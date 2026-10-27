@@ -1,0 +1,39 @@
+name: Dependabot auto-merge
+
+# Turns on auto-merge for Dependabot's patch updates, so GitHub merges them
+# once the required checks pass. Everything else waits for a person.
+#
+# pull_request_target runs this file as it is on main, with a token that can
+# write. Safe only because no step checks out or runs the pull request's code.
+on: pull_request_target
+
+permissions: {}
+
+jobs:
+  auto-merge:
+    name: auto-merge
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # merge the pull request
+      pull-requests: write # turn on its auto-merge
+    steps:
+      - id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+      # Left out:
+      # - docker and docker-compose: the same images are pinned where
+      #   Dependabot doesn't look (apps/backup/test.sh, the test job in ci.yml),
+      #   so each bump needs a copy there first (.github/dependabot.yml).
+      # - the medusa group: every Medusa upgrade needs a rollback drill
+      #   (docs/runbooks/deploy-and-rollback.md#releasing-a-migration-that-breaks-rollback).
+      # A grouped pull request reports its highest update, so one minor bump in
+      # it leaves the whole group to a person.
+      - if: >-
+          steps.metadata.outputs.update-type == 'version-update:semver-patch'
+          && contains(fromJSON('["npm_and_yarn", "github_actions"]'), steps.metadata.outputs.package-ecosystem)
+          && steps.metadata.outputs.dependency-group != 'medusa'
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}

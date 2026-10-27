@@ -3,6 +3,9 @@ version: 2
 # Major versions are upgraded on purpose in their own PR, so npm and image
 # updates skip them. These ignores also apply to security updates: a fix that
 # needs a new major shows up as an alert only.
+#
+# Patch updates of npm and actions, outside the medusa group, merge on their
+# own once the required checks pass (.github/workflows/dependabot-auto-merge.yml).
 updates:
   - package-ecosystem: npm
     directory: /
