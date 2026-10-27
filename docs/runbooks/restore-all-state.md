@@ -40,7 +40,7 @@ goods-production-backups/
 - **A failed run:** each part runs on its own, so a failing Railway export or media sync doesn't cost the night's database dump. A failed part uploads nothing, the parts that finished are uploaded, and the run exits with an error, which Railway shows as a failed cron run.
 - **Alerts:** every run, however it ends, reports to a Better Stack heartbeat: success, or the exit code on a failure. Better Stack alerts on a failure, and also when no run reports for a day, which catches a cron that never started. A failed setting check reports too.
 
-`apps/backup/test.sh` runs all of this in CI, as the `backup` job, against throwaway databases, a local folder in place of R2 and a fake Railway API: every database restores with the same row counts, stored files are encrypted, restore refuses an existing database, deleted media is kept, the Railway export is complete, and a failing part doesn't cost the others. Add `backup` to the branch protection's required checks (Settings → Branches → `main`), so a pull request that breaks the backup can't merge.
+`apps/backup/test.sh` runs all of this in CI, as the `backup` job, against throwaway databases, a local folder in place of R2 and a fake Railway API: every database restores with the same row counts, stored files are encrypted, restore refuses an existing database, deleted media is kept, the Railway export is complete, and a failing part doesn't cost the others. `backup` is one of the branch protection's required checks (Settings → Branches → `main`), so a pull request that breaks the backup can't merge.
 
 ## Retention
 
