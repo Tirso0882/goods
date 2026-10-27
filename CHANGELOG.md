@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.0](https://github.com/Tirso0882/goods/compare/v0.1.2...v0.2.0) (2026-10-27)
+
+
+### Features
+
+* **backup:** nightly encrypted backups and a restore drill ([#19](https://github.com/Tirso0882/goods/issues/19)) ([c2a0084](https://github.com/Tirso0882/goods/commit/c2a0084b97b2eb9235a0fe3b5bc051f8008e7696))
+* **backup:** nightly encrypted backups of every database, media and Railway config ([#19](https://github.com/Tirso0882/goods/issues/19)) ([3d66bc5](https://github.com/Tirso0882/goods/commit/3d66bc523a430a21ed5acf7fa53e4b183d957946))
+* **backup:** report every run to a Better Stack heartbeat ([#19](https://github.com/Tirso0882/goods/issues/19)) ([950c7de](https://github.com/Tirso0882/goods/commit/950c7dec007d4da6820c2f7c93e65bcd36aee3f4))
+
 ## [0.1.2](https://github.com/Tirso0882/goods/compare/v0.1.1...v0.1.2) (2026-10-26)
 
 
