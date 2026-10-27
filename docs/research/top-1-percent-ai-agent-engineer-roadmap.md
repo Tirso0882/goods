@@ -1416,5 +1416,7 @@ Your employer is fine with the business and a Polish lawyer has confirmed you ca
 5. Tell customers clearly that the chat is an AI, and give them a route to a human.
 6. Check product safety and labeling duties for the category chosen in the Research step.
 7. Switch Stripe to live mode and add BLIK and Przelewy24.
-8. Rerun the Step 16 security and privacy review against the live configuration before the first real order.
-9. Launch the agent with read-only tools and human handoff only. Keep write tools behind the kill switch until evals on real, redacted conversations match the synthetic baseline. Real customers will ask things the synthetic set did not cover.
+8. Add point-in-time recovery for Postgres, so a restore loses minutes of orders rather than up to a day. The nightly encrypted dumps to R2 from Setup 2 stay as the copy with another provider ([#89](https://github.com/Tirso0882/goods/issues/89)).
+9. Put a staging environment in front of production, so a broken release stops there before shoppers see it ([#84](https://github.com/Tirso0882/goods/issues/84)).
+10. Rerun the Step 16 security and privacy review against the live configuration before the first real order.
+11. Launch the agent with read-only tools and human handoff only. Keep write tools behind the kill switch until evals on real, redacted conversations match the synthetic baseline. Real customers will ask things the synthetic set did not cover.
