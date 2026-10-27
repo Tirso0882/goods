@@ -24,7 +24,8 @@ Object storage provider: Cloudflare R2, EU jurisdiction buckets, separate bucket
 Transactional email provider: BLOCKED (contact address: tirso.gomez@redkraken.tech)
 Data retention period for conversations: BLOCKED
 Remote: https://github.com/Tirso0882/goods (public), default branch main
-Default branch protection enabled: Yes (main: PR required with 0 approvals, applies to admins, no force pushes, no deletion)
+Default branch protection enabled: Yes (main: PR required with 0 approvals, applies to admins, no force pushes, no deletion; required checks format, lint, typecheck, test, build and backup)
+Auto-merge: Allowed, used only by .github/workflows/dependabot-auto-merge.yml for Dependabot's patch updates
 Secret scanning: Enabled, with push protection
 ```
 
