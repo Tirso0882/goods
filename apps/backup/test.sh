@@ -198,6 +198,7 @@ pass "the Railway config and variables are exported, encrypted"
 # --- A failing part doesn't cost the database backup -------------------------
 
 before=$(find "$WORK/bucket/nightly" -mindepth 1 -maxdepth 1 | sort)
+sleep 1 # folders are stamped to the second; don't reuse the last run's
 BACKUP_PARTS="postgres railway" RAILWAY_TOKEN_OVERRIDE=wrong in_image "$RUN-source" backup.sh >/dev/null 2>&1 \
   && fail "backup succeeded although the Railway export failed"
 night=$(comm -13 <(echo "$before") <(find "$WORK/bucket/nightly" -mindepth 1 -maxdepth 1 | sort))
