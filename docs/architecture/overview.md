@@ -355,7 +355,7 @@ flowchart LR
     sf["storefront"]
     srv["medusa-server"]
     cron["backup cron (planned)<br/>nightly encrypted pg_dump"]
-    pg[("Postgres<br/>+ Railway volume backups (planned)")]
+    pg[("Postgres")]
   end
 
   srv -->|"product files · HTTPS (S3 API)"| r2m
