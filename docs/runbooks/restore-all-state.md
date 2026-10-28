@@ -6,12 +6,12 @@ What the test store must not lose, how each part is backed up, and the drill tha
 
 | State | Where it lives | Backed up by | Restored by |
 | --- | --- | --- | --- |
-| Medusa data: products, orders, customers, payments, carts, Admin users, API keys, workflow executions | Postgres database `medusa-goods` on the `Postgres` service volume | Nightly `pg_dump` to R2; Railway volume backups | `restore.sh` into a new database |
+| Medusa data: products, orders, customers, payments, carts, Admin users, API keys, workflow executions | Postgres database `medusa-goods` on the `Postgres` service volume | Nightly `pg_dump` to R2 | `restore.sh` into a new database |
 | Postgres roles | The same Postgres server | `globals.sql` in the nightly backup | By hand, only for a rebuild that needs the roles; the drill restores without owners |
 | Product images and Admin uploads | R2 bucket `goods-production-media` | Nightly mirror to the backups bucket | `rclone copy` from `media/current/` |
 | Railway configuration: services, images, start and pre-deploy commands, health checks, regions, variables (references unrendered), volumes, domains, volume backup schedules | Railway project `goods-production`, environment `production` | `railway.json` in the nightly backup, plus [the Railway runbook](railway.md) | Decrypt and compare with the runbook; rebuild from the runbook |
 | Sealed variables (`JWT_SECRET`, `COOKIE_SECRET`, Stripe keys, R2 keys) | Railway only; sealed values can't be read back | Not backed up: Railway's API returns them empty | Rotated: generate, set, redeploy ([where secrets are kept](railway.md#where-secrets-are-kept)) |
-| The backup private key | Password manager, and offline on paper | Itself recovery material: without it no backup decrypts | Read from the password manager |
+| The backup private key | Bitwarden (`goods / goods-production / backup key`), and offline on paper | Itself recovery material: without it no backup decrypts | Read from Bitwarden |
 | Redis: queues, workflow checkpoints, locks, cache | `Redis` service volume | Not backed up: see [Redis](#redis) | Rebuilt empty |
 | Code, images, release history | GitHub and GHCR | GitHub | Out of scope here |
 | Payments | Stripe, the system of record for money | Stripe | Out of scope here |
@@ -34,7 +34,7 @@ goods-production-backups/
 ```
 
 - **Every database:** the script dumps every database on the server except the empty maintenance database `postgres`, and fails if `postgres` ever holds a table. A database added later (an agent database) is backed up without a change here. Each dump is read back with `pg_restore --list` before upload, so a truncated dump fails the run.
-- **Encryption:** dumps and the Railway export are encrypted with [age](https://age-encryption.org) to a public key. The cron holds only the public key, so neither it nor anyone reading the bucket can decrypt a backup. The private key lives only in the password manager and on paper. Media isn't encrypted: product images are public on the store.
+- **Encryption:** dumps and the Railway export are encrypted with [age](https://age-encryption.org) to a public key. The cron holds only the public key, so neither it nor anyone reading the bucket can decrypt a backup. The private key lives only in Bitwarden and on paper. Media isn't encrypted: product images are public on the store.
 - **Media:** R2 has no versioning, so a plain mirror would lose a file the night the store deleted it. `rclone sync --backup-dir` moves deleted or replaced files to `media/deleted/<UTC time>/` instead.
 - **Railway configuration:** the environment's config (every service's settings, variable names, volumes, domains) plus each service's variables with `${{...}}` references as written, and every volume's backup schedules, from Railway's GraphQL API with a project token.
 - **A failed run:** each part runs on its own, so a failing Railway export or media sync doesn't cost the night's database dump. A failed part uploads nothing, the parts that finished are uploaded, and the run exits with an error, which Railway shows as a failed cron run.
@@ -50,17 +50,18 @@ goods-production-backups/
 | `nightly/` | Can't be deleted for 7 days | R2 bucket lock rule `nightly/`, age 7 days | The cron's R2 key can write and delete. A leaked key, or a bad script, can't remove the last week of backups. |
 | `media/current/` | Until the store deletes the file | Mirror | |
 | `media/deleted/` | 30 days | R2 lifecycle rule `media/deleted/` → delete after 30 days | Same window as the database: a restore from 30 days ago finds its images. |
-| Railway volume backups of `Postgres` | Daily for 6 days, weekly for 27 days | Postgres → Backups, Daily and Weekly schedules | Railway's retention for each schedule. |
 
-## Why Railway's volume backups are not enough
+## Why not Railway's volume backups
 
-They're on, because they're the fastest way back from a bad migration: a few clicks, no download. But:
+They're off. Railway's volume backups (Postgres → Backups) need the Pro plan, $20 a month against Hobby's $5, and the store runs on Hobby. Even on Pro they'd only add to the nightly `pg_dump`, never replace it:
 
 - they restore only into the same project and environment, so they can't rebuild the store if the project is deleted, the account is locked or Railway is down;
 - wiping the volume deletes them, so they fail exactly when the volume is the problem;
 - they live on the platform they protect, under the same account and 2FA.
 
-The nightly `pg_dump` in R2 covers all three: another provider, its own credentials, restorable anywhere Postgres 17 with pgvector runs.
+What they'd give is the quickest way back from a bad migration, a few clicks with no download. Without them, take a fresh restore point before a risky release (a migration that drops or rewrites data): `railway cron run --service backup`, wait for `backup complete`, then deploy. A restore from it follows the [drill](#restore-drill).
+
+Whether to pay for Railway's backups, or its point-in-time recovery, is decided before real orders in [#89](https://github.com/Tirso0882/goods/issues/89).
 
 ## Redis
 
@@ -77,28 +78,43 @@ The orders, payments and customers those events are about are already in Postgre
 
 ## Set it up
 
-Once, in this order. Each secret goes into the password manager before Railway (see [where secrets are kept](railway.md#where-secrets-are-kept)).
+Once, in this order. Each secret goes into Bitwarden, folder `goods`, before Railway. The backup key can't wait for go-live like the other secrets: a lost Railway secret is rotated, but a lost backup key makes every backup unreadable. So if Bitwarden isn't set up yet, do its steps 1–3 and create the folder first ([where secrets are kept](railway.md#where-secrets-are-kept)).
 
 1. **Plan:** the cron is the project's sixth service, and the Trial allows five: upgrade to Hobby first (Account → Plans), with the $10 budget alert from [ADR 0006](../adr/0006-railway-hosts-the-test-store.md).
-2. **Railway volume backups:** `Postgres` → Backups → schedules **Daily** and **Weekly**. Check a first manual backup appears in the list.
+2. **Railway volume backups:** none on Hobby, which shows "upgrade to Pro" in the Backups tab. See [why not Railway's volume backups](#why-not-railways-volume-backups).
 3. **Backup key**, on your laptop, never in Railway:
 
    ```bash
+   cd ~                                     # outside the repo: the key must never be committed
+   umask 077                                # the key file is readable by you only
    docker run --rm ghcr.io/tirso0882/goods-backup:<sha> age-keygen >goods-backup.key   # private
    docker run --rm -i ghcr.io/tirso0882/goods-backup:<sha> age-keygen -y <goods-backup.key  # public, starts age1
    ```
 
-   Save the private key file's contents in the password manager (secure note `goods-production / backup key`) and on paper, offline, then delete the file. The public key is not secret.
+   Save the private key file's contents (`cat goods-backup.key`, all three lines) in Bitwarden (secure note `goods-production / backup key`, folder `goods`) and on paper, offline, then delete the file. The public key is not secret.
 
-4. **R2 bucket** `goods-production-backups`: R2 → Create bucket, Location → Specify jurisdiction → **European Union (EU)**, Standard storage class. Then Settings:
-   - Object lifecycle rules: `nightly/`, delete after 30 days; `media/deleted/`, delete after 30 days.
-   - Bucket lock rules: `nightly/`, retention 7 days.
-5. **R2 tokens** (R2 → Manage API tokens → Create Account API token), each shown once, saved in the password manager:
+4. **R2 bucket** `goods-production-backups`, in the EU jurisdiction, with the [retention](#retention) rules. With the `cf` CLI (or the dashboard: R2 → Create bucket → Specify jurisdiction → **European Union (EU)**, then Settings → Object lifecycle rules and Bucket lock rules):
+
+   ```bash
+   cf r2 buckets create --name goods-production-backups --cf-r2-jurisdiction eu --storage-class Standard
+   # Replaces every rule, so the bucket's default multipart-abort rule is listed too.
+   cf r2 buckets lifecycle update goods-production-backups --cf-r2-jurisdiction eu --force --rules '[
+     {"id":"Default Multipart Abort Rule","enabled":true,"conditions":{},"abortMultipartUploadsTransition":{"condition":{"type":"Age","maxAge":604800}}},
+     {"id":"nightly-30d","enabled":true,"conditions":{"prefix":"nightly/"},"deleteObjectsTransition":{"condition":{"type":"Age","maxAge":2592000}}},
+     {"id":"media-deleted-30d","enabled":true,"conditions":{"prefix":"media/deleted/"},"deleteObjectsTransition":{"condition":{"type":"Age","maxAge":2592000}}}
+   ]'
+   cf r2 buckets locks update goods-production-backups --cf-r2-jurisdiction eu --force --rules '[
+     {"id":"nightly-7d","enabled":true,"prefix":"nightly/","condition":{"type":"Age","maxAgeSeconds":604800}}
+   ]'
+   ```
+
+   Check with `cf r2 buckets get`, `lifecycle get` and `locks get` (each with `--cf-r2-jurisdiction eu`): jurisdiction `eu`, three lifecycle rules, one lock.
+5. **R2 tokens** (R2 → Manage API tokens → Create Account API token), each shown once, saved in Bitwarden before the page closes:
    - `goods-backup-writer`: **Object Read & Write**, bucket `goods-production-backups` only.
    - `goods-backup-media-reader`: **Object Read only**, bucket `goods-production-media` only. The media token Medusa uses can write, so it isn't reused.
 6. **Railway project token** `backup-cron`: Project Settings → Tokens, environment `production`. It can also deploy, which is why it lives only in the sealed `RAILWAY_CONFIG_TOKEN` and nowhere else.
 7. **GHCR package:** the first CI run on `main` after this change pushes `goods-backup`. GitHub → Packages → `goods-backup` → Package settings → Change visibility → Public, as for the other two ([ADR 0006](../adr/0006-railway-hosts-the-test-store.md)).
-8. **Better Stack heartbeat:** Better Stack → Uptime → Heartbeats → Create heartbeat, named `goods backup`, expected every **1 day**, grace period **3 hours** (time for a slow run), alerts by email and push like the [uptime monitors](railway.md#uptime-monitoring). Copy its URL for `HEARTBEAT_URL`. It stays Pending until the first run reports.
+8. **Better Stack heartbeat:** Better Stack → Uptime → Heartbeats → Create heartbeat, named `goods backup`, expected every **1 day**, grace period **3 hours** (time for a slow run), alerts by email only (push on a heartbeat needs a paid plan; email is how the [uptime monitors](railway.md#uptime-monitoring)' alert test arrived too). Copy its URL for `HEARTBEAT_URL`. It stays Pending until the first run reports.
 9. **The cron service:** + Create → Docker Image → `ghcr.io/tirso0882/goods-backup:<sha>`, renamed `backup`, with the settings below. Apply, wait for the first run (or trigger it), then seal the secrets ([sealing a variable](railway.md#sealing-a-variable)).
 
 | Setting | Value | Why |
@@ -174,7 +190,7 @@ install -m 600 /dev/null ~/.config/goods-restore.env
 # BACKUP_BUCKET=goods-production-backups
 ```
 
-Put the private key from the password manager in `~/.config/goods-backup.key` (`chmod 600`, readable by your user: the image runs as your user below). Then note the UTC time (restore starts) and run:
+Put the private key from Bitwarden in `~/.config/goods-backup.key` (`chmod 600`, readable by your user: the image runs as your user below). Then note the UTC time (restore starts) and run:
 
 ```bash
 IMAGE=ghcr.io/tirso0882/goods-backup:<sha>
@@ -226,7 +242,7 @@ It verifies `SHA256SUMS`, decrypts, creates each database and restores it, and l
 
    The count matches R2 → `goods-production-media` → Objects (or `cf r2 objects list --bucket-name goods-production-media --cf-r2-jurisdiction eu`), and a file opens.
 
-4. **Railway configuration:** `jq '.services | keys' restore-out/railway.json` lists the six services, `jq '[.config.services[].networking.serviceDomains // {} | keys[]]' restore-out/railway.json` the two domains in [current domains](railway.md#current-domains), and `jq '.volumes'` the Postgres volume with its Daily and Weekly schedules. Compare each service's image, start and pre-deploy commands and variables with the [Railway runbook](railway.md); a difference is drift, fixed in whichever one is wrong. Note the UTC time (restore done).
+4. **Railway configuration:** `jq '.services | keys' restore-out/railway.json` lists the six services, `jq '[.config.services[].networking.serviceDomains // {} | keys[]]' restore-out/railway.json` the two domains in [current domains](railway.md#current-domains), and `jq '.volumes'` the Postgres volume (its `backupSchedules` empty on Hobby). Compare each service's image, start and pre-deploy commands and variables with the [Railway runbook](railway.md); a difference is drift, fixed in whichever one is wrong. Note the UTC time (restore done).
 
 ### 4. Clean up
 

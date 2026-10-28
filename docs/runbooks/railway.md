@@ -60,6 +60,9 @@ None yet; the store runs on the Railway-provided domains above. A custom domain 
    | `<project> / R2 media token` | Secure note | `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, the token's name and bucket |
    | `<project> / RAILWAY_TOKEN` | Secure note | The project token for GitHub Actions |
    | Railway SSH key | Secure note | Passphrase of `~/.ssh/id_ed25519_railway` |
+   | `<project> / backup key` | Secure note | The age private key that decrypts every backup. Also on paper. Saved first, before the rest ([restore all state](restore-all-state.md#set-it-up)) |
+   | `<project> / R2 backup tokens` | Secure note | `goods-backup-writer` and `goods-backup-media-reader`: access key ID and secret each |
+   | `<project> / backup-cron` | Secure note | `RAILWAY_CONFIG_TOKEN`, and the `goods backup` heartbeat URL |
 
    Secure notes get one Hidden custom field per variable, named like the variable.
 5. Fill it by rotating every sealed secret, as sealed values can't be copied out: generate, save in Bitwarden, edit in Railway, redeploy, seal. The live store also gets live Stripe keys, which go through the same order.
@@ -110,7 +113,7 @@ Postgres only reads `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` when 
 | `POSTGRES_USER`, `PGUSER` | Both `postgres` | Two readers: `POSTGRES_USER` is read by the image once, to create the superuser; `PGUSER` by clients (`psql`, and `DATABASE_URL`, built from it). They must match, or the URL logs in as a user that doesn't exist. Without `POSTGRES_USER`, `psql -U "$POSTGRES_USER"` in the container falls back to `root`. |
 | `PGPASSWORD`, `PGDATABASE`, `PGHOST`, `PGPORT` | `${{POSTGRES_PASSWORD}}`, `${{POSTGRES_DB}}`, `${{RAILWAY_PRIVATE_DOMAIN}}`, `5432` | The template's connection variables; `DATABASE_URL` is built from them. |
 | `DATABASE_URL` | `postgresql://${{PGUSER}}:${{POSTGRES_PASSWORD}}@${{RAILWAY_PRIVATE_DOMAIN}}:5432/${{PGDATABASE}}` | The private address `*.railway.internal` only resolves inside the project, so the database is reached without leaving Railway's network. |
-| Volume backups | Backups tab → schedules **Daily** (kept 6 days) and **Weekly** (kept 27 days) | The quickest way back from a bad migration. Not enough alone: they restore only into this project and environment, and wiping the volume deletes them, so the `backup` cron also writes `pg_dump`s to R2 ([restore all state](restore-all-state.md)). |
+| Volume backups | None: the Backups tab needs the Pro plan | The `backup` cron writes nightly `pg_dump`s to R2 instead, which also survive losing the volume or the project ([why not Railway's volume backups](restore-all-state.md#why-not-railways-volume-backups)). |
 | Public access | None: no TCP Proxy (Settings → Networking), and `DATABASE_PUBLIC_URL` deleted in the Variables Raw Editor (the variable list has no delete icon for it) | A TCP proxy would put the database on the internet, guarded by its password alone. The Setup 2 gate fails if the production database is publicly exposed. |
 
 ### Check pgvector from inside the project
