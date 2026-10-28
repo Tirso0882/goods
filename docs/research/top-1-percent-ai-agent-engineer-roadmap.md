@@ -4,7 +4,7 @@ Goal: become a strong AI agent engineer by building a production-grade customer 
 
 Time: 40 project hours a week, Monday to Friday from 10:00 to 18:00. Saturday is a light day of spaced review only (10:00 to 12:30), and Sunday is fully off. The core roadmap runs about 14 weeks, from Monday 28 September to Thursday 31 December 2026 (shifted two build days after Setup 1 Day 1 slipped, then three weeks when multi-agent, voice, and fine-tuning came into scope, then six more build days after Setup 2 slipped; see `docs/adr/0004-multi-agent-voice-and-fine-tuning-are-in-scope.md`). Product research runs in the background during week 1, alongside the On-ramp. After the core roadmap, run a retro before choosing the pace for the second project.
 
-The project runs in production with synthetic data and test payments only. Your employer and a Polish lawyer have confirmed you can run the business, so the only remaining blockers for real orders are the business registration, tax, consumer-law, privacy, and security work in "Before taking real orders" at the end of this file. That work runs in parallel from week 1.
+The project runs in production with synthetic data and test payments only. Your employer and a Polish lawyer have confirmed you can run the business, so the only remaining blockers for real orders are the business registration, tax, consumer-law, privacy, security, and recovery work in "Before taking real orders" at the end of this file. That work runs in parallel from week 1.
 
 This roadmap is an execution checklist, not a promise that mistakes are impossible. APIs and installation commands change. Every step therefore has a gate and a learning gate. Do not continue because the calendar says to continue. Continue only when both gates pass and the evidence is committed.
 
@@ -77,7 +77,7 @@ Stop adding features and fix the problem when any of these is true:
 - a retry can repeat a return, address change, refund, or other mutation;
 - the agent can execute a refund without recorded human approval;
 - a failed eval is dismissed without a written reason;
-- all currently durable state has not been backed up and restored successfully;
+- real orders are about to start and durable state has not been backed up and restored successfully ([#19](https://github.com/Tirso0882/goods/issues/19));
 - deployment requires an undocumented manual change;
 - traces expose secrets or unnecessary personal data;
 - the main branch is red;
@@ -563,13 +563,12 @@ This step runs in the background during the On-ramp. Background agents do the so
 
 ### Setup 2: reproducible environments and deployment
 
-**Outcome:** a clean machine can run the local stack, a tested trigger can deploy the test store over HTTPS, and all currently durable state has been restored successfully.
+**Outcome:** a clean machine can run the local stack, and a tested trigger can deploy the test store over HTTPS. Backups and the restore drill moved to "Before taking real orders" on 28 October 2026 ([#19](https://github.com/Tirso0882/goods/issues/19)): the store holds only synthetic data until then.
 
 **Learning objectives:**
 
 - Set up a Railway project so only the storefront and the server are public, and explain each security setting.
 - Explain why Medusa needs separate server and worker instances in production.
-- Explain the difference between a backup and a proven restore.
 
 Docker, Compose, and GitHub Actions are already familiar, so Days 1 to 3 should go quickly. Put the saved time into Day 4, which is new.
 
@@ -632,6 +631,8 @@ Do the list below twice. First in a throwaway Railway project, writing `docs/run
 
 **Day 5: backups and recovery**
 
+Items 1 to 9 moved to "Before taking real orders" on 28 October 2026 ([#19](https://github.com/Tirso0882/goods/issues/19)). Items 10 and 11 stay in Setup 2.
+
 1. Inventory all durable state. At this stage it includes Medusa data, S3 files, and Railway configuration (services, variables, volumes, domains). Add agent cases, approvals, idempotency records, LiteLLM data, and LangGraph checkpoints to the inventory when those components are introduced.
 2. Create nightly encrypted PostgreSQL backups to EU object storage with a Railway cron service. Include every database and schema that holds durable business or workflow state. Railway's own volume backups are useful but not enough: they restore only into the same project and environment, and wiping the volume deletes them.
 3. Back up S3-compatible object storage and Railway configuration with documented retention.
@@ -651,12 +652,11 @@ Do the list below twice. First in a throwaway Railway project, writing `docs/run
 - commit-SHA container images;
 - HTTPS test deployment, built from the runbook in a second Railway project;
 - Railway, deploy, and rollback runbooks;
-- backup and proven restore of all currently durable state;
 - week report.
 
-**Gate fails if:** only the server or only the worker is deployed, the production database is publicly exposed, rollback is untested, or backup success is inferred without a restore.
+**Gate fails if:** only the server or only the worker is deployed, the production database is publicly exposed, or rollback is untested.
 
-**Learning gate:** without notes, list the Railway settings that keep the store safe (private Postgres and Redis, public domains only where needed, secrets as variables, scoped tokens, account 2FA) and the reason for each, and explain what the restore drill proved that a successful backup job did not.
+**Learning gate:** without notes, list the Railway settings that keep the store safe (private Postgres and Redis, public domains only where needed, secrets as variables, scoped tokens, account 2FA) and the reason for each.
 
 ### Step 1: write the design before the agent
 
@@ -1156,7 +1156,7 @@ Run each destructive fault case against synthetic test payments only.
 5. Inject Medusa timeouts, model timeouts, malformed model output, duplicated events, and delayed approvals.
 6. Confirm every case ends resolved, safely retried, visibly failed, or handed off.
 7. Confirm zero lost cases and zero duplicate mutations.
-8. Restore the latest backup again and record recovery time.
+8. Restore the latest backup and record recovery time, with the drill from [#19](https://github.com/Tirso0882/goods/issues/19) (run #19 first if it hasn't been).
 9. Run a complete deploy and rollback drill.
 
 **Gate:** the reliability report accounts for every injected run, zero conversations disappear, zero duplicate refunds occur, and alerts fire with actionable context.
@@ -1416,7 +1416,8 @@ Your employer is fine with the business and a Polish lawyer has confirmed you ca
 5. Tell customers clearly that the chat is an AI, and give them a route to a human.
 6. Check product safety and labeling duties for the category chosen in the Research step.
 7. Switch Stripe to live mode and add BLIK and Przelewy24.
-8. Add point-in-time recovery for Postgres, so a restore loses minutes of orders rather than up to a day. The nightly encrypted dumps to R2 from Setup 2 stay as the copy with another provider ([#89](https://github.com/Tirso0882/goods/issues/89)).
-9. Put a staging environment in front of production, so a broken release stops there before shoppers see it ([#84](https://github.com/Tirso0882/goods/issues/84)).
-10. Rerun the Step 16 security and privacy review against the live configuration before the first real order.
-11. Launch the agent with read-only tools and human handoff only. Keep write tools behind the kill switch until evals on real, redacted conversations match the synthetic baseline. Real customers will ask things the synthetic set did not cover.
+8. Finish backups and a proven restore of all durable state, moved here from Setup 2 Day 5 ([#19](https://github.com/Tirso0882/goods/issues/19)): nightly encrypted dumps of every database, media and Railway configuration to R2, then a restore drill in isolation with recovery time and point measured. Explain, without notes, what the drill proved that a successful backup job did not.
+9. Add point-in-time recovery for Postgres, so a restore loses minutes of orders rather than up to a day. The nightly encrypted dumps to R2 from item 8 stay as the copy with another provider ([#89](https://github.com/Tirso0882/goods/issues/89)).
+10. Put a staging environment in front of production, so a broken release stops there before shoppers see it ([#84](https://github.com/Tirso0882/goods/issues/84)).
+11. Rerun the Step 16 security and privacy review against the live configuration before the first real order.
+12. Launch the agent with read-only tools and human handoff only. Keep write tools behind the kill switch until evals on real, redacted conversations match the synthetic baseline. Real customers will ask things the synthetic set did not cover.
