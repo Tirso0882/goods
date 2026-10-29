@@ -99,7 +99,11 @@ Result: pass after one correction, on 29 October 2026.
 
 ## Explain-back
 
-The learning gate answers above, in the learner's words, are the explain-back for the first objective. The second objective, why Medusa needs separate server and worker instances, was not explained back.
+The learning gate answers above, in the learner's words, are the explain-back for the first objective.
+
+Why Medusa needs separate server and worker instances, in the learner's words: to keep resource-heavy background work away from live web traffic. The reasons are that background work can't block the API, each side scales on its own, a crash in one doesn't take down the other, and each runs with its own role-based configuration. They are decoupled processes that talk through Redis, used as a shared event bus, queue, cache and lock: when the server triggers an event or workflow, it pushes the job to Redis, and the worker picks it up and runs it asynchronously.
+
+Verdict: pass. One addition: scaling a combined process would also multiply scheduled jobs, so every replica would run each job. With `MEDUSA_WORKER_MODE=server`, server replicas run none, and the worker runs each one once.
 
 ## Hours
 
