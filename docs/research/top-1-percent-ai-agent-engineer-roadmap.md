@@ -285,7 +285,7 @@ From 13 November the block becomes a spaced second read of the sections the curr
 |---|---|---|
 | Read only | Order status, product questions, shipping policy | Agent alone |
 | Low-risk write | Update address before shipping, start a return | Agent alone, logged |
-| Money or irreversible | Refunds above a small limit, cancellations after shipping, credits | Agent prepares, you approve |
+| Money or irreversible | Every refund whatever the amount, cancellations after shipping, credits | Agent proposes exception refunds, you approve, and Medusa runs the refund on your approval (ADR 0011) |
 | Out of policy or upset customer | Complaints, legal threats, anything unclear | Hand off to a human |
 
 Tell customers they're talking to an AI (EU AI Act requirement).
@@ -301,7 +301,7 @@ Verify the customer (email plus order number, or logged-in session) before any w
 | `search_faq` | Read | pgvector over policy and FAQ docs |
 | `request_return` | Low-risk write | Uses Medusa's return flow; idempotency key |
 | `update_shipping_address` | Low-risk write | Only before fulfillment |
-| `propose_refund` | Needs approval | Creates an approval request. The refund runs only after you approve |
+| `propose_refund` | Needs approval | Creates an approval request. Medusa runs the refund on your approve click; the agent never can (ADR 0011) |
 | `hand_off_to_human` | None | Opens a case for you with a summary |
 
 ## Metrics to track from Step 2
@@ -968,9 +968,9 @@ For every write:
 6. Implement `propose_refund`. It creates an approval record but cannot execute a refund.
 7. Store proposal amount, currency, reason, order, policy evidence, requester, created time, expiration, and status.
 8. Build an authenticated approval interface. Record approver identity and decision time.
-9. On approval, re-read the order and payment state, validate amount and policy again, reserve the refund idempotency key, then execute through Medusa's supported flow.
+9. On approval, the Medusa approve route re-reads the order and payment state, validates amount and policy again, checks no refund already carries the approval ID, then executes through Medusa's refund workflow (ADR 0011). The agent never executes the refund.
 10. On rejection or expiration, produce no money movement.
-11. Ensure only one worker can claim an approved operation.
+11. Ensure only one approve request can claim an approval, and that a recovery job settles approvals that were claimed but never reported.
 12. Add migration handling for checkpoints created by the previous app version.
 
 **Required tests:**

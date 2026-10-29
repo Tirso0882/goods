@@ -40,6 +40,40 @@ _Avoid_: Blocker, red flag
 The gate for the whole roadmap.
 _Avoid_: Final checklist, done
 
+### Support
+
+**Shopper**:
+A person, guest or logged-in, who talks to the support agent through the storefront chat.
+_Avoid_: User, client
+
+**Operator**:
+The store owner, who approves or rejects proposals and takes handoffs, but never chats with the support agent.
+_Avoid_: Admin, approver, human agent
+
+**Support case**:
+One chat conversation with a shopper. It can cover several orders and requests, and it ends on resolution, handoff, or a day without activity.
+_Avoid_: Ticket, session, thread
+
+**Verification grant**:
+Short-lived proof, issued by the store, that a shopper may read, or also change, one order or all of their own orders within one support case.
+_Avoid_: Session, login, verified flag
+
+**Handoff**:
+Passing a support case to the operator, who answers the shopper outside the chat.
+_Avoid_: Escalation (that is the metric, not the act), transfer
+
+**Return request**:
+A shopper's request, created in the store by the support agent, to send items back within the withdrawal window. The refund that completes it is the operator's action, never the agent's.
+_Avoid_: Return (alone), RMA
+
+**Exception refund**:
+A refund not tied to a received return, such as for a missing or damaged item. The support agent only proposes it, and it runs only after the operator approves.
+_Avoid_: Goodwill refund, autonomous refund
+
+**Non-returnable item**:
+A product excluded from the withdrawal right, such as unsealed pierced earrings or engraved pieces. The support agent never decides this, it hands the case off.
+_Avoid_: Final sale
+
 ### Learning artifacts
 
 **Explain-back**:
