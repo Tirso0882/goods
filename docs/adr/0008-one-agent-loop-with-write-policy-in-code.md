@@ -14,4 +14,4 @@ The six journeys in `docs/design.md` are short and share most of their steps (ve
 
 - Every write tool has a policy table and deterministic tests before the model sees its schema (Step 6).
 - Evals check the tool calls and the final Medusa state, not just the wording of the reply.
-- Step 8 rebuilds the same loop in LangGraph without changing what the tools allow.
+- The loop runs on LangChain's `create_agent` from Step 2 (ADR 0012), so Step 8 adds durable approval to it instead of rebuilding it in LangGraph. What the tools allow doesn't change.
