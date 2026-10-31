@@ -354,7 +354,7 @@ Every write tool runs this sequence:
 5. Record `succeeded` with Medusa's ID, or `failed` with the reason.
 6. If the call timed out or the worker crashed, the execution stays `pending`, and it becomes `unknown` once its lease expires.
 
-**Reconciling an `unknown` execution:** re-read the order through the support route. If the change is there (the return request exists, the address matches), mark it `succeeded`. If not, mark it `failed`, and only a new shopper request can try again. Nothing retries a write automatically.
+**Reconciling an `unknown` execution:** re-read the order through the support route. If the change is there (the return request exists, the address matches), mark it `succeeded`. If not, mark it `failed` and release its operation key, so the shopper's request can run again in the same case. A first call that lands late can't cause a duplicate: the support route's own checks (items already in an open return, address already set) refuse the second call. Nothing retries a write automatically.
 
 A new support case gets a new key, so the same request in a later case is stopped by step 4: the items are already in an open return, or the address already matches.
 
@@ -490,3 +490,4 @@ Each later experiment runs against the frozen Step 12 baseline and must beat it 
 | Date | Change | Why |
 | --- | --- | --- |
 | 29 Oct 2026 | First version | Step 1 (#101) |
+| 31 Oct 2026 | Reconciling an `unknown` write that never landed releases its operation key | Found in the Step 1 learning gate: the key stayed taken, so a shopper who asked again in the same case got the stored failure forever |
