@@ -1,0 +1,14 @@
+{
+  "enabledPlugins": {
+    "medusa-dev@medusa": true,
+    "ecommerce-storefront@medusa": true
+  },
+  "extraKnownMarketplaces": {
+    "medusa": {
+      "source": {
+        "source": "github",
+        "repo": "medusajs/medusa-agent-skills"
+      }
+    }
+  }
+}
