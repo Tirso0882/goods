@@ -46,7 +46,7 @@ The light day adds 2 to 3 hours of spaced review only: no building. Do not borro
 Learning is the first priority, so it has its own structure:
 
 - **Learning objectives:** every step lists what you should be able to explain or do afterwards.
-- **Learning gate:** every step ends with one. Explain the objectives without notes, out loud or in writing. If you can't, spend the next learning block there before starting the next step.
+- **Learning gate:** every step ends with one. Since 31 October 2026 the agent writes a model answer to it and stores it in `learning/gate-answers/`, and you read it. The deep-stop steps (3, 4, 6, 7, 9 and 13: evals, idempotency, RAG, synthetic data and multi-agent) also need the gate explained back without notes; if you can't, spend the next learning block there before starting the next step. `learning/learning-gates.md` lists every step's topics, mode and answer.
 - **Explain-back:** every weekly progress note has one. It takes each concept from the week and shows where it appears in your own code.
 - **`/teach` workspace:** `learning/` in this repo. Open it as a separate Cursor window when studying. It holds the mission, lessons, reference sheets, and learning records for the Huyen chapters, Node and Medusa, and Railway operations.
 - **Spaced review:** on the light day, redo quizzes and explain-backs from two and four weeks earlier.
