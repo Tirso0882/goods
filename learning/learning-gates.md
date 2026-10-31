@@ -5,7 +5,7 @@ What to learn in each step of the core roadmap, how its learning gate runs, and 
 **Two modes, since 31 October 2026:**
 
 - **Answer:** the agent writes a model answer to the step's learning gate and stores it in `gate-answers/`. You read it. The gate passes once the answer is stored and read.
-- **Deep stop:** the core AI engineering steps (evals, eval-driven development, idempotency, RAG, synthetic data). The agent still writes and stores the answer, and you also explain the gate back without notes before the next step starts.
+- **Deep stop:** the core AI engineering steps (evals, eval-driven development, idempotency, RAG, synthetic data, multi-agent). The agent still writes and stores the answer, and you also explain the gate back without notes before the next step starts.
 
 ## Status
 
@@ -27,7 +27,7 @@ What to learn in each step of the core roadmap, how its learning gate runs, and 
 | Step 10: cost and latency | Answer | To do | |
 | Step 11: guardrails | Answer | To do | |
 | Step 12: reliability and operations | Answer | To do | |
-| Step 13: multi-agent | Answer | To do | |
+| Step 13: multi-agent | **Deep stop** | To do | |
 | Step 14: voice | Answer | To do | |
 | Step 15: fine-tuning | Answer | To do | |
 | Step 16: publish evidence | Answer, plus the walkthrough given to someone else | To do | |
@@ -110,7 +110,7 @@ What to learn in each step of the core roadmap, how its learning gate runs, and 
 - How user feedback signals feed back into the eval dataset.
 - **Gate:** three injected faults: what the system did and which signal showed it.
 
-### Step 13: multi-agent experiment
+### Step 13: multi-agent experiment (deep stop)
 
 - When a multi-agent design beats a single agent with tools, and what it costs in tokens, latency and lost context.
 - How verified identity, idempotency keys and approvals cross an agent handoff without being restated by a model.

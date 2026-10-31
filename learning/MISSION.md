@@ -6,7 +6,7 @@ Become a strong AI agent engineer by shipping a customer support agent for a Med
 ## Success looks like
 - Read and write the TypeScript that Medusa customization needs: modules, workflows, API routes, subscribers, scheduled jobs.
 - Explain why a Medusa workflow is safer than a plain API route for a multi-step change such as a return.
-- Read every step's stored learning gate answer, and explain the deep-stop gates (evals, idempotency, RAG, synthetic data) without notes. See `learning-gates.md`.
+- Read every step's stored learning gate answer, and explain the deep-stop gates (evals, idempotency, RAG, synthetic data, multi-agent) without notes. See `learning-gates.md`.
 - Explain the core ideas of Chip Huyen's *AI Engineering* (evals, agents, RAG, prompts, inference, architecture) as they show up in this project's code.
 - Deploy the store to Railway in the EU with only the storefront and server public, and explain each setting and why a proven restore beats a backup.
 - Explain when a supervisor with specialist agents beats a single agent, and defend the choice with the Step 13 comparison report.

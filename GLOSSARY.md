@@ -33,7 +33,7 @@ The part of a gate that checks the learner, not the system: a stored model answe
 _Avoid_: Quiz, knowledge check
 
 **Deep stop**:
-A step whose learning gate is also explained back without notes, kept for the core AI engineering topics: evals, idempotency, RAG and synthetic data.
+A step whose learning gate is also explained back without notes, kept for the core AI engineering topics: evals, idempotency, RAG, synthetic data and multi-agent design.
 _Avoid_: Checkpoint, deep dive
 
 **Stop condition**:
