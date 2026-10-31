@@ -38,6 +38,8 @@ The agent serves **shoppers**, guests and logged-in customers, through the store
 | J4 | Return request | Step 6 |
 | J5 | Shipping address change before fulfillment | Step 6 |
 | J6 | Exception refund proposal | Step 8 |
+| J7 | Exchange request, for example another ring size | Store track (#113) |
+| J8 | Claim for a damaged or missing item: a replacement, or a refund the operator runs | Store track (#114) |
 
 **Out of scope, always handed off or refused:**
 
@@ -478,6 +480,7 @@ Each later experiment runs against the frozen Step 12 baseline and must beat it 
 | Retention periods confirmed by the lawyer | Before real orders | `docs/project-configuration.md` |
 | Complaint handling deadline: confirm with the lawyer how fast a complaint must be answered, and whether the 1-business-day handoff promise covers it | Before real orders | This file |
 | A return shipping option at the shopper's cost, and the non-returnable flag on products, set up in Medusa | Step 6 | Step 6 |
+| J7 and J8 journeys: preconditions, tools, state changes, handoffs and eval cases | Before the store track builds them | #113, #114 |
 
 ## Decisions
 
@@ -486,6 +489,7 @@ Each later experiment runs against the frozen Step 12 baseline and must beat it 
 - ADR 0010: the agent reaches Medusa only through support routes
 - ADR 0011: an approved exception refund runs in Medusa, on the operator's click
 - ADR 0012: the agent loop runs on LangChain's `create_agent` from Step 2
+- ADR 0013: a store track takes one build day a week
 
 ## Changes
 
@@ -494,3 +498,4 @@ Each later experiment runs against the frozen Step 12 baseline and must beat it 
 | 29 Oct 2026 | First version | Step 1 (#101) |
 | 31 Oct 2026 | Reconciling an `unknown` write that never landed releases its operation key | Found in the Step 1 learning gate: the key stayed taken, so a shopper who asked again in the same case got the stored failure forever |
 | 31 Oct 2026 | The agent loop runs on LangChain's `create_agent` from Step 2, and the chat widget is assistant-ui | Speed: Step 8 no longer rebuilds a hand-written loop, and the widget isn't built from scratch (ADR 0012) |
+| 31 Oct 2026 | Exchanges (J7) and claims (J8) join the scope, built in the store track. Refunds stay the operator's | Exchanges and claims were handoffs; the store track automates them for shoppers (ADR 0013) |
