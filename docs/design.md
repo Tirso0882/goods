@@ -108,6 +108,7 @@ flowchart LR
 ```
 
 - The agent service has no public address. The browser talks to the storefront server, which calls the agent on Railway's private network. That keeps the customer's Medusa token server-side.
+- The chat widget is assistant-ui. The agent loop is LangChain's `create_agent`, which runs on LangGraph (ADR 0012).
 - The agent reaches Medusa only through the support routes. It has no Medusa admin key and no grant on the Medusa database (ADR 0010).
 - Every model call goes through the LiteLLM proxy. The agent never holds the AWS credentials (ADR 0009).
 - The agent database is a separate database on the same Postgres service, with its own role and no grants on Medusa's database. It joins the backup scope of #19.
@@ -484,6 +485,7 @@ Each later experiment runs against the frozen Step 12 baseline and must beat it 
 - ADR 0009: LiteLLM proxy is the only path to a model
 - ADR 0010: the agent reaches Medusa only through support routes
 - ADR 0011: an approved exception refund runs in Medusa, on the operator's click
+- ADR 0012: the agent loop runs on LangChain's `create_agent` from Step 2
 
 ## Changes
 
@@ -491,3 +493,4 @@ Each later experiment runs against the frozen Step 12 baseline and must beat it 
 | --- | --- | --- |
 | 29 Oct 2026 | First version | Step 1 (#101) |
 | 31 Oct 2026 | Reconciling an `unknown` write that never landed releases its operation key | Found in the Step 1 learning gate: the key stayed taken, so a shopper who asked again in the same case got the stored failure forever |
+| 31 Oct 2026 | The agent loop runs on LangChain's `create_agent` from Step 2, and the chat widget is assistant-ui | Speed: Step 8 no longer rebuilds a hand-written loop, and the widget isn't built from scratch (ADR 0012) |
