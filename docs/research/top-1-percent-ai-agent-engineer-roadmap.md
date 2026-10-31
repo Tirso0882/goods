@@ -2,7 +2,7 @@
 
 Goal: become a strong AI agent engineer by building a production-grade customer support agent for a Medusa e-commerce store, while reading Chip Huyen's *AI Engineering*. The order of priorities is: the skill first, then public evidence of it, then the store. The same skills should serve three outcomes: an agent engineering job, consulting work, and your own e-commerce business.
 
-Time: 40 project hours a week, Monday to Friday from 10:00 to 18:00. Saturday is a light day of spaced review only (10:00 to 12:30), and Sunday is fully off. The core roadmap runs about 14 weeks, from Monday 28 September to Thursday 31 December 2026 (shifted two build days after Setup 1 Day 1 slipped, then three weeks when multi-agent, voice, and fine-tuning came into scope, then six more build days after Setup 2 slipped; see `docs/adr/0004-multi-agent-voice-and-fine-tuning-are-in-scope.md`). Product research runs in the background during week 1, alongside the On-ramp. After the core roadmap, run a retro before choosing the pace for the second project.
+Time: 40 project hours a week, Monday to Friday from 10:00 to 18:00. Saturday is a light day of spaced review only (10:00 to 12:30), and Sunday is fully off. The core roadmap runs about 17 weeks, from Monday 28 September 2026 to late January 2027 (shifted two build days after Setup 1 Day 1 slipped, then three weeks when multi-agent, voice, and fine-tuning came into scope, then six more build days after Setup 2 slipped, then about three weeks when the store track took one build day a week from 2 November; see `docs/adr/0004-multi-agent-voice-and-fine-tuning-are-in-scope.md` and `docs/adr/0013-a-store-track-takes-one-build-day-a-week.md`). Product research runs in the background during week 1, alongside the On-ramp. After the core roadmap, run a retro before choosing the pace for the second project.
 
 The project runs in production with synthetic data and test payments only. Your employer and a Polish lawyer have confirmed you can run the business, so the only remaining blockers for real orders are the business registration, tax, consumer-law, privacy, security, and recovery work in "Before taking real orders" at the end of this file. That work runs in parallel from week 1.
 
@@ -32,6 +32,8 @@ Use this default split for a 40-hour week:
 - 20 hours: implementation in small vertical slices.
 - 8 hours: tests, eval runs, and failure analysis.
 - 4 hours: explain-backs, ADRs, the weekly report, and the legal track in "Before taking real orders".
+
+From 2 November 2026, the apply block of one fixed build day a week goes to the store track below, not to agent steps. That day's learn and consolidate blocks stay.
 
 Every build day has the same shape:
 
@@ -413,6 +415,8 @@ Steps run back to back and can cross week boundaries. The detailed plan below de
 | 12 | 14 to 19 Dec | End of Step 14, start of Step 15 | Ch. 7 in full; fine-tuning library docs |
 | 13 | 21 to 26 Dec | End of Step 15, start of Step 16 | Ch. 8 again; chapter summaries |
 | 14 | 28 to 31 Dec | End of Step 16, retro | Your explain-backs |
+
+These dates predate the store track. From week 6, each week has four agent build days, so the agent steps take about a quarter longer and the end moves to late January 2027. Shift the dates as gates pass.
 
 Slow down if you're skipping evals or learning gates, or if Steps 6 to 8 run past the end of week 8. Steps 13 to 15 are five build days each. Do not start them until Step 12's gate passes.
 
@@ -1397,6 +1401,19 @@ Your own gates only test what you thought to test. Get outside feedback on a sch
 - After Step 13, ask one practitioner to challenge the multi-agent hypothesis and the comparison report.
 - Record what they found in that week's progress note, and turn every real finding into a test or an issue.
 
+## Store track
+
+One build day a week from 2 November 2026 (`docs/adr/0013-a-store-track-takes-one-build-day-a-week.md`, [#107](https://github.com/Tirso0882/goods/issues/107)), in this order:
+
+1. BLIK and Przelewy24 at checkout ([#108](https://github.com/Tirso0882/goods/issues/108)).
+2. InPost parcel lockers at checkout ([#109](https://github.com/Tirso0882/goods/issues/109)).
+3. Regions for the Czech Republic (CZK) and Croatia (EUR) ([#110](https://github.com/Tirso0882/goods/issues/110)), with the shopper's region suggested from Cloudflare's country header, never forced ([#111](https://github.com/Tirso0882/goods/issues/111)).
+4. Storefront and product translations for each market ([#112](https://github.com/Tirso0882/goods/issues/112)).
+5. The exchange (J7) and claim (J8) journeys for the agent ([#113](https://github.com/Tirso0882/goods/issues/113), [#114](https://github.com/Tirso0882/goods/issues/114)).
+6. Montenegro and Colombia, only after the export check ([#115](https://github.com/Tirso0882/goods/issues/115)).
+
+Store work follows the same session rule as agent work: one testable outcome, the test first, one coherent commit.
+
 ## After the core roadmap
 
 1. Run a retro: hours actually worked, energy, which learning gates were hard, and what stuck on spaced review. Choose the pace for what comes next from that, not from this plan.
@@ -1410,12 +1427,12 @@ Your own gates only test what you thought to test. Get outside feedback on a sch
 Your employer is fine with the business and a Polish lawyer has confirmed you can set it up in Poland. These steps remain. Most of the time is spent waiting on other people, so start them in week 1 and work on them inside the weekly docs hours. Confirm the details with your lawyer and an accountant, because thresholds and dates change.
 
 1. Register the business in CEIDG (usually a sole proprietorship, JDG) and pick the tax form with your accountant.
-2. Settle VAT with your accountant: whether the small-business exemption applies to your products, and whether you need OSS registration for sales to consumers in other EU countries.
-3. Write the store terms (regulamin), the 14-day withdrawal right with a return form, the complaints process, and price display rules, including the lowest price from the last 30 days next to any discount.
+2. Settle VAT with your accountant: whether the small-business exemption applies to your products, and whether you need OSS registration for sales to consumers in other EU countries (needed once cross-border EU sales pass EUR 10,000 a year). Montenegro and Colombia are exports, outside OSS ([#115](https://github.com/Tirso0882/goods/issues/115)).
+3. Write the store terms (regulamin), the 14-day withdrawal right with a return form, the complaints process, and price display rules, including the lowest price from the last 30 days next to any discount. Each market needs them in its own language.
 4. Write the privacy policy. Sign a data processing agreement with every processor: Railway, model provider, speech provider, Langfuse, Stripe, and the email service. Record what you process and how long you keep it, including voice transcripts.
 5. Tell customers clearly that the chat is an AI, and give them a route to a human.
 6. Check product safety and labeling duties for the category chosen in the Research step.
-7. Switch Stripe to live mode and add BLIK and Przelewy24.
+7. Switch Stripe to live mode. BLIK and Przelewy24 come earlier, in the store track ([#108](https://github.com/Tirso0882/goods/issues/108)).
 8. Finish backups and a proven restore of all durable state, moved here from Setup 2 Day 5 ([#19](https://github.com/Tirso0882/goods/issues/19)): nightly encrypted dumps of every database, media and Railway configuration to R2, then a restore drill in isolation with recovery time and point measured. Explain, without notes, what the drill proved that a successful backup job did not.
 9. Add point-in-time recovery for Postgres, so a restore loses minutes of orders rather than up to a day. The nightly encrypted dumps to R2 from item 8 stay as the copy with another provider ([#89](https://github.com/Tirso0882/goods/issues/89)).
 10. Put a staging environment in front of production, so a broken release stops there before shoppers see it ([#84](https://github.com/Tirso0882/goods/issues/84)).
