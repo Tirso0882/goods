@@ -29,8 +29,12 @@ A mandatory check at the end of a step that must pass, with committed evidence, 
 _Avoid_: Done when, do not continue if, exit criteria
 
 **Learning gate**:
-The part of a gate that checks the learner, not the system: the step's core concepts can be explained without notes.
+The part of a gate that checks the learner, not the system: a stored model answer to the step's core concepts, read by the learner, and on a deep-stop step also explained back without notes.
 _Avoid_: Quiz, knowledge check
+
+**Deep stop**:
+A step whose learning gate is also explained back without notes, kept for the core AI engineering topics: evals, idempotency, RAG and synthetic data.
+_Avoid_: Checkpoint, deep dive
 
 **Stop condition**:
 A violated safety or data invariant that halts all feature work, at any point, until it is fixed.
