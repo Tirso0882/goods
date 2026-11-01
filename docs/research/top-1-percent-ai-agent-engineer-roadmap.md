@@ -2,7 +2,7 @@
 
 Goal: become a strong AI agent engineer by building a production-grade customer support agent for a Medusa e-commerce store, while reading Chip Huyen's *AI Engineering*. The order of priorities is: the skill first, then public evidence of it, then the store. The same skills should serve three outcomes: an agent engineering job, consulting work, and your own e-commerce business.
 
-Time: 40 project hours a week, Monday to Friday from 10:00 to 18:00. Saturday is a light day of spaced review only (10:00 to 12:30), and Sunday is fully off. The core roadmap runs about 14 weeks, from Monday 28 September to Thursday 31 December 2026 (shifted two build days after Setup 1 Day 1 slipped, then three weeks when multi-agent, voice, and fine-tuning came into scope, then six more build days after Setup 2 slipped; see `docs/adr/0004-multi-agent-voice-and-fine-tuning-are-in-scope.md`). Product research runs in the background during week 1, alongside the On-ramp. After the core roadmap, run a retro before choosing the pace for the second project.
+Time: 40 project hours a week, Monday to Friday from 10:00 to 18:00. Saturday is a light day of spaced review only (10:00 to 12:30), and Sunday is fully off. The core roadmap runs about 17 weeks, from Monday 28 September 2026 to late January 2027 (shifted two build days after Setup 1 Day 1 slipped, then three weeks when multi-agent, voice, and fine-tuning came into scope, then six more build days after Setup 2 slipped, then about three weeks when the store track took one build day a week from 2 November; see `docs/adr/0004-multi-agent-voice-and-fine-tuning-are-in-scope.md` and `docs/adr/0013-a-store-track-takes-one-build-day-a-week.md`). Product research runs in the background during week 1, alongside the On-ramp. After the core roadmap, run a retro before choosing the pace for the second project.
 
 The project runs in production with synthetic data and test payments only. Your employer and a Polish lawyer have confirmed you can run the business, so the only remaining blockers for real orders are the business registration, tax, consumer-law, privacy, security, and recovery work in "Before taking real orders" at the end of this file. That work runs in parallel from week 1.
 
@@ -33,6 +33,8 @@ Use this default split for a 40-hour week:
 - 8 hours: tests, eval runs, and failure analysis.
 - 4 hours: explain-backs, ADRs, the weekly report, and the legal track in "Before taking real orders".
 
+From 2 November 2026, the apply block of one fixed build day a week goes to the store track below, not to agent steps. That day's learn and consolidate blocks stay.
+
 Every build day has the same shape:
 
 - **10:00 to 11:30, learn:** the day's entry in the book reading track below, or a `/teach` lesson on it. Learning goes first, while you're fresh.
@@ -48,7 +50,7 @@ Learning is the first priority, so it has its own structure:
 - **Learning objectives:** every step lists what you should be able to explain or do afterwards.
 - **Learning gate:** every step ends with one. Since 31 October 2026 the agent writes a model answer to it and stores it in `learning/gate-answers/`, and you read it. The deep-stop steps (3, 4, 6, 7, 9 and 13: evals, idempotency, RAG, synthetic data and multi-agent) also need the gate explained back without notes; if you can't, spend the next learning block there before starting the next step. `learning/learning-gates.md` lists every step's topics, mode and answer.
 - **Explain-back:** every weekly progress note has one. It takes each concept from the week and shows where it appears in your own code.
-- **`/teach` workspace:** `learning/` in this repo. Open it as a separate Cursor window when studying. It holds the mission, lessons, reference sheets, and learning records for the Huyen chapters, Node and Medusa, and Railway operations.
+- **`/teach` workspace:** `learning/` in this repo. Open it in a separate editor window when studying. It holds the mission, lessons, reference sheets, and learning records for the Huyen chapters, Node and Medusa, and Railway operations.
 - **Spaced review:** on the light day, redo quizzes and explain-backs from two and four weeks earlier.
 
 ### Required evidence for every week
@@ -149,7 +151,8 @@ Version-sensitive commands and compatibility findings were checked against prima
 ## Stack
 
 - **Store:** [Medusa](https://docs.medusajs.com/learn/installation): a Node.js backend with an admin dashboard, plus the Next.js Starter Storefront. Needs Node v20.19+ or v22.12+ (v24 LTS or lower with the storefront) and PostgreSQL.
-- **Agent service:** Python 3.12, FastAPI, LangGraph (from Step 8; multi-agent experiment in Step 13), LiteLLM.
+- **Agent service:** Python 3.12, FastAPI, LangChain's `create_agent` on LangGraph (from Step 2, ADR 0012; durable approval in Step 8; multi-agent experiment in Step 13), LiteLLM.
+- **Chat widget:** assistant-ui in the Next.js storefront (Step 2).
 - **Voice (Step 14):** a cascaded pipeline inside the agent service: speech-to-text, the same agent, then text-to-speech. Candidates to verify with `/research`: an EU-processing hosted speech provider (for example Mistral's Voxtral for speech-to-text), an open-source pipeline framework (for example Pipecat or LiveKit Agents), and local open models on the laptop GPU for development (for example faster-whisper and Piper). Pick in an ADR.
 - **Fine-tuning (Step 15):** LoRA or QLoRA on a small open-weight model on the laptop GPU, with Hugging Face TRL and PEFT or Unsloth. Hosted fine-tuning on an EU provider is the production option if the experiment wins.
 - **Data:** PostgreSQL. Medusa owns store data; the agent keeps its own tables in a separate schema. pgvector for FAQ search.
@@ -243,7 +246,7 @@ Huyen's book follows the reading track below. The other items are named in each 
 - [tau-bench paper](https://arxiv.org/abs/2406.12045) and [repo](https://github.com/sierra-research/tau2-bench) (use its `retail` domain as your benchmark)
 - Designing Data-Intensive Applications, 2nd edition: only the topics listed in the schedule
 - [Google SRE book, Handling Overload](https://sre.google/sre-book/handling-overload/)
-- Official docs, only the parts each step names: [Medusa](https://docs.medusajs.com/learn/customization), [LangGraph persistence and interrupts](https://docs.langchain.com/oss/python/langgraph/persistence), LangGraph multi-agent, [Railway](https://docs.railway.com/), NeMo Data Designer, NeMo Agent Toolkit, NeMo Guardrails, the chosen speech provider and voice framework, and the chosen fine-tuning library.
+- Official docs, only the parts each step names: [Medusa](https://docs.medusajs.com/learn/customization), LangChain's `create_agent` middleware, assistant-ui, [LangGraph persistence and interrupts](https://docs.langchain.com/oss/python/langgraph/persistence), LangGraph multi-agent, [Railway](https://docs.railway.com/), NeMo Data Designer, NeMo Agent Toolkit, NeMo Guardrails, the chosen speech provider and voice framework, and the chosen fine-tuning library.
 
 ## Book reading track
 
@@ -394,7 +397,7 @@ Build order: build the foundations first (data model, eval harness), then the un
 
 ## Schedule
 
-Steps run back to back and can cross week boundaries. The detailed plan below describes each step, and the Cursor canvas `core-roadmap-calendar` shows the same plan day by day. A step ends when its gate and learning gate pass, not when the calendar says so. If a gate slips, shift the calendar.
+Steps run back to back and can cross week boundaries. The detailed plan below describes each step, and the canvas in `docs/progress/canvases/` shows the same plan day by day (it was built for Cursor, which is no longer used, so it only renders there). A step ends when its gate and learning gate pass, not when the calendar says so. If a gate slips, shift the calendar.
 
 | Week | Dates | Steps | Read |
 |---|---|---|---|
@@ -412,6 +415,8 @@ Steps run back to back and can cross week boundaries. The detailed plan below de
 | 12 | 14 to 19 Dec | End of Step 14, start of Step 15 | Ch. 7 in full; fine-tuning library docs |
 | 13 | 21 to 26 Dec | End of Step 15, start of Step 16 | Ch. 8 again; chapter summaries |
 | 14 | 28 to 31 Dec | End of Step 16, retro | Your explain-backs |
+
+These dates predate the store track. From week 6, each week has four agent build days, so the agent steps take about a quarter longer and the end moves to late January 2027. Shift the dates as gates pass.
 
 Slow down if you're skipping evals or learning gates, or if Steps 6 to 8 run past the end of week 8. Steps 13 to 15 are five build days each. Do not start them until Step 12's gate passes.
 
@@ -707,28 +712,27 @@ Items 1 to 9 moved to "Before taking real orders" on 28 October 2026 ([#19](http
 **Read:**
 
 - book: ch. 2 (sampling and structured outputs) is already read; ch. 6's Agents section is read during this step;
-- Anthropic's "Building effective agents."
+- Anthropic's "Building effective agents";
+- LangChain's [built-in middleware](https://docs.langchain.com/oss/python/langchain/middleware/built-in) for `create_agent`, and assistant-ui's [runtimes](https://www.assistant-ui.com/docs/runtimes/pick-a-runtime).
 
 **Steps:**
 
 1. Add `apps/agent` with a pinned Python version, lockfile, FastAPI, typed settings, and `/health/live` plus `/health/ready`.
 2. Add unit-test, lint, format, and type-check commands to CI.
-3. Define provider-neutral message, tool-call, tool-result, usage, and error types.
+3. Use LangChain's message and tool-call types. Add only the usage and error records the eval report needs.
 4. Configure LiteLLM with one hosted model. Set a strong `LITELLM_MASTER_KEY`, explicit timeouts, and no automatic write retries.
 5. Give LiteLLM PostgreSQL-backed state before relying on virtual keys, spend tracking, or enforceable budgets. Generate `LITELLM_SALT_KEY` once, store it as durable recovery material, and never rotate it casually because it protects stored provider credentials.
-6. Implement a plain bounded loop without LangGraph:
-   1. accept a message;
-   2. load the case;
-   3. call the model with tool schemas;
-   4. validate structured output;
-   5. run at most one approved read tool;
-   6. append the result;
-   7. repeat until a final answer or budget limit;
-   8. persist trace metadata.
+6. Build the loop with LangChain's `create_agent`, which runs on LangGraph, not a hand-written loop that Step 8 would replace (ADR 0012):
+   1. accept a message and load the case;
+   2. call the model through a LangChain chat model pointed at the LiteLLM proxy, with the read tools only;
+   3. enforce the budgets in `docs/design.md`: the model call limit and tool call limit middleware for each message, a wall-clock timeout, and the case's message and token totals;
+   4. retry the read tools only, with the tool retry middleware limited to them;
+   5. validate structured output;
+   6. persist trace metadata.
 7. Implement `verify_customer` and `get_order` as typed wrappers around Medusa APIs.
 8. Ensure `get_order` returns only data belonging to the verified customer.
 9. Return a safe generic error for failed verification. Do not reveal whether an unrelated order exists.
-10. Add a minimal chat widget with AI disclosure, message history, loading state, retry state, and human handoff message.
+10. Add the chat widget with assistant-ui instead of building one: AI disclosure, message history, loading state, retry state, and human handoff message. The browser talks only to the storefront server, which calls the agent (`docs/design.md`), so use assistant-ui's runtime for your own server.
 11. Propagate one correlation ID from browser to agent, tool wrapper, and trace.
 12. Redact credentials and unnecessary customer fields before tracing.
 13. Create 10 deterministic cases across success, failed identity, unknown order, cross-customer access, provider timeout, and malformed output.
@@ -961,8 +965,8 @@ For every write:
 **Steps:**
 
 1. Freeze the Step 7 baseline before changing orchestration.
-2. Model the existing plain loop as explicit states and transitions.
-3. Introduce LangGraph without changing tool semantics.
+2. Map the support case states in `docs/design.md` onto the Step 2 agent: where the case pauses at `awaiting_approval` and where it resumes.
+3. Add the approval interrupt to the Step 2 agent, which already runs on LangGraph (ADR 0012), without changing tool semantics.
 4. Use a production-suitable persistent checkpointer such as LangGraph's PostgreSQL saver, not `InMemorySaver`. Use a UUID for `thread_id` and keep it under the documented 255-character limit.
 5. Keep model messages serializable, set checkpoint retention, and version the stored state schema.
 6. Implement `propose_refund`. It creates an approval record but cannot execute a refund.
@@ -1373,7 +1377,7 @@ The core roadmap should leave public evidence for each skill below. The same evi
 
 | Skill | Built in | Evidence |
 |---|---|---|
-| Agent loop and tool design | Steps 2 and 6 | The plain bounded loop; one policy table per tool |
+| Agent loop and tool design | Steps 2 and 6 | The bounded `create_agent` loop and its budget middleware; one policy table per tool |
 | Evals | Steps 3, 4, and 9 | Deterministic checks, judge agreement numbers, CI blocking a regression, dataset card |
 | Safe writes | Step 6 | Idempotency design and fault results with zero duplicates |
 | Durable workflows | Step 8 | Approval surviving restarts; 20 fault runs with zero duplicate refunds |
@@ -1397,6 +1401,19 @@ Your own gates only test what you thought to test. Get outside feedback on a sch
 - After Step 13, ask one practitioner to challenge the multi-agent hypothesis and the comparison report.
 - Record what they found in that week's progress note, and turn every real finding into a test or an issue.
 
+## Store track
+
+One build day a week from 2 November 2026 (`docs/adr/0013-a-store-track-takes-one-build-day-a-week.md`, [#107](https://github.com/Tirso0882/goods/issues/107)), in this order:
+
+1. BLIK and Przelewy24 at checkout ([#108](https://github.com/Tirso0882/goods/issues/108)).
+2. InPost parcel lockers at checkout ([#109](https://github.com/Tirso0882/goods/issues/109)).
+3. Regions for the Czech Republic (CZK) and Croatia (EUR) ([#110](https://github.com/Tirso0882/goods/issues/110)), with the shopper's region suggested from Cloudflare's country header, never forced ([#111](https://github.com/Tirso0882/goods/issues/111)).
+4. Storefront and product translations for each market ([#112](https://github.com/Tirso0882/goods/issues/112)).
+5. The exchange (J7) and claim (J8) journeys for the agent ([#113](https://github.com/Tirso0882/goods/issues/113), [#114](https://github.com/Tirso0882/goods/issues/114)).
+6. Montenegro and Colombia, only after the export check ([#115](https://github.com/Tirso0882/goods/issues/115)).
+
+Store work follows the same session rule as agent work: one testable outcome, the test first, one coherent commit.
+
 ## After the core roadmap
 
 1. Run a retro: hours actually worked, energy, which learning gates were hard, and what stuck on spaced review. Choose the pace for what comes next from that, not from this plan.
@@ -1410,12 +1427,12 @@ Your own gates only test what you thought to test. Get outside feedback on a sch
 Your employer is fine with the business and a Polish lawyer has confirmed you can set it up in Poland. These steps remain. Most of the time is spent waiting on other people, so start them in week 1 and work on them inside the weekly docs hours. Confirm the details with your lawyer and an accountant, because thresholds and dates change.
 
 1. Register the business in CEIDG (usually a sole proprietorship, JDG) and pick the tax form with your accountant.
-2. Settle VAT with your accountant: whether the small-business exemption applies to your products, and whether you need OSS registration for sales to consumers in other EU countries.
-3. Write the store terms (regulamin), the 14-day withdrawal right with a return form, the complaints process, and price display rules, including the lowest price from the last 30 days next to any discount.
+2. Settle VAT with your accountant: whether the small-business exemption applies to your products, and whether you need OSS registration for sales to consumers in other EU countries (needed once cross-border EU sales pass EUR 10,000 a year). Montenegro and Colombia are exports, outside OSS ([#115](https://github.com/Tirso0882/goods/issues/115)).
+3. Write the store terms (regulamin), the 14-day withdrawal right with a return form, the complaints process, and price display rules, including the lowest price from the last 30 days next to any discount. Each market needs them in its own language.
 4. Write the privacy policy. Sign a data processing agreement with every processor: Railway, model provider, speech provider, Langfuse, Stripe, and the email service. Record what you process and how long you keep it, including voice transcripts.
 5. Tell customers clearly that the chat is an AI, and give them a route to a human.
 6. Check product safety and labeling duties for the category chosen in the Research step.
-7. Switch Stripe to live mode and add BLIK and Przelewy24.
+7. Switch Stripe to live mode. BLIK and Przelewy24 come earlier, in the store track ([#108](https://github.com/Tirso0882/goods/issues/108)).
 8. Finish backups and a proven restore of all durable state, moved here from Setup 2 Day 5 ([#19](https://github.com/Tirso0882/goods/issues/19)): nightly encrypted dumps of every database, media and Railway configuration to R2, then a restore drill in isolation with recovery time and point measured. Explain, without notes, what the drill proved that a successful backup job did not.
 9. Add point-in-time recovery for Postgres, so a restore loses minutes of orders rather than up to a day. The nightly encrypted dumps to R2 from item 8 stay as the copy with another provider ([#89](https://github.com/Tirso0882/goods/issues/89)).
 10. Put a staging environment in front of production, so a broken release stops there before shoppers see it ([#84](https://github.com/Tirso0882/goods/issues/84)).
