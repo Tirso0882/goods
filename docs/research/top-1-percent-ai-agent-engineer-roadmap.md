@@ -1410,7 +1410,7 @@ One build day a week from 2 November 2026 (`docs/adr/0013-a-store-track-takes-on
 3. Regions for the Czech Republic (CZK) and Croatia (EUR) ([#110](https://github.com/Tirso0882/goods/issues/110)), with the shopper's region suggested from Cloudflare's country header, never forced ([#111](https://github.com/Tirso0882/goods/issues/111)).
 4. Storefront and product translations for each market ([#112](https://github.com/Tirso0882/goods/issues/112)).
 5. The exchange (J7) and claim (J8) journeys for the agent ([#113](https://github.com/Tirso0882/goods/issues/113), [#114](https://github.com/Tirso0882/goods/issues/114)).
-6. Montenegro and Colombia, only after the export check ([#115](https://github.com/Tirso0882/goods/issues/115)).
+The store sells only to EU countries.
 
 Store work follows the same session rule as agent work: one testable outcome, the test first, one coherent commit.
 
@@ -1427,7 +1427,7 @@ Store work follows the same session rule as agent work: one testable outcome, th
 Your employer is fine with the business and a Polish lawyer has confirmed you can set it up in Poland. These steps remain. Most of the time is spent waiting on other people, so start them in week 1 and work on them inside the weekly docs hours. Confirm the details with your lawyer and an accountant, because thresholds and dates change.
 
 1. Register the business in CEIDG (usually a sole proprietorship, JDG) and pick the tax form with your accountant.
-2. Settle VAT with your accountant: whether the small-business exemption applies to your products, and whether you need OSS registration for sales to consumers in other EU countries (needed once cross-border EU sales pass EUR 10,000 a year). Montenegro and Colombia are exports, outside OSS ([#115](https://github.com/Tirso0882/goods/issues/115)).
+2. Settle VAT with your accountant: whether the small-business exemption applies to your products, and whether you need OSS registration for sales to consumers in other EU countries (needed once cross-border EU sales pass EUR 10,000 a year).
 3. Write the store terms (regulamin), the 14-day withdrawal right with a return form, the complaints process, and price display rules, including the lowest price from the last 30 days next to any discount. Each market needs them in its own language.
 4. Write the privacy policy. Sign a data processing agreement with every processor: Railway, model provider, speech provider, Langfuse, Stripe, and the email service. Record what you process and how long you keep it, including voice transcripts.
 5. Tell customers clearly that the chat is an AI, and give them a route to a human.
