@@ -6,13 +6,13 @@ The store track, in order ([#107](https://github.com/Tirso0882/goods/issues/107)
 
 1. BLIK and Przelewy24 at checkout, through Medusa's Stripe provider, which already includes both.
 2. InPost parcel lockers at checkout.
-3. Regions for the Czech Republic (CZK) and Croatia (EUR) next to Poland (PLN). The storefront suggests the shopper's region from Cloudflare's country header and never redirects on its own: the EU geo-blocking regulation (2018/302) forbids redirecting a shopper to another country's version without consent.
+3. Markets for all 27 EU countries, one region per currency, opened one at a time: Poland, the Czech Republic and Croatia first. A shopper can check out to a country only when it belongs to its region, so countries open and close in Medusa Admin without a deploy. Each one needs a carrier and a price first. The storefront suggests the shopper's region from Cloudflare's country header and never redirects on its own: the EU geo-blocking regulation (2018/302) forbids redirecting a shopper to another country's version without consent.
 4. Storefront and product translations for each market.
 5. Exchange and claim journeys for the agent, on new support routes. Medusa's Store API has no routes for them.
 6. Contentful for storefront content: pages, banners and editorial copy per market. Products, prices and product translations stay in Medusa.
 7. Meilisearch for product search, with an index per locale synced from Medusa.
 
-The store sells only to EU countries.
+The store sells only to EU countries. Closing a country stops delivery there, but shoppers from it can still buy with delivery to an open country: the geo-blocking regulation forbids refusing them.
 
 Refunds don't change: each refund is still its own operator click (ADR 0011, `docs/design.md`).
 

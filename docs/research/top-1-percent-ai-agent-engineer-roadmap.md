@@ -1407,7 +1407,7 @@ One build day a week from 2 November 2026 (`docs/adr/0013-a-store-track-takes-on
 
 1. BLIK and Przelewy24 at checkout ([#108](https://github.com/Tirso0882/goods/issues/108)).
 2. InPost parcel lockers at checkout ([#109](https://github.com/Tirso0882/goods/issues/109)).
-3. Regions for the Czech Republic (CZK) and Croatia (EUR) ([#110](https://github.com/Tirso0882/goods/issues/110)), with the shopper's region suggested from Cloudflare's country header, never forced ([#111](https://github.com/Tirso0882/goods/issues/111)).
+3. Markets for all 27 EU countries, opened and closed one at a time in Medusa Admin ([#110](https://github.com/Tirso0882/goods/issues/110)), each with a carrier and price first ([#124](https://github.com/Tirso0882/goods/issues/124)), and the shopper's region suggested from Cloudflare's country header, never forced ([#111](https://github.com/Tirso0882/goods/issues/111)).
 4. Storefront and product translations for each market ([#112](https://github.com/Tirso0882/goods/issues/112)).
 5. The exchange (J7) and claim (J8) journeys for the agent ([#113](https://github.com/Tirso0882/goods/issues/113), [#114](https://github.com/Tirso0882/goods/issues/114)).
 6. Contentful for storefront content ([#122](https://github.com/Tirso0882/goods/issues/122)).
