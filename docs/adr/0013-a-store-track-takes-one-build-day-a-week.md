@@ -9,6 +9,8 @@ The store track, in order ([#107](https://github.com/Tirso0882/goods/issues/107)
 3. Regions for the Czech Republic (CZK) and Croatia (EUR) next to Poland (PLN). The storefront suggests the shopper's region from Cloudflare's country header and never redirects on its own: the EU geo-blocking regulation (2018/302) forbids redirecting a shopper to another country's version without consent.
 4. Storefront and product translations for each market.
 5. Exchange and claim journeys for the agent, on new support routes. Medusa's Store API has no routes for them.
+6. Contentful for storefront content: pages, banners and editorial copy per market. Products, prices and product translations stay in Medusa.
+7. Meilisearch for product search, with an index per locale synced from Medusa.
 
 The store sells only to EU countries.
 
@@ -19,11 +21,10 @@ Refunds don't change: each refund is still its own operator click (ADR 0011, `do
 - **After the core roadmap, in January:** keeps the agent dates, but the store stays single-market and Polish-payment-poor until then.
 - **Pausing the agent roadmap for about three weeks:** store first, but the agent evidence slips the most.
 - **Montenegro and Colombia:** dropped on 1 November 2026, with every other country outside the EU. They are exports: each parcel needs a customs declaration, import VAT and duties apply on arrival, and the EU's OSS scheme doesn't cover them.
-- **Contentful and Meilisearch:** not adopted. Product content lives in Medusa, which has its own translation module, and Medusa's search index already serves the storefront. Contentful would also add a paid processor that needs a DPA.
 
 ## Consequences
 
 - From week 6, each week has four agent build days. Shift the schedule's dates as gates pass.
 - "Before taking real orders" gains each market's legal work: OSS VAT once cross-border EU sales pass EUR 10,000 a year, and terms and the withdrawal form in each market's language.
-- Each third-party plugin or service (InPost, a carrier, a translation service) adds a processor to the privacy policy and DPA list, its secrets to the runbooks, and its state to the backup scope (#19).
+- Each third-party plugin or service (InPost, a carrier, a translation service, Contentful, a hosted Meilisearch) adds a processor to the privacy policy and DPA list, its secrets to the runbooks, and its state to the backup scope (#19).
 - A claim that ends in a refund goes to the operator, like every other refund.
