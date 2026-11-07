@@ -1,5 +1,7 @@
 # Railway hosts the test store, with Cloudflare R2 for files and backups
 
+> Hosting superseded by ADR 0016 on 7 November 2026, when the Railway account was deleted. The R2 and public GHCR image decisions still hold.
+
 On 12 October 2026 we chose Railway to host the test store, replacing the plan to harden a VPS and run Coolify on it. On 19 October 2026, while building the throwaway project in #15, we settled the region, plan, image access and object storage. How each setting is applied, and why, is in `docs/runbooks/railway.md`.
 
 Railway runs the Medusa server, Medusa worker, storefront, Postgres and Redis as separate services on one private network, deploys prebuilt images, and gives each service volumes, health checks, pre-deploy commands and rollbacks. That leaves the Setup 2 time for deploys, rollback and restore drills instead of operating a server. A VPS with Coolify would teach more Linux hardening, but it adds an operating system, a reverse proxy and Coolify itself to patch and back up, for one person.
