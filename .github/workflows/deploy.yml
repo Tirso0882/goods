@@ -33,9 +33,10 @@ jobs:
   deploy:
     name: deploy
     # CI's automatic rollback calls this after a failed job in the same run.
-    # Without this, the implicit success() might count that failure and skip
-    # the rollback. Changes nothing when the run has no failure.
-    if: ${{ !cancelled() }}
+    # Without !cancelled(), the implicit success() might count that failure
+    # and skip the rollback. DEPLOY_ENABLED also stops manual runs while no
+    # host exists (docs/adr/0016-the-store-is-built-locally-until-it-is-mature.md).
+    if: ${{ !cancelled() && vars.DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     # Holds the RAILWAY_TOKEN secret. A called job takes the secret's value
@@ -43,7 +44,7 @@ jobs:
     # secret: otherwise it's an empty string, with no error.
     environment:
       name: production
-      url: https://goods-storefront-production.up.railway.app
+      url: ${{ vars.STOREFRONT_URL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

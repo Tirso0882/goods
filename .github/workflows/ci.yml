@@ -16,9 +16,9 @@ env:
   NEXT_TELEMETRY_DISABLED: "1"
   TURBO_TELEMETRY_DISABLED: "1"
   MEDUSA_DISABLE_TELEMETRY: "true"
-  # Where the smoke test reaches the store. Same as the url in deploy.yml
-  # (docs/runbooks/railway.md#current-domains).
-  STOREFRONT_URL: https://goods-storefront-production.up.railway.app
+  # Where the smoke test reaches the store. A repository variable, unset until
+  # the go-live host exists (docs/adr/0016-the-store-is-built-locally-until-it-is-mature.md).
+  STOREFRONT_URL: ${{ vars.STOREFRONT_URL }}
 
 # Job names are required status checks in branch protection. Renaming one
 # means updating the protection rule too.
@@ -213,11 +213,13 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
 
-  # Only a release deploys. An ordinary merge stops after release.
+  # Only a release deploys, and only while DEPLOY_ENABLED is 'true'. An
+  # ordinary merge stops after release. No host exists until go-live (ADR
+  # 0016), so the variable is unset: deploy, smoke and rollback are skipped.
   deploy:
     name: deploy
     needs: [release]
-    if: needs.release.outputs.release_created == 'true'
+    if: needs.release.outputs.release_created == 'true' && vars.DEPLOY_ENABLED == 'true'
     uses: ./.github/workflows/deploy.yml
     with:
       release: ${{ github.sha }}
