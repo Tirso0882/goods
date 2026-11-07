@@ -14,15 +14,16 @@ Decided on 29 October 2026. Update this file whenever an eval surprises you, and
 6. [Support case states](#support-case-states)
 7. [Data model](#data-model)
 8. [Write tools: idempotency and recovery](#write-tools-idempotency-and-recovery)
-9. [Exception refund approval](#exception-refund-approval)
-10. [Failure plan](#failure-plan)
-11. [Budgets](#budgets)
-12. [Data flow](#data-flow)
-13. [Threat model](#threat-model)
-14. [Metrics](#metrics)
-15. [Build order and later experiments](#build-order-and-later-experiments)
-16. [Stop condition review](#stop-condition-review)
-17. [Open items](#open-items)
+9. [Approvals](#approvals)
+10. [Handoff priorities](#handoff-priorities)
+11. [Failure plan](#failure-plan)
+12. [Budgets](#budgets)
+13. [Data flow](#data-flow)
+14. [Threat model](#threat-model)
+15. [Metrics](#metrics)
+16. [Build order and later experiments](#build-order-and-later-experiments)
+17. [Stop condition review](#stop-condition-review)
+18. [Open items](#open-items)
 
 ## Scope
 
@@ -37,9 +38,11 @@ The agent serves **shoppers**, guests and logged-in customers, through the store
 | J3 | Shipping, returns and care policy questions (FAQ) | Step 2 |
 | J4 | Return request | Step 6 |
 | J5 | Shipping address change before fulfillment | Step 6 |
-| J6 | Exception refund proposal | Step 8 |
+| J6 | Exception refund approval: the internal mechanism behind every refund the agent proposes, from a claim or any other exception | Step 8 |
 | J7 | Exchange request, for example another ring size | Store track (#113) |
-| J8 | Claim for a damaged or missing item: a replacement, or a refund the operator runs | Store track (#114) |
+| J8 | **Claim** for a damaged or missing item: a replacement, or a refund proposed through J6 | Store track (#114) |
+
+J8 is the journey shoppers see for damaged or missing items. When a claim ends in a refund, it calls `propose_refund`, which creates a J6 approval. J6 is not a separate conversation the shopper starts: it is how any refund proposal, from a claim or another exception, waits for a decision.
 
 **Out of scope, always handed off or refused:**
 
@@ -48,12 +51,12 @@ The agent serves **shoppers**, guests and logged-in customers, through the store
 | X1 | Complaints and legal threats | Handoff, flagged as a complaint |
 | X2 | Policy exceptions: a return after the window, a **non-returnable item**, a damaged-on-arrival claim the policy doesn't cover | Handoff |
 | X3 | Address change after fulfillment, to another country, or that changes the shipping price | Handoff |
-| X4 | A refund the agent runs on its own | Never. Exception refunds are proposed (J6); return refunds are the operator's |
+| X4 | A refund the agent runs on its own | Never. The agent proposes (J6), and the operator or the **approval policy** decides; return refunds follow the operator's return inspection |
 | X5 | Product questions (metal, purity, size, stock) | Points to the product page, or hands off. Comes back after the catalog enrichment second project, as a shopping-assistant tool |
 | X6 | Requests unrelated to the store | Polite refusal, no handoff |
 | X7 | Anything else: cancellations, invoices, discounts, account changes | Handoff |
 
-A **handoff** tells the shopper that a person will reply by email within 1 business day, and it appears on the operator's Support page with the agent's summary. Every handoff counts toward the escalation rate. X5 handoffs are tagged as expected, so their count becomes the evidence for building the product tool.
+A **handoff** tells the shopper that a person will reply by email within 1 business day, and it appears on the operator's Support page with the agent's summary and its priority ([Handoff priorities](#handoff-priorities)). Every handoff counts toward the escalation rate. X5 handoffs are tagged as expected, so their count becomes the evidence for building the product tool.
 
 ## Risk rules
 
@@ -61,7 +64,7 @@ A **handoff** tells the shopper that a person will reply by email within 1 busin
 | --- | --- | --- |
 | Read only | Order status, order list, policy answers | Agent alone |
 | Low-risk write | Create a return request, change the address before fulfillment | Agent alone, logged, behind a kill switch |
-| Money or irreversible | Every refund, whatever the amount; cancellations; credits | Agent proposes exception refunds only. The operator approves, and Medusa runs the refund on that approval. Return refunds and everything else are the operator's own actions |
+| Money or irreversible | Every refund, whatever the amount; cancellations; credits | Agent proposes exception refunds only. The operator, or the approval policy within its ceiling, approves, and Medusa runs the refund on that approval (ADR 0014). Return refunds follow the operator's return inspection. Everything else is the operator's own action |
 | Out of policy or upset shopper | Complaints, legal threats, anything unclear | Handoff |
 
 The chat states that the shopper is talking to an AI and offers a route to a human, as the EU AI Act requires.
@@ -109,7 +112,9 @@ flowchart LR
   OBS --> EVAL[Eval suite in CI]
 ```
 
-- The agent service has no public address. The browser talks to the storefront server, which calls the agent on Railway's private network. That keeps the customer's Medusa token server-side.
+- The agent service has no public address. The browser talks to the storefront server, which calls the agent on the host's private network: the Compose network today, the go-live host's later (ADR 0016). That keeps the customer's Medusa token server-side.
+- The chat endpoint is rate-limited by IP and protected by Cloudflare Turnstile from Step 2, before the agent spends a model call.
+- The agent reaches commerce through a port whose first adapter is these support routes (ADR 0019).
 - The chat widget is assistant-ui. The agent loop is LangChain's `create_agent`, which runs on LangGraph (ADR 0012).
 - The agent reaches Medusa only through the support routes. It has no Medusa admin key and no grant on the Medusa database (ADR 0010).
 - Every model call goes through the LiteLLM proxy. The agent never holds the AWS credentials (ADR 0009).
@@ -248,16 +253,18 @@ Given a new address in Germany
 Then update_shipping_address is not called and the case is handed off
 ```
 
-### J6: Exception refund proposal (Step 8)
+### J6: Exception refund approval (Step 8)
+
+Reached from a J8 claim that ends in a refund, or from any other exception the policy allows. The shopper never asks for "J6": they report a problem, and J6 is how the refund waits for a decision.
 
 | Field | Rule |
 | --- | --- |
 | Preconditions | A write grant covering the order; a stated reason (item missing, damaged on arrival); an amount no greater than the refundable amount |
 | Allowed tools | `verify_customer`, `get_order`, `propose_refund` |
 | State change | One approval record in the agent database. No money moves |
-| Reply | That a person will review it, and that the shopper will hear the outcome |
-| Handoff | Approval expires after 48 hours |
-| Audit | The approval record: amount, currency, reason, policy evidence, requester, approver, decision time, Medusa refund ID |
+| Reply | That the request is being reviewed, and that the shopper will hear the outcome |
+| Handoff | Above 200 PLN or the daily cap (P1); expiry without a policy default ([Approvals](#approvals)) |
+| Audit | The approval record: type, amount, currency, reason, policy evidence, requester, decision actor, policy version, approver, decision time, Medusa refund ID |
 
 ```gherkin
 Given a logged-in customer whose order #1060 arrived without one earring
@@ -268,9 +275,20 @@ And the case moves to awaiting_approval
 
 Given the operator approves on the Support page
 Then Medusa runs exactly one refund keyed by the approval ID
+And the approval records decision_actor operator
 And the case returns to agent_working and the shopper is told
 
-Given 48 hours pass without a decision
+Given the policy ceiling is 0 PLN
+When propose_refund creates an approval for 30 PLN
+Then the policy decides nothing and the approval waits for the operator
+
+Given a proposal for 250 PLN
+Then the policy never decides it, whatever its ceiling, and the case gets a P1 handoff
+
+Given 24 hours pass without a decision
+Then the operator is reminded
+
+Given 48 hours pass without a decision, and the amount is above the policy's expiry default
 Then the approval expires, no money moves, and the case is handed off
 ```
 
@@ -286,7 +304,7 @@ stateDiagram-v2
   agent_working --> awaiting_approval: exception refund proposed
   agent_working --> handed_off: handoff
   agent_working --> failed: unrecoverable error
-  awaiting_approval --> agent_working: approved or rejected
+  awaiting_approval --> agent_working: approved or rejected, by the operator or the policy
   awaiting_approval --> handed_off: approval expired
   open --> resolved: shopper confirms, or a day passes with nothing pending
   failed --> handed_off: always
@@ -302,7 +320,7 @@ stateDiagram-v2
 | `agent_working` | `awaiting_approval` | `propose_refund` created an approval |
 | `agent_working` | `handed_off` | Any handoff rule fires |
 | `agent_working` | `failed` | Model or tool failure after retries, or a budget hit |
-| `awaiting_approval` | `agent_working` | The operator approved or rejected |
+| `awaiting_approval` | `agent_working` | The operator, or the policy within its ceiling, approved or rejected |
 | `awaiting_approval` | `handed_off` | The approval expired |
 | `open` | `resolved` | The shopper confirms, or 24 hours pass with nothing pending |
 | `failed` | `handed_off` | Immediately: a failed case never just disappears |
@@ -325,11 +343,11 @@ Every table has `id` (UUID), `created_at`, `updated_at`, `correlation_id`, `acto
 | `messages` | Shopper, agent and system messages | `case_id`, `role`, `content` | transcript |
 | `verifications` | Every verification attempt and grant | `case_id`, `method`, `tier`, `scope` (order or customer ID), `outcome`, `expires_at`; the grant itself, never traced | audit |
 | `tool_executions` | Every tool call, read and write | `case_id`, `tool`, `operation_key` (unique, writes only), `arguments` (sanitized), `external_ref`, `result`, `attempts` | audit |
-| `approvals` | Exception refund proposals | `case_id`, `order_id`, `amount`, `currency`, `reason`, `policy_evidence`, `expires_at`, `decided_by` (Medusa admin user), `decided_at`, `refund_ref` | audit |
+| `approvals` | Decisions waiting on the operator or the policy: exception refunds first, return inspections next | `case_id`, `order_id`, `type`, `payload` (amount, currency, reason, policy evidence for a refund), `expires_at`, `reminded_at`, `decision_actor` (`operator` or `policy`), `policy_version`, `ceiling` (the policy ceiling applied), `decided_by` (Medusa admin user, null for the policy), `decided_at`, `refund_ref` | audit |
 | `tool_switches` | The kill switch per write tool | `tool`, `enabled`, `reason` | operational |
 | checkpoints | LangGraph's own tables, from Step 8 | Schema left to LangGraph's Postgres checkpointer | transcript |
 
-`actor` is one of `shopper`, `agent`, `operator`, `system`. Status values:
+`actor` is one of `shopper`, `agent`, `operator`, `system`, and says who created the row. An approval's decision has its own `decision_actor`. Status values:
 
 - `tool_executions.status`: `pending`, `succeeded`, `failed`, `unknown`, `denied`
 - `approvals.status`: `pending`, `approved`, `rejected`, `expired`, `executed`, `execution_failed`
@@ -361,18 +379,49 @@ Every write tool runs this sequence:
 
 A new support case gets a new key, so the same request in a later case is stopped by step 4: the items are already in an open return, or the address already matches.
 
-## Exception refund approval
+## Approvals
 
-The agent proposes; the operator decides; Medusa executes on the operator's click (ADR 0011). The agent never holds a route that can move money.
+The agent proposes; the operator, or the **approval policy** within its ceiling, decides; Medusa executes (ADR 0011, ADR 0014). The agent never holds a route that can move money.
+
+**Approval types:**
+
+| Type | From | Who decides |
+| --- | --- | --- |
+| Exception refund | Step 8; J6, reached from J8 claims and other exceptions | The policy within its ceiling; above it, the operator |
+| Return inspection | With the return refunds | Always the operator: they inspect the returned items and approve a refund or an exchange |
+
+**The approval policy** is a versioned YAML file in the repo, changed only by reviewed PRs. Each version sets:
+
+- the **ceiling**: the largest refund the policy may decide alone. It launches at **0 PLN**, so until eval evidence raises it, every refund is the operator's click;
+- the **P1 line**: refunds above **200 PLN** always go to the operator, as a P1 handoff;
+- the **daily cap**: once the day's policy-decided refunds reach it, every further refund goes to the operator, as a P1 handoff;
+- the **expiry default**: the largest refund the policy decides at expiry. It also launches at 0.
+
+The ceiling, the P1 line and the daily cap rise step by step as reliability is proven, each in a new policy version merged with the eval report behind it.
 
 1. **Proposal:** `propose_refund` re-reads the order through the support route, checks the amount against what's refundable, and inserts a `pending` approval with amount, currency, reason, policy evidence and a 48-hour expiry. The case moves to `awaiting_approval`.
-2. **Review:** the Support page in the Medusa admin lists pending approvals and handed-off cases, read from the agent's operator API through a Medusa admin route.
-3. **Decision:** the operator clicks approve or reject. The Medusa admin route claims the approval in the agent database (`pending` → `approved` or `rejected`, with the admin user ID and time). The claim succeeds only once, so a second click, or a second operator, gets "already decided".
-4. **Execution:** on approval, the same route re-reads the order and payment, checks the amount is still refundable, checks no refund already carries this approval ID, then runs Medusa's refund workflow with the approval ID recorded on the refund. It reports `executed` or `execution_failed` back.
-5. **Recovery:** a Medusa job looks for approvals that are `approved` but not reported, older than 10 minutes. If a refund with that approval ID exists, it reports `executed`. If not, it reports `execution_failed` for the operator to retry by hand.
-6. **Resume:** the agent resumes the case and tells the shopper. Rejected and expired approvals move no money.
+2. **Policy check:** a Medusa job evaluates the current policy version. Within the ceiling, under the P1 line and the daily cap, it claims the approval as `decision_actor` `policy`, with its version, and continues at step 5. Otherwise the approval waits for the operator.
+3. **Review:** the Support page in the Medusa admin lists pending approvals and handed-off cases, read from the agent's operator API through a Medusa admin route.
+4. **Decision:** the operator clicks approve or reject. The Medusa admin route claims the approval in the agent database (`pending` → `approved` or `rejected`, with the admin user ID and time). The claim succeeds only once, so a second click, a second operator, or the policy job gets "already decided".
+5. **Execution:** on approval, by the operator or the policy, the same code re-reads the order and payment, checks the amount is still refundable, checks no refund already carries this approval ID, then runs Medusa's refund workflow with the approval ID recorded on the refund. It reports `executed` or `execution_failed` back.
+6. **Recovery:** a Medusa job looks for approvals that are `approved` but not reported, older than 10 minutes. If a refund with that approval ID exists, it reports `executed`. If not, it reports `execution_failed` for the operator to retry by hand.
+7. **Expiry:** after 24 hours without a decision, the operator is reminded. At 48 hours, an approval within the policy's expiry default is decided by the policy; anything else expires and the case is handed off.
+8. **Resume:** the agent resumes the case and tells the shopper. Rejected and expired approvals move no money.
 
 **Telling the shopper:** a logged-in shopper sees the outcome in the chat when they come back. Once the email provider exists (#102), an email goes to the order's address too. Until then, the operator emails it by hand.
+
+## Handoff priorities
+
+Every handoff gets a priority, so the operator answers the worst first. The priority is set in code from the handoff reason, never by the model, and later moves into the policy YAML with the approval rules.
+
+| Priority | When | Operator answers within | Examples |
+| --- | --- | --- | --- |
+| P1 | Money above the policy's limits, a possible wrong action, or a security or data issue | 4 working hours | A refund above 200 PLN; the daily policy refund cap reached; a write the shopper says they didn't ask for; a suspected cross-customer leak; verification locked by repeated guessing |
+| P2 | An upset shopper or a legal deadline | The same business day | A complaint or legal threat (X1); a claim the policy doesn't cover (X2) |
+| P3 | A request the agent may not do, with no deadline at risk | 1 business day | An address change after fulfillment (X3); a return outside the window; a non-returnable item; a write grant a guest can't get; an expired approval |
+| P4 | Expected handoffs, tracked as evidence for future tools | 2 business days | Product questions (X5); anything else in X7 |
+
+P1 and P2 also notify the operator outside the Support page. The thresholds follow the approval policy, so raising the 200 PLN line or the daily cap there moves the P1 line too.
 
 ## Failure plan
 
@@ -386,7 +435,7 @@ The agent proposes; the operator decides; Medusa executes on the operator's clic
 | Worker crash mid-turn | The per-case lock expires; the queued message runs again from the stored messages. Write executions are protected by their operation keys | Same as before the crash |
 | Worker crash mid-refund | The refund runs in Medusa, not in the agent, so the agent's crash can't duplicate it. The Medusa recovery job handles a crash in the approve route | `executed` or `execution_failed` |
 | Stale order state | Every write re-reads the order inside the support route. Order events only notify, never authorize | Refused and handed off if the state changed |
-| Approval never answered | Expires after 48 hours | `handed_off` |
+| Approval never answered | The operator is reminded at 24 hours. At 48 hours the policy decides it if it is within the expiry default; otherwise it expires | `agent_working` or `handed_off` |
 | Budget hit | Stop the turn, apologize, offer a handoff | `failed` → `handed_off` |
 
 ## Budgets
@@ -414,13 +463,13 @@ flowchart LR
   AGENT -->|"PD + agent secret + grant (secrets)"| SR[Medusa support routes]
   AGENT -->|"PD at rest"| ADB[(Agent database)]
   AGENT -->|"masked: no email, name, address, postcode, phone"| LF[Langfuse Cloud EU: processor]
-  AGENT -.->|"logs, no PD"| RW[Railway logs, US West 90 days: processor]
+  AGENT -.->|"logs, no PD"| LOGS[Host logs]
   SR --> MDB[(Medusa database)]
 ```
 
-- **Processors:** Amazon Bedrock (AWS), Langfuse Cloud EU, Railway. Each needs a DPA before real orders. The email provider joins the list with #102.
+- **Processors:** Amazon Bedrock (AWS) and Langfuse Cloud EU. Each needs a DPA before real orders. The email provider joins the list with #102, and the go-live host joins it when it is chosen (ADR 0016).
 - **Traces** keep case IDs, order IDs and tool names, and mask emails, names, street addresses, postcodes and phone numbers before sending.
-- **Logs** carry no personal data, because Railway stores them in the US.
+- **Logs** carry no personal data, wherever the host stores them. Check the go-live host's log location and retention when it is chosen.
 - **Secrets:** the customer token, the agent's support-route secret, verification grants, the LiteLLM master key and the AWS keys. None appear in prompts, traces or logs.
 
 ## Threat model
@@ -433,7 +482,10 @@ flowchart LR
 | Replay | A repeated message or retried call runs a write twice | Operation keys are unique in the agent database; approvals can be claimed once; refunds carry the approval ID |
 | Identity guessing | Trying postcodes for a known email and order number | 5 attempts per case and per email per day, enforced in Medusa; the reply never says which field was wrong |
 | Data exfiltration | Getting the agent to dump other customers' data or its secrets | The agent can reach only one shopper's data at a time, has no database access to Medusa, and never holds secrets in its prompt |
-| Poisoned FAQ | Changed policy text that promises refunds | The FAQ is Markdown in the repo, changed only by reviewed PRs, with no admin text box |
+| Poisoned FAQ | Changed policy text that promises refunds | The FAQ and storefront content are Markdown in the repo, changed only by reviewed PRs, with no admin text box or CMS (ADR 0017) |
+| Loosened approval policy | A change that raises the ceiling so the policy refunds more | The policy is versioned YAML, changed only by reviewed PRs with the eval report behind it; every approval records the version that decided it |
+| Chat abuse | A bot floods the chat to burn model budget or guess identities | Rate limits by IP and Cloudflare Turnstile on the chat endpoint from Step 2; the budgets per message and case; the verification limits in Medusa |
+| Leaked agent secret | The support-route secret is stolen from the agent's environment | Today a long random secret on a private network. Before go-live, short-lived signed tokens replace it, so a leak expires on its own |
 
 ## Metrics
 
@@ -447,15 +499,15 @@ Latency p50 and p95 are reported with them. Every report carries the required me
 
 ## Build order and later experiments
 
-One agent, text only, with no fine-tuned model, through Step 12. Foundations first (this design, the data model, the eval harness), then agent behavior with real tools, then hardening and cost.
+One agent, text only, through Step 12. Foundations first (this design, the data model, the eval harness), then agent behavior with real tools, then hardening and cost. Voice and fine-tuning left the roadmap (ADR 0015).
 
-Each later experiment runs against the frozen Step 12 baseline and must beat it as follows to replace or extend it:
+The one later experiment runs against the frozen Step 12 baseline and must beat it as follows to replace it:
 
 | Experiment | Must achieve |
 | --- | --- |
 | Multi-agent (Step 13) | `pass^5` at least 5 points higher, cost per resolved conversation at most 1.5× the baseline, wrong-action rate no higher |
-| Voice (Step 14) | Zero wrong actions, and `pass^5` within 5 points of text |
-| Fine-tuned model (Step 15) | Intent-routing accuracy at least equal to the baseline, with lower cost and lower p95 latency |
+
+Even if it wins, multi-agent is not the template's default: a client's support agent starts as the single agent. The back-office agents (catalog, marketing, operations) are separate jobs, each with its own trigger and tools, and need no supervisor.
 
 ## Stop condition review
 
@@ -463,10 +515,10 @@ Each later experiment runs against the frozen Step 12 baseline and must beat it 
 | --- | --- |
 | A write tool runs without verified identity | Every write needs a write grant from Medusa, checked by the tool and again by the route |
 | A retry repeats a mutation | Unique operation keys, no automatic write retries, reconciliation of `unknown` executions |
-| A refund runs without recorded human approval | The agent has no refund route; only the operator's approve click runs one, and it records the approver first |
+| A refund runs without a recorded approval by the operator, or by a merged policy version within its ceiling | The agent has no refund route; only the operator's approve click or the policy job in Medusa runs one, and each records the decision actor and policy version first |
 | A failed eval is dismissed without a written reason | Out of the design's reach: a process rule for every eval report |
 | Real orders start without a proven restore | The agent database joins #19's backup and restore scope |
-| A deployment needs an undocumented manual change | The agent and LiteLLM deploy as SHA images like the store; the kill switches are data, not deploys |
+| A deployment needs an undocumented manual change | The agent and LiteLLM run as SHA images like the store; the kill switches and the approval policy's ceiling are data and reviewed config, not manual changes |
 | Traces expose secrets or unnecessary personal data | Masking before Langfuse; secrets never enter prompts or traces |
 | The main branch is red | Out of the design's reach: branch protection already requires every check |
 | Nobody can say which component owns the data being changed | [Data model](#data-model): Medusa owns commerce data, the agent owns support data, and only support routes cross the line |
@@ -480,16 +532,25 @@ Each later experiment runs against the frozen Step 12 baseline and must beat it 
 | Retention periods confirmed by the lawyer | Before real orders | `docs/project-configuration.md` |
 | Complaint handling deadline: confirm with the lawyer how fast a complaint must be answered, and whether the 1-business-day handoff promise covers it | Before real orders | This file |
 | A return shipping option at the shopper's cost, and the non-returnable flag on products, set up in Medusa | Step 6 | Step 6 |
-| J7 and J8 journeys: preconditions, tools, state changes, handoffs and eval cases | Before the store track builds them | #113, #114 |
+| J7 and J8 journeys: preconditions, tools, state changes, handoffs and eval cases. A J8 refund goes through J6 | Before the store track builds them | #113, #114 |
+| OpenTelemetry in `apps/backend/instrumentation.ts`, so one correlation ID follows agent → support route → workflow | Before Step 6 | Roadmap Step 6 |
+| Short-lived signed tokens replace the agent's support-route secret | Before real orders | Roadmap, "Before taking real orders" |
+| Policy YAML with the first policy table, the ceiling at 0 | Step 6 | ADR 0014, ADR 0019 |
 
 ## Decisions
 
 - ADR 0008: one agent loop, with write policy enforced in code
 - ADR 0009: LiteLLM proxy is the only path to a model
 - ADR 0010: the agent reaches Medusa only through support routes
-- ADR 0011: an approved exception refund runs in Medusa, on the operator's click
+- ADR 0011: an approved exception refund runs in Medusa, on the operator's click, amended by ADR 0014
 - ADR 0012: the agent loop runs on LangChain's `create_agent` from Step 2
 - ADR 0013: a store track takes one build day a week
+- ADR 0014: approvals are decided by the operator or by a versioned policy
+- ADR 0015: voice and fine-tuning leave the roadmap
+- ADR 0016: the store is built locally until it is mature
+- ADR 0017: storefront content stays in git, and search stays on Medusa
+- ADR 0018: the shop fulfills orders itself, with API labels behind a shipping port
+- ADR 0019: the agent reaches commerce through a port, so the core is reusable
 
 ## Changes
 
@@ -499,3 +560,8 @@ Each later experiment runs against the frozen Step 12 baseline and must beat it 
 | 31 Oct 2026 | Reconciling an `unknown` write that never landed releases its operation key | Found in the Step 1 learning gate: the key stayed taken, so a shopper who asked again in the same case got the stored failure forever |
 | 31 Oct 2026 | The agent loop runs on LangChain's `create_agent` from Step 2, and the chat widget is assistant-ui | Speed: Step 8 no longer rebuilds a hand-written loop, and the widget isn't built from scratch (ADR 0012) |
 | 31 Oct 2026 | Exchanges (J7) and claims (J8) join the scope, built in the store track. Refunds stay the operator's | Exchanges and claims were handoffs; the store track automates them for shoppers (ADR 0013) |
+| 7 Nov 2026 | An approval is decided by the operator or by a versioned approval policy, whose ceiling launches at 0 PLN. Return inspection becomes an approval type. Approvals remind at 24 hours and can take a policy default at 48 | Every refund as an operator click doesn't scale; the policy only decides what the operator would decide the same way (ADR 0014) |
+| 7 Nov 2026 | J8 claims are the shopper's journey for damaged or missing items; their refunds go through a J6 approval | J6 and J8 overlapped; one journey for shoppers and one approval mechanism is simpler to evaluate |
+| 7 Nov 2026 | Handoff priorities P1 to P4 | The operator needs to answer money and security issues first |
+| 7 Nov 2026 | Hosting wording is host-neutral; rate limits and Turnstile on the chat move to Step 2 | The Railway account was deleted (ADR 0016); chat abuse costs money from the first deployed chat |
+| 7 Nov 2026 | Voice and fine-tuning rows leave the experiments table | ADR 0015 |
