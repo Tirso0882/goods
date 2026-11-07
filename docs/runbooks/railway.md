@@ -1,5 +1,7 @@
 # Railway
 
+> **Historical.** The Railway account was deleted on 7 November 2026, and the store is built locally until it is mature (`docs/adr/0016-the-store-is-built-locally-until-it-is-mature.md`). Keep this runbook as reference for setting up the go-live host, not as current instructions.
+
 How the test store's Railway project is set up, with the reason for every setting. Written while building the throwaway project in [#15](https://github.com/Tirso0882/goods/issues/15); [#18](https://github.com/Tirso0882/goods/issues/18) rebuilds the real project from this runbook alone, so any step missing here is a bug in the runbook.
 
 ## Account

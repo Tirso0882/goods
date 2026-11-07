@@ -1,5 +1,7 @@
 # Architecture overview
 
+> **Historical snapshot.** This page describes the Railway setup as of 21 October 2026. The Railway account was deleted on 7 November 2026, and the store now runs only locally in Compose until it is mature ([ADR 0016](../adr/0016-the-store-is-built-locally-until-it-is-mature.md)). Section 5, local environments, is still current; the Railway sections are reference for the go-live host.
+
 The test store as of 21 October 2026: what runs, where, how a commit reaches Railway, and what the roadmap still adds. Sources: [the Railway runbook](../runbooks/railway.md), [ADR 0005](../adr/0005-medusa-as-commerce-platform.md), [ADR 0006](../adr/0006-railway-hosts-the-test-store.md), [containers](containers.md), `.github/workflows/ci.yml`, `compose.yaml`, `apps/backend/medusa-config.ts`, the [core roadmap](../research/top-1-percent-ai-agent-engineer-roadmap.md) and the Setup 2 issues under [#3](https://github.com/Tirso0882/goods/issues/3).
 
 ## How to read this

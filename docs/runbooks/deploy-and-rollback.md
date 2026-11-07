@@ -1,5 +1,7 @@
 # Deploy and rollback
 
+> **Off until go-live.** The Railway account was deleted on 7 November 2026 (`docs/adr/0016-the-store-is-built-locally-until-it-is-mature.md`). CI's `deploy`, `smoke` and `rollback` jobs run only when the repository variable `DEPLOY_ENABLED` is `true`, and the smoke test reads its URL from the `STOREFRONT_URL` variable; both are unset. The release flow below still applies up to publishing the images. The Railway steps are reference for the go-live host.
+
 How a release of `main` reaches the store on Railway, and how to put back an earlier one. The service settings themselves are in the [Railway runbook](railway.md).
 
 ## What a release is
