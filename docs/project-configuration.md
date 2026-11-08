@@ -25,7 +25,7 @@ Transactional email provider: BLOCKED (contact address: tirso.gomez@redkraken.te
 Data retention period for conversations: provisional until the lawyer confirms: transcripts 12 months; verifications, tool executions and approvals 6 years with minimal personal data (see docs/design.md)
 Remote: https://github.com/Tirso0882/goods (public), default branch main
 Default branch protection enabled: Yes (main: PR required with 0 approvals, applies to admins, no force pushes, no deletion; required checks format, lint, typecheck, test, build and backup)
-Auto-merge: Allowed, used only by .github/workflows/dependabot-auto-merge.yml for Dependabot's patch updates
+Auto-merge: Allowed, used only by .github/workflows/dependabot-auto-merge.yml for Dependabot's patch updates, including the grouped security updates, never for @medusajs packages
 Secret scanning: Enabled, with push protection
 ```
 
