@@ -397,7 +397,7 @@ The agent proposes; the operator, or the **approval policy** within its ceiling,
 - the **daily cap**: once the day's policy-decided refunds reach it, every further refund goes to the operator, as a P1 handoff;
 - the **expiry default**: the largest refund the policy decides at expiry. It also launches at 0.
 
-The ceiling, the P1 line and the daily cap rise step by step as reliability is proven, each in a new policy version merged with the eval report behind it.
+The ceiling, the P1 line and the daily cap rise step by step as reliability is proven, each in a new policy version merged with the eval report behind it. Before the ceiling first rises above 0, a refund scenario catalog lists every situation in which a refund can run, and the operator reviews which of them the policy may decide. The policy decides nothing outside that catalog.
 
 1. **Proposal:** `propose_refund` re-reads the order through the support route, checks the amount against what's refundable, and inserts a `pending` approval with amount, currency, reason, policy evidence and a 48-hour expiry. The case moves to `awaiting_approval`.
 2. **Policy check:** a Medusa job evaluates the current policy version. Within the ceiling, under the P1 line and the daily cap, it claims the approval as `decision_actor` `policy`, with its version, and continues at step 5. Otherwise the approval waits for the operator.
@@ -536,6 +536,7 @@ Even if it wins, multi-agent is not the template's default: a client's support a
 | OpenTelemetry in `apps/backend/instrumentation.ts`, so one correlation ID follows agent → support route → workflow | Before Step 6 | Roadmap Step 6 |
 | Short-lived signed tokens replace the agent's support-route secret | Before real orders | Roadmap, "Before taking real orders" |
 | Policy YAML with the first policy table, the ceiling at 0 | Step 6 | ADR 0014, ADR 0019 |
+| Refund scenario catalog, reviewed by the operator | Before the ceiling rises above 0 | ADR 0014 |
 
 ## Decisions
 
