@@ -62,7 +62,7 @@ Deliverables: [Compose stack](../runbooks/compose-stack.md), protected CI, commi
 - `deploy` first failed with an empty `RAILWAY_TOKEN`: a called workflow only gets an environment secret the caller passes. Fixed in #64.
 - In #18 the storefront was still named `goods-storefront`, so the deploy script stopped at `No service named storefront`. A reference to a missing service resolves to nothing without an error, which had also left `STORE_CORS` empty. The runbook now fixes the service names.
 - release-please wrote its manifest in a style prettier rejects, failing `format` on the first Release PR. #79 leaves the manifest out of prettier.
-- The rollback drill's break was merged with a merge commit, so `v0.1.1` lists its fix twice. Squash-merge pull requests that should reach the changelog.
+- The rollback drill's break was merged with a merge commit, so `v0.1.1` lists its fix twice. Squash-merge pull requests that should reach the changelog. (Superseded on 8 November 2026: rebase-merge, with merge commits turned off; see `docs/runbooks/deploy-and-rollback.md`.)
 - Two backup test runs could share one second's folder. Fixed in #94.
 
 ## Decisions

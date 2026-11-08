@@ -49,7 +49,7 @@ Nothing has to be released at once. Merges pile up in the Release PR until you m
 
 ### Commits that reach the changelog
 
-release-please reads the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) that reach `main` since the last release. With a squash merge that is one commit per pull request, whose message is the PR title, so the PR title is what counts; with a merge commit, each commit of the branch, plus the merge commit itself, whose message repeats the PR title, so a `fix` PR is listed twice (`v0.1.1`). Squash-merge.
+release-please reads the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) that reach `main` since the last release. Merge pull requests with **Rebase and merge**: each commit of the branch reaches `main` once, so a branch split into `fix`, `docs` and `chore` commits keeps its categories in the changelog. A merge commit repeats the PR title in its body, and release-please reads that line as a second commit, so every `feat` or `fix` was listed twice (`v0.1.1`, `v0.2.0`). Merge commits are turned off in the repository settings for that reason. A squash merge also lists a change once, but only under the PR title, and loses the split.
 
 | Type | Changelog section | Version bump below 1.0 |
 | --- | --- | --- |
