@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/Tirso0882/goods/compare/v0.2.2...v0.3.0) (2026-11-08)
+
+
+### Features
+
+* **scripts:** add pnpm day for the daily local workflow ([96197dd](https://github.com/Tirso0882/goods/commit/96197dd8f05438d2b36cbe35529aae0dc088a9c5))
+* **scripts:** make pnpm day stop also stop pnpm dev and stripe listen ([00b7dcd](https://github.com/Tirso0882/goods/commit/00b7dcd9470d2028ab150e20695abe4dbc93c72d))
+
 ## [0.2.2](https://github.com/Tirso0882/goods/compare/v0.2.1...v0.2.2) (2026-11-08)
 
 
