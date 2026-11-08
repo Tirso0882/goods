@@ -256,7 +256,7 @@ flowchart LR
     pgc[("postgres · pgvector, pg17<br/>5432 internal · volume pgdata")]
     rdc[("redis · 6379 internal<br/>AOF · volume redisdata")]
     static[("medusa-static volume<br/>uploads")]
-    oll["ollama 0.40.3 · 11434 internal<br/>volume ollama<br/>GPU with compose.gpu.yaml"]
+    oll["ollama 0.40.14 · 11434 internal<br/>volume ollama<br/>GPU with compose.gpu.yaml"]
   end
 
   you -->|"pages · HTTP"| sfc

@@ -9,7 +9,7 @@ Process boundaries for the production images (#11). Compose (#12, `compose.yaml`
 | Backend (server and worker) | `apps/backend/Dockerfile` | `docker build -f apps/backend/Dockerfile -t goods-backend .` |
 | Storefront | `apps/storefront/Dockerfile` | `docker build -f apps/storefront/Dockerfile -t goods-storefront .` |
 
-Both are multi-stage on `node:24.21.0-alpine3.24`, pinned by digest, and run as the `node` user (uid 1000). The root `.dockerignore` is an allowlist: only the workspace manifests, `apps/backend` and `apps/storefront` enter the build context, and every `.env*`, `node_modules` and build output is excluded.
+Both are multi-stage on `node:24.22.2-alpine3.24`, pinned by digest, and run as the `node` user (uid 1000). The root `.dockerignore` is an allowlist: only the workspace manifests, `apps/backend` and `apps/storefront` enter the build context, and every `.env*`, `node_modules` and build output is excluded.
 
 Neither build needs a database, a backend or a secret. The storefront image holds no publishable key, URL or Stripe key, so the same image runs in every environment.
 
@@ -62,7 +62,7 @@ On Linux, add `--add-host=host.docker.internal:host-gateway` to each `docker run
 | Storefront | storefront, `node apps/storefront/server.js` | 8000, published | `GET /api/health` returns `OK` | none (`.next/cache` is disposable) | `MEDUSA_PUBLISHABLE_KEY` (public by design), `MEDUSA_BACKEND_URL`, `PUBLIC_MEDUSA_BACKEND_URL`, `PUBLIC_BASE_URL`, `PUBLIC_STRIPE_KEY` (public) |
 | PostgreSQL + pgvector | `pgvector/pgvector:0.8.7-pg17-bookworm` | 5432, never public | `pg_isready -U postgres -d medusa-goods` | `/var/lib/postgresql/data` | `POSTGRES_PASSWORD` |
 | Redis | `redis:8.10.2-alpine3.23`, `--appendonly yes` | 6379, never public | `redis-cli ping` returns `PONG` | `/data` | none locally; a password on Railway |
-| Ollama | `ollama/ollama:0.40.3` | 11434, internal | `ollama list` | `/root/.ollama` (models, pulled at runtime) | none |
+| Ollama | `ollama/ollama:0.40.14` | 11434, internal | `ollama list` | `/root/.ollama` (models, pulled at runtime) | none |
 
 The last three are third-party images that #12 adds. Pin them by tag (and digest where the platform supports it), never `latest`. Ollama runs as root and has no documented non-root mode; it is the one exception to non-root runtime users.
 

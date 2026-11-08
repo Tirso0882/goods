@@ -11,7 +11,7 @@ Laptop: MSI with NVIDIA RTX 4070 from 13 October 2026 (#48). Until then a MacBoo
 Laptop operating system: BLOCKED (record on the MSI; planned: Windows 11 with WSL 2 Ubuntu)
 Docker runtime: BLOCKED (planned: Docker Desktop with the WSL 2 backend)
 GPU confirmed by nvidia-smi: BLOCKED (record model, driver, CUDA version and VRAM on the MSI)
-Node version: 24 LTS (v24.21.0), pinned in .nvmrc, switched automatically by fnm 1.39.0
+Node version: 24 LTS (major pinned in .nvmrc; images run v24.22.2), switched automatically by fnm 1.39.0
 Package manager and version: pnpm 10.33.2, pinned by packageManager in the root package.json and enabled with corepack (Medusa 2.21.2 monorepo from create-medusa-app)
 Python version: 3.12 (3.12.13 via uv), pinned in .python-version
 Hosted model provider: Amazon Bedrock, eu-central-1, through LiteLLM
