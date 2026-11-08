@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/Tirso0882/goods/compare/v0.2.1...v0.2.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* **docker:** let the backend deploy step fetch tarballs missing from the store ([58911ff](https://github.com/Tirso0882/goods/commit/58911ff955f5ff629e5e54b3697fe9d7923adbef))
+
 ## [0.2.1](https://github.com/Tirso0882/goods/compare/v0.2.0...v0.2.1) (2026-11-08)
 
 
