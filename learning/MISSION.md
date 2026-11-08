@@ -14,7 +14,7 @@ Become a strong AI agent engineer by shipping a customer support agent for a Med
 
 ## Constraints
 - Learning block is 10:00 to 11:30 on build days, plus spaced review on Saturday (10:00 to 12:30). Lessons must fit that block.
-- Core roadmap runs from 28 September 2026 to mid-January 2027. Lessons follow the roadmap's step order.
+- Core roadmap runs from 28 September 2026 to 21 January 2027 if no gate slips. Lessons follow the roadmap's step order.
 - Comfortable in Python, little or no TypeScript or JavaScript. Already familiar with Docker, Compose, and GitHub Actions.
 - Prefers learning solo: no communities.
 

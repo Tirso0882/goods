@@ -2,7 +2,7 @@
 
 Goal: become a strong AI agent engineer by building a production-grade customer support agent for a Medusa e-commerce store, while reading Chip Huyen's *AI Engineering*. The order of priorities is: the skill first, then public evidence of it, then the store. The same skills should serve three outcomes: an agent engineering job, consulting work, and your own e-commerce business.
 
-Time: 40 project hours a week, Monday to Friday from 10:00 to 18:00. Saturday is a light day of spaced review only (10:00 to 12:30), and Sunday is fully off. The core roadmap runs about 15 weeks, from Monday 28 September 2026 to mid-January 2027 (shifted two build days after Setup 1 Day 1 slipped, then three weeks when multi-agent, voice, and fine-tuning came into scope, then six more build days after Setup 2 slipped, then about three weeks when the store track took one build day a week from 2 November, then about two and a half weeks earlier when voice and fine-tuning left on 7 November; see `docs/adr/0004-multi-agent-voice-and-fine-tuning-are-in-scope.md`, `docs/adr/0013-a-store-track-takes-one-build-day-a-week.md` and `docs/adr/0015-voice-and-fine-tuning-leave-the-roadmap.md`). Product research runs in the background during week 1, alongside the On-ramp. After the core roadmap, run a retro before choosing the pace for the second project.
+Time: 40 project hours a week, Monday to Friday from 10:00 to 18:00. Saturday is a light day of spaced review only (10:00 to 12:30), and Sunday is fully off. The core roadmap runs about 17 weeks, from Monday 28 September 2026 to Thursday 21 January 2027 if no gate slips (shifted two build days after Setup 1 Day 1 slipped, then three weeks when multi-agent, voice, and fine-tuning came into scope, then six more build days after Setup 2 slipped, then about three weeks when the store track took one build day a week from 2 November, then about two and a half weeks earlier when voice and fine-tuning left on 7 November, then about one week later when Step 2 started on 9 November; see `docs/adr/0004-multi-agent-voice-and-fine-tuning-are-in-scope.md`, `docs/adr/0013-a-store-track-takes-one-build-day-a-week.md` and `docs/adr/0015-voice-and-fine-tuning-leave-the-roadmap.md`). Product research runs in the background during week 1, alongside the On-ramp. After the core roadmap, run a retro before choosing the pace for the second project.
 
 The project runs locally with synthetic data and test payments only, until it is mature. Then it moves to pre-production, then production, on the same host and runbook (`docs/adr/0016-the-store-is-built-locally-until-it-is-mature.md`). Your employer and a Polish lawyer have confirmed you can run the business, so the only remaining blockers for real orders are the business registration, tax, consumer-law, privacy, security, and recovery work in "Before taking real orders" at the end of this file. That work runs in parallel from week 1.
 
@@ -265,18 +265,21 @@ Priority, highest first: ch. 6, 4, 3, 5, 10, 2, 8, 1, 9, 7.
 | 9 | 9. Inference Optimization | 9 to 10 Nov | Inference Performance Metrics; Inference Service Optimization | Step 10 |
 | 10 | 7. Finetuning | 11 to 12 Nov | When to Finetune; Finetuning and RAG. Skim the rest; fine-tuning left the roadmap (ADR 0015) | Step 7 "RAG instead of finetuning" ADR |
 
-From 13 November the block becomes a spaced second read of the sections the current step uses:
+From 16 November the block becomes a spaced second read of the sections the current step uses:
 
 | Dates | Second read | For |
 |---|---|---|
-| 13 to 16 Nov | Ch. 6 RAG and Memory | Step 7 |
-| 17 to 19 Nov | Ch. 6 Agents: planning and failure modes | Step 8 |
-| 20 to 23 Nov | Ch. 8 Data Augmentation and Synthesis; Data Processing | Step 9 |
-| 24 to 26 Nov | Ch. 9 service optimization; ch. 10 router, gateway, and caches | Step 10 |
-| 27 to 30 Nov | Ch. 10 Put in Guardrails; ch. 5 Defensive Prompt Engineering | Step 11 |
-| 1 to 3 Dec | Ch. 10 Monitoring and Observability; User Feedback | Step 12 |
-| 4 to 10 Dec | Ch. 6 Agents: planning, multi-agent, and failure modes; ch. 4 Model Selection | Step 13 multi-agent experiment |
-| 11 to 17 Dec | All chapter summaries and your explain-backs | Step 14 case study and walkthrough |
+| 16 to 23 Nov | Ch. 3 Exact Evaluation; ch. 4 Design Your Evaluation Pipeline; ch. 8 Acquisition and Annotation | Steps 3 and 4 |
+| 24 to 25 Nov | Ch. 5 Defensive Prompt Engineering; Organize and Version Prompts | Step 5 |
+| 26 Nov to 2 Dec | Ch. 6 Agents: tools and failure modes | Step 6 |
+| 3 to 7 Dec | Ch. 6 RAG and Memory | Step 7 |
+| 8 to 14 Dec | Ch. 6 Agents: planning and failure modes | Step 8 |
+| 15 to 16 Dec | Ch. 8 Data Augmentation and Synthesis; Data Processing | Step 9 |
+| 17 to 22 Dec | Ch. 9 service optimization; ch. 10 router, gateway, and caches | Step 10 |
+| 28 to 29 Dec | Ch. 10 Put in Guardrails; ch. 5 Defensive Prompt Engineering | Step 11 |
+| 30 Dec to 5 Jan | Ch. 10 Monitoring and Observability; User Feedback | Step 12 |
+| 7 to 14 Jan | Ch. 6 Agents: planning, multi-agent, and failure modes; ch. 4 Model Selection | Step 13 multi-agent experiment |
+| 18 to 21 Jan | All chapter summaries and your explain-backs | Step 14 case study and walkthrough |
 
 ## What the agent may do
 
@@ -401,18 +404,23 @@ Steps run back to back and can cross week boundaries. The detailed plan below de
 | 2 | 5 to 10 Oct | End of Setup 1 Day 1 (slipped two build days), rest of Setup 1 | Book ch. 3; [Medusa installation](https://docs.medusajs.com/learn/installation); Stripe testing docs |
 | 3 | 12 to 17 Oct | Setup 2 (catch-up begins Friday after the gate slipped) | Book ch. 4 and 10 (day 1); [Medusa deployment guide](https://docs.medusajs.com/learn/deployment/general); [Railway docs](https://docs.railway.com/) |
 | 4 | 19 to 24 Oct | Setup 2 catch-up and gate (slipped six build days from 15 Oct) | Hosting runbooks; restore drill evidence |
-| 5 | 26 to 31 Oct | Step 1, Step 2 | Book ch. 10 (days 2 to 3) and 6; "Building effective agents"; OpenAI guide |
-| 6 | 2 to 7 Nov | Step 3, Step 4, start of Step 5 | Book ch. 5, 8; first half then rest of "Demystifying evals" |
-| 7 | 9 to 14 Nov | End of Step 5, Step 6, start of Step 7 | Book ch. 9 and 7, then second reads of ch. 6; "Writing effective tools"; DDIA on transactions |
-| 8 | 16 to 21 Nov | End of Step 7, Step 8, start of Step 9 | Second reads of ch. 6 and 8; LangGraph persistence and interrupt docs; Data Designer docs |
-| 9 | 23 to 28 Nov | End of Step 9, Step 10, start of Step 11 | Second reads of ch. 9, 10, and 5; SRE Handling Overload; Guardrails docs |
-| 10 | 30 Nov to 5 Dec | End of Step 11, Step 12, start of Step 13 | Second reads of ch. 10 and 6; DDIA on consistency and derived data; the two multi-agent posts |
-| 11 | 7 to 12 Dec | End of Step 13, start of Step 14 | Second read of ch. 4; LangGraph multi-agent docs; chapter summaries |
-| 12 | 14 to 19 Dec | End of Step 14, retro | Your explain-backs |
+| 5 | 26 to 31 Oct | Step 1 | Book ch. 10 (days 2 to 3) and 6; "Building effective agents"; OpenAI guide |
+| 6 | 2 to 7 Nov | Store track planning (#107), the 7 November plan assessment (ADRs 0014 to 0019) | Book ch. 5 and 8 |
+| 7 | 9 to 14 Nov | Step 2 (11 Nov is a holiday) | Book ch. 9 and 7; "Building effective agents"; OpenAI guide |
+| 8 | 16 to 21 Nov | End of Step 2, Step 3, start of Step 4 | Second reads of ch. 3 and 4; "Demystifying evals" |
+| 9 | 23 to 28 Nov | End of Step 4, Step 5, start of Step 6 | Second reads of ch. 8 and 5 |
+| 10 | 30 Nov to 5 Dec | End of Step 6, start of Step 7 | Second read of ch. 6 (tools); "Writing effective tools"; DDIA on transactions |
+| 11 | 7 to 12 Dec | End of Step 7, most of Step 8 | Second read of ch. 6; LangGraph persistence and interrupt docs |
+| 12 | 14 to 19 Dec | End of Step 8, Step 9, start of Step 10 | Second reads of ch. 8 and 9; Data Designer docs |
+| 13 | 21 to 26 Dec | End of Step 10 (24 and 25 Dec are holidays) | Second read of ch. 10; SRE Handling Overload |
+| 14 | 28 Dec to 2 Jan | Step 11, start of Step 12 (1 Jan is a holiday) | Second reads of ch. 10 and 5; Guardrails docs |
+| 15 | 4 to 9 Jan | End of Step 12, start of Step 13 (6 Jan is a holiday) | Second read of ch. 10; DDIA on consistency and derived data |
+| 16 | 11 to 16 Jan | Step 13 | Second reads of ch. 6 and 4; the two multi-agent posts; LangGraph multi-agent docs |
+| 17 | 18 to 23 Jan | Step 14, retro | Chapter summaries; your explain-backs |
 
-These dates predate the store track. From week 6, each week has four agent build days, so the agent steps take about a quarter longer and the end moves to mid-January 2027, after Steps 14 (voice) and 15 (fine-tuning) left on 7 November (ADR 0015). Shift the dates as gates pass.
+Replanned on 8 November 2026 from where the work stands: Step 1 finished in week 5, and Step 2 starts on 9 November. Agent steps take Monday to Thursday and the store track takes Friday, or the last working day of a week with a holiday. Polish public holidays are build days off. Step lengths in agent build days: Step 2 four, Steps 3, 4, 5, 7, 9 and 11 two each, Steps 6 and 8 four, Steps 10 and 12 three, Step 13 five, Step 14 four. Steps 2, 6 and 8 each gained a day on 7 November for the commerce port, the plugin and contract suite, and the approval policy (ADRs 0014 and 0019). There is no slack: Setup 1 and Setup 2 slipped 2 and 6 build days, so shift the dates as gates pass.
 
-Slow down if you're skipping evals or learning gates, or if Steps 6 to 8 run past the end of week 8. Step 13 is five build days. Do not start it until Step 12's gate passes.
+Slow down if you're skipping evals or learning gates, or if Steps 6 to 8 run past the end of week 12. Step 13 is five build days. Do not start it until Step 12's gate passes.
 
 ## Detailed execution plan
 
