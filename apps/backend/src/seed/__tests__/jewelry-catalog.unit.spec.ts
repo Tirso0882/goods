@@ -46,4 +46,43 @@ describe('jewelry catalog fixture', () => {
       expect(variant.stock).toBeGreaterThan(0)
     }
   })
+
+  // The product copy rules of #133, applied to the fixture: the agent retrieves
+  // and repeats this copy, so it may only claim what the product fields back.
+  // The fixture has no lab report, hallmark, certificate or gold fineness field.
+  describe('claims', () => {
+    const unbacked: [string, RegExp][] = [
+      [
+        'skin and metal-content claims need a lab report',
+        /hypoallergenic|nickel[- ]free|lead[- ]free|cadmium[- ]free|sensitive (ears|skin)/i,
+      ],
+      ['a hallmark needs a hallmark field', /hallmark/i],
+      ['a certificate needs one on file', /certif/i],
+      [
+        'environmental claims are banned (Directive 2024/825)',
+        /\beco\b|sustainab|recycled|ethical|conflict[- ]free|green/i,
+      ],
+      ['freshwater pearls are cultured, not natural', /\bnatural\b/i],
+      [
+        'gold fineness needs a fineness field',
+        /\b(9|10|14|18|22|24)\s?k(t|arat)?\b|\b(375|585|750|916|999)\b/i,
+      ],
+      ['gold is only ever plating, so it says so', /\bgold\b(?!-plated)/i],
+    ]
+    const copy = CATALOG.map(
+      (p) =>
+        [
+          p.handle,
+          p,
+          [p.title, p.description, ...p.options.flatMap((o) => o.values)].join('\n'),
+        ] as const
+    )
+
+    it.each(copy)('%s: makes no claim its fields do not back', (_, product, text) => {
+      for (const [rule, pattern] of unbacked) {
+        expect({ rule, match: text.match(pattern)?.[0] ?? null }).toEqual({ rule, match: null })
+      }
+      if (/925|sterling/i.test(text)) expect(product.material).toMatch(/925 sterling silver/)
+    })
+  })
 })
