@@ -21,5 +21,6 @@ A jewelry parcel is small and the volume is low, so a 3PL's monthly minimums and
 
 - `goods-shipping` extends Medusa's `AbstractFulfillmentProviderService`: fulfillment options, locker validation, price calculation, labels and return labels. No Medusa provider exists for Furgonetka, so we write and test it against Furgonetka's sandbox.
 - Furgonetka, and each carrier it books, joins the processor list and DPA work. Its OAuth credentials join the go-live host's secrets.
+- **3PL trigger:** compare 3PL offers once the shop ships 100 or more orders a month for two months in a row. Below that, self-packing stays cheaper.
 - Switching to a 3PL means registering its provider and moving shipping options to it. Open fulfillments finish on the old provider. Ask any 3PL whether it ships to InPost lockers before signing.
 - Furgonetka's live InPost prices, Apaczka's return labels and the DPD sandbox are unverified. Check them before the unit economics in #124 are fixed.
