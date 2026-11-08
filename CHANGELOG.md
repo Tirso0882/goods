@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/Tirso0882/goods/compare/v0.2.0...v0.2.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **seed:** remove claims the catalog's fields don't back ([1be0cbe](https://github.com/Tirso0882/goods/commit/1be0cbe174ffee70e86a113e8c836ac00d84a883))
+* **seed:** remove claims the catalog's fields don't back ([#133](https://github.com/Tirso0882/goods/issues/133)) ([5b9a331](https://github.com/Tirso0882/goods/commit/5b9a331cfa3b20165ed694a11d4dfb413d725572))
+
 ## [0.2.0](https://github.com/Tirso0882/goods/compare/v0.1.2...v0.2.0) (2026-10-27)
 
 
