@@ -5,7 +5,13 @@ version: 2
 # needs a new major shows up as an alert only.
 #
 # Patch updates of npm and actions, outside the medusa group, merge on their
-# own once the required checks pass (.github/workflows/dependabot-auto-merge.yml).
+# own once the required checks pass, and so do the security group's
+# (.github/workflows/dependabot-auto-merge.yml).
+#
+# Dependabot can't move a transitive package that its parent pins to a
+# vulnerable version. Those are forced with pnpm.overrides in package.json, by
+# version range, so an override stops matching once the parent catches up.
+# Delete an override when pnpm why shows nothing in its range any more.
 updates:
   - package-ecosystem: npm
     directory: /
@@ -20,6 +26,14 @@ updates:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
     groups:
+      # Security fixes arrive in one pull request a day instead of one each.
+      # Medusa's are left out: they must move with the rest of Medusa.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@medusajs/*"
       # Medusa packages share one version and must move together.
       medusa:
         patterns:
