@@ -36,7 +36,8 @@ jobs:
           && contains(fromJSON('["npm_and_yarn", "github_actions"]'), steps.metadata.outputs.package-ecosystem)
           && steps.metadata.outputs.dependency-group != 'medusa'
           && !contains(steps.metadata.outputs.dependency-names, '@medusajs/')
-        run: gh pr merge --auto --merge "$PR_URL"
+        # Rebase: merge commits are off, so each commit is read once by release-please.
+        run: gh pr merge --auto --rebase "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ github.token }}
