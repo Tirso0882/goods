@@ -1364,6 +1364,7 @@ One build day a week from 2 November 2026 (`docs/adr/0013-a-store-track-takes-on
 3. Markets for all 27 EU countries, opened and closed one at a time in Medusa Admin ([#110](https://github.com/Tirso0882/goods/issues/110)), with a `markets.yaml` replacing the seed's market list (ADR 0019), each with a carrier and price first ([#124](https://github.com/Tirso0882/goods/issues/124)), and the shopper's region suggested from Cloudflare's country header, never forced ([#111](https://github.com/Tirso0882/goods/issues/111)).
 4. Storefront and product translations for each market ([#112](https://github.com/Tirso0882/goods/issues/112)). A brand pack starts with the second locale (ADR 0019). Content stays as Markdown per locale in the repo.
 5. The exchange (J7) and claim (J8) journeys for the agent ([#113](https://github.com/Tirso0882/goods/issues/113), [#114](https://github.com/Tirso0882/goods/issues/114)). A claim that ends in a refund proposes it through a J6 approval.
+6. Stripe Radar ([#131](https://github.com/Tirso0882/goods/issues/131)): good fraud signals at checkout, risky orders held from fulfillment until the operator decides, and early fraud warnings as P1 handoffs. The free tier first; the paid tier only on chargeback evidence.
 
 The store sells only to EU countries. Contentful was dropped and Meilisearch deferred on 7 November 2026 (ADR 0017).
 
@@ -1373,10 +1374,11 @@ Store work follows the same session rule as agent work: one testable outcome, th
 
 1. Run a retro: hours actually worked, energy, which learning gates were hard, and what stuck on spaced review. Choose the pace for what comes next from that, not from this plan.
 2. Start the second project: the catalog enrichment agent from `ecommerce-ai-features.md`, together with agent-readable commerce (ADR 0007). It turns supplier data into titles, descriptions, attributes, and translations, with your approval before publishing, and the same data feeds what AI shopping agents read. It reuses the approval, eval, and tracing work, and the real store needs it from day one. Its skills and back-office workflows live in their own packages (ADR 0019). Take it through `/grill-with-docs` and `/to-spec` like any new idea.
-3. Then a second commerce adapter: Shopify, with WooCommerce as a sidecar (ADR 0019).
-4. Pricing stays out of autonomous scope: a rules engine computes prices, the model only explains them, and changes above a threshold need your approval.
-5. Read the rest of DDIA (start with stream processing) and the SRE chapters on service level objectives and postmortems.
-6. Once the store is live, set a reliability target, and publish one post per quarter with the numbers.
+3. Then the marketing agent ([#132](https://github.com/Tirso0882/goods/issues/132)): newsletters, social posts and promotions drafted from the catalog and sales data, each sent only after your approval, with the same claim checks as catalog copy and discounts only from the pricing rules. No tracking pixels until a consent ADR.
+4. Then a second commerce adapter: Shopify, with WooCommerce as a sidecar (ADR 0019).
+5. Pricing stays out of autonomous scope: a rules engine computes prices, the model only explains them, and changes above a threshold need your approval.
+6. Read the rest of DDIA (start with stream processing) and the SRE chapters on service level objectives and postmortems.
+7. Once the store is live, set a reliability target, and publish one post per quarter with the numbers.
 
 ## Before taking real orders
 

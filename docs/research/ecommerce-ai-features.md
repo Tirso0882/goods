@@ -66,7 +66,7 @@ Don't build this yourself. Use an open-source commerce platform (see stack below
 | 9 | Review analysis | Summarizes reviews, flags product problems | ★ | Low | Easy win once reviews exist |
 | 10 | Ops copilot | "How did sales go yesterday?" answered from your data | ★★ | Low | Text-to-SQL over your warehouse; fits your Databricks background |
 | 11 | Demand forecasting and stock alerts | Predicts sales, warns before stock runs out | ★★ | Medium | Classic forecasting plus an agent that drafts purchase orders |
-| 12 | Marketing content agent | Drafts emails, social posts, promotions | ★ | Low (approved) | Human approval before sending |
+| 12 | Marketing content agent | Drafts emails, social posts, promotions | ★ | Low (approved) | Human approval before sending; planned after catalog enrichment ([#132](https://github.com/Tirso0882/goods/issues/132)) |
 | 13 | Pricing suggestions | Proposes price changes from demand and competitors | ★★★ | High (money) | Build last, never autonomous: a rules engine computes, the model explains, and changes above a threshold need approval |
 
 ### D. Platform (every feature needs these to be production-ready)
