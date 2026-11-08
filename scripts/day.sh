@@ -5,7 +5,7 @@
 #   pnpm day update    after a PR merged: switch to main, pull, install if needed, migrate
 #   pnpm day status    is everything up?
 #   pnpm day check     before pushing: format, lint, typecheck, migrations check, tests
-#   pnpm day stop      after coding: stop the containers (Ctrl+C pnpm dev first)
+#   pnpm day stop      after coding: stop pnpm dev, stripe listen and the containers
 #
 # `start --no-stripe` skips the webhook listener.
 set -euo pipefail
@@ -132,8 +132,57 @@ cmd_check() {
   step "All checks passed. Safe to push."
 }
 
+# The process that owns a dev port, walked up through its node/pnpm/sh
+# parents (pnpm dev → sh -c → medusa/next) but never into a terminal shell.
+dev_root() {
+  # Matches on the command line, not `ps -o comm`: Node 24 names its
+  # process MainThread.
+  local pid=$1 parent cmd
+  while :; do
+    parent=$(ps -o ppid= -p "$pid" | tr -d ' ')
+    [[ -n $parent && $parent -gt 1 ]] || break
+    read -r cmd _ < <(ps -o args= -p "$parent")
+    [[ ${cmd##*/} =~ ^(node|sh|pnpm|npm|turbo|next-server)$ ]] || break
+    pid=$parent
+  done
+  echo "$pid"
+}
+
+tree() {
+  local child
+  echo "$1"
+  for child in $(pgrep -P "$1"); do tree "$child"; done
+}
+
+stop_dev_servers() {
+  step "Stopping the dev servers and stripe listen"
+  local pids=() port pid
+  for port in 9000 8000; do
+    for pid in $(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null); do
+      mapfile -t -O "${#pids[@]}" pids < <(tree "$(dev_root "$pid")")
+    done
+  done
+  mapfile -t -O "${#pids[@]}" pids < <(pgrep -f 'stripe listen --forward-to localhost:9000' || true)
+
+  if ((${#pids[@]} == 0)); then
+    ok "Nothing was running"
+    return
+  fi
+  kill "${pids[@]}" 2>/dev/null || true
+  for _ in $(seq 10); do
+    port_busy 9000 || port_busy 8000 || break
+    sleep 1
+  done
+  kill -9 "${pids[@]}" 2>/dev/null || true
+  if port_busy 9000 || port_busy 8000; then
+    bad "Something still holds :9000 or :8000. Check: lsof -iTCP:9000 -sTCP:LISTEN"
+  else
+    ok "Backend, storefront and stripe listen stopped"
+  fi
+}
+
 cmd_stop() {
-  port_busy 9000 && bad "pnpm dev is still running on :9000. Press Ctrl+C in its terminal."
+  stop_dev_servers
   step "Stopping ${CONTAINERS[*]} (data stays in their volumes)"
   docker stop "${CONTAINERS[@]}" >/dev/null
   ok "Stopped"
