@@ -1375,7 +1375,7 @@ Store work follows the same session rule as agent work: one testable outcome, th
 Your employer is fine with the business and a Polish lawyer has confirmed you can set it up in Poland. These steps remain. Most of the time is spent waiting on other people, so start them in week 1 and work on them inside the weekly docs hours. Confirm the details with your lawyer and an accountant, because thresholds and dates change.
 
 1. Register the business in CEIDG (usually a sole proprietorship, JDG) and pick the tax form with your accountant.
-2. Settle VAT with your accountant: whether the small-business exemption applies to your products, and whether you need OSS registration for sales to consumers in other EU countries (needed once cross-border EU sales pass EUR 10,000 a year).
+2. Settle VAT with your accountant: whether the small-business exemption applies to your products, and whether you need OSS registration for sales to consumers in other EU countries (needed once cross-border EU sales pass EUR 10,000 a year). Add a scheduled job that sums cross-border EU sales for the calendar year from Medusa and alerts you at EUR 8,000, so you register before crossing the threshold.
 3. Write the store terms (regulamin), the 14-day withdrawal right with a return form, the complaints process, and price display rules, including the lowest price from the last 30 days next to any discount. Each market needs them in its own language.
 4. Write the privacy policy. Sign a data processing agreement with every processor: the host, model provider, Langfuse, Stripe, the email service, and each carrier or label broker. Record what you process and how long you keep it.
 5. Tell customers clearly that the chat is an AI, and give them a route to a human.
