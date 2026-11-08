@@ -23,7 +23,7 @@ Everything here is synthetic data and Stripe test mode. Never point these comman
 | After a PR is merged | `pnpm day update` | Switches to `main`, pulls, runs `pnpm install` only if `pnpm-lock.yaml` changed, and applies migrations. Stop `pnpm dev` first, then run `pnpm day start`. |
 | Any time | `pnpm day status` | Shows whether the containers, backend, storefront and `stripe listen` are up. |
 | Before pushing | `pnpm day check` | Runs format check, lint, typecheck, the migrations check and the tests. |
-| After coding | `pnpm day stop` | Stops the containers. Their data stays in the volumes. |
+| After coding | `pnpm day stop` | Stops `pnpm dev`, `stripe listen` and the containers, from any terminal. The container data stays in the volumes. |
 
 Running migrations when nothing is pending does nothing, so `start` and `update` always run them.
 
