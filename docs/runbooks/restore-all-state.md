@@ -198,7 +198,7 @@ Put the private key from Bitwarden in `~/.config/goods-backup.key` (`chmod 600`,
 IMAGE=ghcr.io/tirso0882/goods-backup:<sha>
 docker network create goods-restore
 docker run -d --name goods-restore-pg --network goods-restore -e POSTGRES_PASSWORD=restore \
-  pgvector/pgvector:0.8.7-pg17-bookworm@sha256:ac08538c6f8b9904c33c8224c5e5706dbe760aca29db1d096972b4052c22a75d
+  pgvector/pgvector:0.8.7-pg17-bookworm@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8
 mkdir -p restore-out
 docker run --rm --network goods-restore --user "$(id -u):$(id -g)" -e HOME=/tmp \
   --env-file ~/.config/goods-restore.env \

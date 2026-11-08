@@ -15,10 +15,10 @@ ROOT=$(cd "$HERE/../.." && pwd)
 IMAGE=${IMAGE:-goods-backup:test}
 # Runs the fake Railway API. The node image of apps/backend/Dockerfile: copy
 # its Dependabot bumps here.
-NODE=node:24.21.0-alpine3.24@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+NODE=node:24.22.2-alpine3.24@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85
 # The image Railway and compose.yaml run, so a dump restores into pgvector.
 # Dependabot bumps it in compose.yaml only: copy each bump here.
-PGVECTOR=pgvector/pgvector:0.8.7-pg17-bookworm@sha256:ac08538c6f8b9904c33c8224c5e5706dbe760aca29db1d096972b4052c22a75d
+PGVECTOR=pgvector/pgvector:0.8.7-pg17-bookworm@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8
 RUN=goods-backup-test-$$
 WORK=$(mktemp -d)
 
