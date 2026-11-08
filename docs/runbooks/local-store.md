@@ -13,6 +13,20 @@ Everything here is synthetic data and Stripe test mode. Never point these comman
 | Redis | Docker container `goods-redis`, port 6379 |
 | Stripe webhook route | `localhost:9000/hooks/payment/stripe_stripe` |
 
+## Daily commands
+
+`scripts/day.sh` wraps the steps below. Run it from the repo root:
+
+| When | Command | What it does |
+| --- | --- | --- |
+| Before coding | `pnpm day start` | Switches to the Node version in `.nvmrc`, starts and waits for Postgres and Redis, applies pending migrations, then runs `pnpm dev` with `stripe listen` in the background. Add `--no-stripe` to skip the listener. Ctrl+C stops both. |
+| After a PR is merged | `pnpm day update` | Switches to `main`, pulls, runs `pnpm install` only if `pnpm-lock.yaml` changed, and applies migrations. Stop `pnpm dev` first, then run `pnpm day start`. |
+| Any time | `pnpm day status` | Shows whether the containers, backend, storefront and `stripe listen` are up. |
+| Before pushing | `pnpm day check` | Runs format check, lint, typecheck, the migrations check and the tests. |
+| After coding | `pnpm day stop` | Stops the containers. Their data stays in the volumes. |
+
+Running migrations when nothing is pending does nothing, so `start` and `update` always run them.
+
 ## Start
 
 Run from the repo root, in this order. Medusa fails to boot if Postgres or Redis is down.
