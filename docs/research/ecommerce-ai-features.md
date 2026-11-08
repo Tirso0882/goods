@@ -62,7 +62,7 @@ Don't build this yourself. Use an open-source commerce platform (see stack below
 
 | # | Feature | What it does | Difficulty | Risk | Notes |
 |---|---|---|---|---|---|
-| 8 | **Catalog enrichment agent** | Turns supplier data and photos into titles, descriptions, attributes, and PL/EN translations; you approve before publishing | ★★ | Low (approved before going live) | The "boring P&L" case. A new store needs it from day one. Chosen as the second project |
+| 8 | **Catalog enrichment agent** | Turns supplier data and photos into titles, descriptions, attributes, and PL/EN translations; you approve before publishing | ★★ | Low (approved before going live) | The "boring P&L" case. A new store needs it from day one. Chosen as the second project ([#133](https://github.com/Tirso0882/goods/issues/133), with the product copy rules) |
 | 9 | Review analysis | Summarizes reviews, flags product problems | ★ | Low | Easy win once reviews exist |
 | 10 | Ops copilot | "How did sales go yesterday?" answered from your data | ★★ | Low | Text-to-SQL over your warehouse; fits your Databricks background |
 | 11 | Demand forecasting and stock alerts | Predicts sales, warns before stock runs out | ★★ | Medium | Classic forecasting plus an agent that drafts purchase orders |
