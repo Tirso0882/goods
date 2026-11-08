@@ -18,10 +18,10 @@ name: goods-stack
 
 # Each image line stays under an `image:` key so Dependabot can bump it.
 x-pgvector: &pgvector
-  image: pgvector/pgvector:0.8.7-pg17-bookworm@sha256:ac08538c6f8b9904c33c8224c5e5706dbe760aca29db1d096972b4052c22a75d
+  image: pgvector/pgvector:0.8.7-pg17-bookworm@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8
 
 x-ollama: &ollama
-  image: ollama/ollama:0.40.3@sha256:adca95a12c2b386a8f9a995e7fa0600e187e3323b5e5522f5a6c3b1ec73eff99
+  image: ollama/ollama:0.40.14@sha256:ebaef4f4c5d93660e1f25f8ad085a112f51ccfb0e8458073e71793959dba91c9
 
 # sslmode=disable: Medusa uses SSL for any host but localhost.
 x-database-url: &database-url postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/medusa-goods?sslmode=disable
@@ -74,7 +74,7 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:8.10.2-alpine3.23@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
+    image: redis:8.10.2-alpine3.23@sha256:9f8d2d789b9a1d1e3f283f979aa9cbf393373806472e1ccd460e2f9c869b833b
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redisdata:/data
