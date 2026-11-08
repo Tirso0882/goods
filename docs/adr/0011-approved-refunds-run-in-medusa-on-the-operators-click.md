@@ -1,5 +1,7 @@
 # An approved exception refund runs in Medusa, on the operator's click
 
+> Amended by ADR 0014 on 7 November 2026: an approval can also be decided by a versioned approval policy within its ceiling, which launches at 0 PLN. The agent still never holds a route that can move money.
+
 On 29 October 2026, in the Step 1 design (#101), we decided where the approval boundary sits for money. The agent can only *propose* an exception refund, a refund not tied to a received return. The operator approves or rejects it on a Support page in the Medusa admin. On approval, that same admin route runs Medusa's refund workflow. The agent never holds a route that can move money.
 
 Every refund needs approval, whatever the amount. The roadmap's earlier "refunds above a small limit" wording is dropped. Refunds that complete a return are not the agent's at all: the operator issues them in the Medusa admin after receiving the items.

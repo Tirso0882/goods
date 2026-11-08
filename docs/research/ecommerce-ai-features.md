@@ -55,19 +55,19 @@ Don't build this yourself. Use an open-source commerce platform (see stack below
 | 3 | **Shopping assistant** | Chat that recommends products and adds them to the cart | ★★★ | Low to medium | What the NVIDIA blueprint does. Needs 2 first |
 | 4 | **Visual search** | Upload a photo, get similar products | ★★ | Low | Image embeddings (CLIP-style models) |
 | 5 | **Recommendations** | "You may also like", personalized home page | ★★ | Low | Strongly fits your data engineering skills |
-| 6 | Voice assistant | Browse and ask by voice | ★★★ | Low | In the core roadmap as Step 14: voice in the chat widget first, then a phone-line assessment |
+| 6 | Voice assistant | Browse and ask by voice | ★★★ | Low | Left the core roadmap on 7 November 2026 (ADR 0015). Comes back only as a second project if shoppers need it |
 | 7 | Virtual try-on | See the product on you or in your room | ★★★ | Low | Needs GPUs and 3D or vision work. Skip |
 
 ### C. Back-office AI (running the store)
 
 | # | Feature | What it does | Difficulty | Risk | Notes |
 |---|---|---|---|---|---|
-| 8 | **Catalog enrichment agent** | Turns supplier data and photos into titles, descriptions, attributes, and PL/EN translations; you approve before publishing | ★★ | Low (approved before going live) | The "boring P&L" case. A new store needs it from day one. Chosen as the second project |
+| 8 | **Catalog enrichment agent** | Turns supplier data and photos into titles, descriptions, attributes, and PL/EN translations; you approve before publishing | ★★ | Low (approved before going live) | The "boring P&L" case. A new store needs it from day one. Chosen as the second project ([#133](https://github.com/Tirso0882/goods/issues/133), with the product copy rules) |
 | 9 | Review analysis | Summarizes reviews, flags product problems | ★ | Low | Easy win once reviews exist |
 | 10 | Ops copilot | "How did sales go yesterday?" answered from your data | ★★ | Low | Text-to-SQL over your warehouse; fits your Databricks background |
 | 11 | Demand forecasting and stock alerts | Predicts sales, warns before stock runs out | ★★ | Medium | Classic forecasting plus an agent that drafts purchase orders |
-| 12 | Marketing content agent | Drafts emails, social posts, promotions | ★ | Low (approved) | Human approval before sending |
-| 13 | Pricing suggestions | Proposes price changes from demand and competitors | ★★★ | High (money) | Build last |
+| 12 | Marketing content agent | Drafts emails, social posts, promotions | ★ | Low (approved) | Human approval before sending; planned after catalog enrichment ([#132](https://github.com/Tirso0882/goods/issues/132)) |
+| 13 | Pricing suggestions | Proposes price changes from demand and competitors | ★★★ | High (money) | Build last, never autonomous: a rules engine computes, the model explains, and changes above a threshold need approval |
 
 ### D. Platform (every feature needs these to be production-ready)
 
@@ -92,7 +92,7 @@ Don't build this yourself. Use an open-source commerce platform (see stack below
 | Model access | LiteLLM gateway | Swap between hosted APIs and open-weight models without code changes |
 | Guardrails | NeMo Guardrails | Open source, and used in the NVIDIA blueprint |
 | Tracing and evals | Langfuse Cloud EU plus OpenTelemetry; tau-bench plus pytest | Cost and trace dashboard, evals in CI. Self-host Langfuse later, on separate capacity: its stack needs 16 GB RAM by itself |
-| Infrastructure | Docker, GitHub Actions, [Railway](https://docs.railway.com/) in EU West (Amsterdam) | No Azure access. Chosen on 12 October 2026 over a VPS with Coolify: managed containers, Postgres and Redis, with no server to harden |
+| Infrastructure | Docker Compose locally, GitHub Actions, images in GHCR | No host until the store is mature; pre-production and production on one EU host chosen at go-live (ADR 0016). Railway hosted the test store from 12 October to 7 November 2026 |
 | Local models | Ollama on the laptop RTX 4070 (8 GB VRAM), Nemotron 3 Nano 4B | Embeddings, small models, free eval runs; the main agent uses a hosted API |
 | Synthetic data and agent profiling | NeMo Data Designer, NeMo Agent Toolkit (both Apache 2.0) | Eval conversations in Step 9; token and latency profiling in Step 10 |
 | Payments | Stripe in test mode (not open source, but you shouldn't build payments) | Add Polish methods such as BLIK or Przelewy24 when you go live |

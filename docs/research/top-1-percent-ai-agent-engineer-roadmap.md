@@ -2,9 +2,9 @@
 
 Goal: become a strong AI agent engineer by building a production-grade customer support agent for a Medusa e-commerce store, while reading Chip Huyen's *AI Engineering*. The order of priorities is: the skill first, then public evidence of it, then the store. The same skills should serve three outcomes: an agent engineering job, consulting work, and your own e-commerce business.
 
-Time: 40 project hours a week, Monday to Friday from 10:00 to 18:00. Saturday is a light day of spaced review only (10:00 to 12:30), and Sunday is fully off. The core roadmap runs about 17 weeks, from Monday 28 September 2026 to late January 2027 (shifted two build days after Setup 1 Day 1 slipped, then three weeks when multi-agent, voice, and fine-tuning came into scope, then six more build days after Setup 2 slipped, then about three weeks when the store track took one build day a week from 2 November; see `docs/adr/0004-multi-agent-voice-and-fine-tuning-are-in-scope.md` and `docs/adr/0013-a-store-track-takes-one-build-day-a-week.md`). Product research runs in the background during week 1, alongside the On-ramp. After the core roadmap, run a retro before choosing the pace for the second project.
+Time: 40 project hours a week, Monday to Friday from 10:00 to 18:00. Saturday is a light day of spaced review only (10:00 to 12:30), and Sunday is fully off. The core roadmap runs about 17 weeks, from Monday 28 September 2026 to Thursday 21 January 2027 if no gate slips (shifted two build days after Setup 1 Day 1 slipped, then three weeks when multi-agent, voice, and fine-tuning came into scope, then six more build days after Setup 2 slipped, then about three weeks when the store track took one build day a week from 2 November, then about two and a half weeks earlier when voice and fine-tuning left on 7 November, then about one week later when Step 2 started on 9 November; see `docs/adr/0004-multi-agent-voice-and-fine-tuning-are-in-scope.md`, `docs/adr/0013-a-store-track-takes-one-build-day-a-week.md` and `docs/adr/0015-voice-and-fine-tuning-leave-the-roadmap.md`). Product research runs in the background during week 1, alongside the On-ramp. After the core roadmap, run a retro before choosing the pace for the second project.
 
-The project runs in production with synthetic data and test payments only. Your employer and a Polish lawyer have confirmed you can run the business, so the only remaining blockers for real orders are the business registration, tax, consumer-law, privacy, security, and recovery work in "Before taking real orders" at the end of this file. That work runs in parallel from week 1.
+The project runs locally with synthetic data and test payments only, until it is mature. Then it moves to pre-production, then production, on the same host and runbook (`docs/adr/0016-the-store-is-built-locally-until-it-is-mature.md`). Your employer and a Polish lawyer have confirmed you can run the business, so the only remaining blockers for real orders are the business registration, tax, consumer-law, privacy, security, and recovery work in "Before taking real orders" at the end of this file. That work runs in parallel from week 1.
 
 This roadmap is an execution checklist, not a promise that mistakes are impossible. APIs and installation commands change. Every step therefore has a gate and a learning gate. Do not continue because the calendar says to continue. Continue only when both gates pass and the evidence is committed.
 
@@ -50,7 +50,7 @@ Learning is the first priority, so it has its own structure:
 - **Learning objectives:** every step lists what you should be able to explain or do afterwards.
 - **Learning gate:** every step ends with one. Since 31 October 2026 the agent writes a model answer to it and stores it in `learning/gate-answers/`, and you read it. The deep-stop steps (3, 4, 6, 7, 9 and 13: evals, idempotency, RAG, synthetic data and multi-agent) also need the gate explained back without notes; if you can't, spend the next learning block there before starting the next step. `learning/learning-gates.md` lists every step's topics, mode and answer.
 - **Explain-back:** every weekly progress note has one. It takes each concept from the week and shows where it appears in your own code.
-- **`/teach` workspace:** `learning/` in this repo. Open it in a separate editor window when studying. It holds the mission, lessons, reference sheets, and learning records for the Huyen chapters, Node and Medusa, and Railway operations.
+- **`/teach` workspace:** `learning/` in this repo. Open it in a separate editor window when studying. It holds the mission, lessons, reference sheets, and learning records for the Huyen chapters, Node and Medusa, and operations.
 - **Spaced review:** on the light day, redo quizzes and explain-backs from two and four weeks earlier.
 
 ### Required evidence for every week
@@ -77,7 +77,7 @@ Stop adding features and fix the problem when any of these is true:
 
 - a write tool can run without verified customer identity;
 - a retry can repeat a return, address change, refund, or other mutation;
-- the agent can execute a refund without recorded human approval;
+- a refund can run without a recorded approval by the operator, or by a merged approval policy version within its ceiling (`docs/adr/0014-approvals-are-decided-by-the-operator-or-a-versioned-policy.md`);
 - a failed eval is dismissed without a written reason;
 - real orders are about to start and durable state has not been backed up and restored successfully ([#19](https://github.com/Tirso0882/goods/issues/19));
 - deployment requires an undocumented manual change;
@@ -146,22 +146,22 @@ Keep `.env`, private keys, database dumps, Langfuse exports, and model-provider 
 
 Background research from NVIDIA's [retail resources](https://resources.nvidia.com/en-us-resources-for-retail-practitioner/), the broader feature list, and the platform comparison are in `ecommerce-ai-features.md` in this folder.
 
-Version-sensitive commands and compatibility findings were checked against primary sources on 25 September 2026. The source notes are in `roadmap-platform-verification-notes.md` in this folder. Recheck them with `/research` before Step 8 (LangGraph), Step 10 (NeMo Agent Toolkit), Step 11 (NeMo Guardrails), Step 13 (LangGraph multi-agent), Step 14 (speech providers and voice frameworks), and Step 15 (fine-tuning tools and hosted fine-tuning). Nothing in Steps 13 to 15 has been verified against primary sources yet.
+Version-sensitive commands and compatibility findings were checked against primary sources on 25 September 2026. The source notes are in `roadmap-platform-verification-notes.md` in this folder. Recheck them with `/research` before Step 8 (LangGraph), Step 10 (NeMo Agent Toolkit), Step 11 (NeMo Guardrails), and Step 13 (LangGraph multi-agent). Nothing in Step 13 has been verified against primary sources yet.
 
 ## Stack
 
 - **Store:** [Medusa](https://docs.medusajs.com/learn/installation): a Node.js backend with an admin dashboard, plus the Next.js Starter Storefront. Needs Node v20.19+ or v22.12+ (v24 LTS or lower with the storefront) and PostgreSQL.
 - **Agent service:** Python 3.12, FastAPI, LangChain's `create_agent` on LangGraph (from Step 2, ADR 0012; durable approval in Step 8; multi-agent experiment in Step 13), LiteLLM.
 - **Chat widget:** assistant-ui in the Next.js storefront (Step 2).
-- **Voice (Step 14):** a cascaded pipeline inside the agent service: speech-to-text, the same agent, then text-to-speech. Candidates to verify with `/research`: an EU-processing hosted speech provider (for example Mistral's Voxtral for speech-to-text), an open-source pipeline framework (for example Pipecat or LiveKit Agents), and local open models on the laptop GPU for development (for example faster-whisper and Piper). Pick in an ADR.
-- **Fine-tuning (Step 15):** LoRA or QLoRA on a small open-weight model on the laptop GPU, with Hugging Face TRL and PEFT or Unsloth. Hosted fine-tuning on an EU provider is the production option if the experiment wins.
+- **Agent core and commerce port:** the agent service is a FastAPI shell over a separate `agent-core` Python package. It reaches the store through a commerce port written in OpenAPI, whose first adapter is the Medusa support routes, packaged as a Medusa v2 plugin under `adapters/medusa` from Step 6 (`docs/adr/0019-the-agent-reaches-commerce-through-a-port.md`).
 - **Data:** PostgreSQL. Medusa owns store data; the agent keeps its own tables in a separate schema. pgvector for FAQ search.
 - **Quality and safety:** tau-bench plus pytest evals, Langfuse tracing, NeMo Guardrails.
 - **NVIDIA open-source tools (all Apache 2.0):**
   - [NeMo Guardrails](https://github.com/NVIDIA/NeMo-Guardrails): input and output checks, topic control, jailbreak detection. Step 11.
   - [NeMo Data Designer](https://github.com/NVIDIA-NeMo/DataDesigner): generates synthetic customer conversations with validators and an LLM judge. Step 9.
   - [NeMo Agent Toolkit](https://github.com/NVIDIA/NeMo-Agent-Toolkit): works with LangGraph; profiles agents down to tokens, runs evaluations, and tunes prompts. Adopt in Step 10, after you've built your own eval harness.
-- **NVIDIA open-weight models:** Nemotron 3 Nano 4B for local development ([Ollama](https://ollama.com/library/nemotron-3-nano), about 2.8 GB). The 30B version needs about 24 GB, so it won't fit your GPU.
+- **NVIDIA open-weight models:** Nemotron 3 Nano 4B on the laptop for local development and cheap, repeated eval loops ([Ollama](https://ollama.com/library/nemotron-3-nano), about 2.8 GB). The 30B version needs about 24 GB, so it won't fit your GPU.
+- **Vision and translation:** the hosted multimodal model, through LiteLLM like every other model call. No separate vision or translation service.
 - **Models (hosted, no GPU needed in production):**
   - Primary: Claude Sonnet on [Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/geographic-cross-region-inference.html) with the EU geographic inference profile, so inference stays in EU regions. Self-serve, pay per token, strong tool use. Create a dedicated IAM user that can only invoke Bedrock models, and set an AWS budget alert first.
   - EU-jurisdiction alternative: [Mistral La Plateforme](https://docs.mistral.ai/). EU-hosted by default, and the provider is outside US jurisdiction. Paid plans are opted out of training by default.
@@ -169,12 +169,13 @@ Version-sensitive commands and compatibility findings were checked against prima
   - Keep build.nvidia.com for dev-only experiments. The NeMo tools above are CPU-friendly Python libraries and do not depend on NVIDIA hosting.
 - **Not using:**
   - Azure Container Apps: no Azure access.
-  - A self-managed VPS with Coolify: the plan until 12 October 2026. Railway removes server hardening and patching from the roadmap. If you later need an EU-owned provider, the options are a VPS with Coolify or Scaleway Serverless Containers.
+  - Any host before the store is mature (ADR 0016). Railway hosted the test store from 12 October to 7 November 2026, when the account was deleted. The go-live host is chosen in a new ADR; candidates include a VPS with Coolify and Scaleway Serverless Containers.
   - NIM containers: not open source. Free for development and testing only; production needs an NVIDIA AI Enterprise license, from $4,500 per GPU per year ([NIM FAQ](https://docs.api.nvidia.com/nim/docs/product)). Your production server has no GPU anyway.
-  - Milvus with cuVS, TensorRT-LLM, Dynamo, Riva, Omniverse: built for GPU-scale serving, speech, or 3D, so they're overkill here. Voice in Step 14 uses hosted speech APIs instead of self-hosted Riva, because the production server has no GPU.
+  - Milvus with cuVS, TensorRT-LLM, Dynamo, Riva, Omniverse: built for GPU-scale serving, speech, or 3D, so they're overkill here. Voice and fine-tuning left the roadmap (ADR 0015), so no speech provider either.
+  - Contentful and Meilisearch: storefront content stays as Markdown per locale in the repo, and search stays on Medusa's Postgres search module (`docs/adr/0017-storefront-content-stays-in-git-and-search-stays-on-medusa.md`).
   - LangSmith: proprietary. Self-hosting is an Enterprise-plan add-on ([LangSmith docs](https://docs.langchain.com/langsmith/self-hosted)). Keep Langfuse.
 - **Reference to read:** NVIDIA's [retail shopping assistant blueprint](https://github.com/NVIDIA-AI-Blueprints/retail-shopping-assistant), which uses the same FastAPI, LangGraph, and NeMo Guardrails pattern.
-- **Infrastructure:** Docker, GitHub Actions, and [Railway](https://docs.railway.com/) (managed containers, Postgres, Redis and volumes) in its EU West region. Stripe in test mode for payments.
+- **Infrastructure:** Docker Compose on the laptop, GitHub Actions, and commit-SHA images in GHCR. No host until the go-live gate (ADR 0016). Stripe in test mode for payments.
 
 ## Where things run
 
@@ -198,26 +199,23 @@ Version-sensitive commands and compatibility findings were checked against prima
   - free repeated eval runs;
   - embeddings;
   - the "cheaper model for simple requests" experiment in Step 10;
-  - local speech-to-text and text-to-speech during Step 14 development;
-  - QLoRA fine-tuning of a small model in Step 15. Prove it fits in VRAM with a short run before planning around it.
 - Use one hosted model API for the main agent. Small local models are much weaker at multi-step tool use, and your production server has no GPU.
 - LiteLLM routes to local or hosted models with the same code.
 
-**Production: one Railway project in EU West**
+**Later: pre-production, then production, on one host**
 
-- A Railway project in EU West Metal (Amsterdam, `europe-west4-drams3a`). Railway bills per minute for RAM and CPU on top of the plan fee ([plans](https://docs.railway.com/reference/pricing/plans)). Medusa alone needs at least 2 GB ([Medusa deployment guide](https://docs.medusajs.com/learn/deployment/general)). Measure memory and load-test checkout plus agent traffic before fixing the monthly budget.
-- What runs there, one Railway service each, on private networking (`*.railway.internal`):
-  - Medusa in server mode and in worker mode (the deployment guide requires both), from the commit-SHA images in GHCR;
-  - storefront;
-  - agent;
-  - Postgres with pgvector, on a volume, with no public access;
-  - Redis, on a volume, with no public access.
-- Medusa production modules from its deployment guide: Redis for caching, the event bus, the workflow engine, and locking; S3 for files.
-- S3-compatible object storage in the EU, for Medusa files and off-platform database backups. Railway Buckets are private only and have no versioning, so pick the provider in the hosting ADR.
-- GitHub Actions runs evals and builds commit-SHA-tagged images to GitHub Container Registry, then sets each Railway service to the new image through Railway's API. Test that path before claiming that merge deploys automatically.
-- Tracing in production: start with Langfuse Cloud in its EU region. Self-host only on separate capacity later. Its current Compose deployment recommends at least 4 CPU cores, 16 GB RAM, and about 100 GB storage.
-- Uptime monitoring runs outside Railway, so it still alerts when Railway is down.
-- GDPR: Railway is a US company with a self-service DPA, and it stores all service logs in US West for 90 days, client IPs included. Keep personal data out of logs.
+Nothing is hosted until the store is mature (ADR 0016). At the go-live gate, a new ADR picks one EU host, and pre-production and production run there from the same runbook:
+
+- Medusa in server mode and in worker mode (the [deployment guide](https://docs.medusajs.com/learn/deployment/general) requires both), the storefront and the agent, from the commit-SHA images in GHCR, on a private network;
+- Postgres with pgvector and Redis, on volumes, with no public access;
+- Medusa production modules from its deployment guide: Redis for caching, the event bus, the workflow engine, and locking; S3 for files, in Cloudflare R2 EU-jurisdiction buckets (ADR 0006);
+- pre-production in front of production, so a broken release stops there ([#84](https://github.com/Tirso0882/goods/issues/84)); production gets its own project or environment and its own deploy token;
+- tracing in Langfuse Cloud in its EU region; self-host only on separate capacity later. Its current Compose deployment recommends at least 4 CPU cores, 16 GB RAM, and about 100 GB storage;
+- uptime monitoring outside the host, so it still alerts when the host is down;
+- GDPR: check the host's DPA and where it stores logs before choosing it. Keep personal data out of logs either way.
+
+Until then, CI builds and publishes the images, and proves them by starting them in Compose and running the smoke test ([#125](https://github.com/Tirso0882/goods/issues/125)). The deploy, smoke and rollback jobs stay off while the repository variable `DEPLOY_ENABLED` is unset.
+
 - Not open source, and fine to use: the model API, Stripe, and a transactional email service. Don't self-host email.
 
 Repo layout: one monorepo, created by `create-medusa-app`:
@@ -230,7 +228,7 @@ Repo layout: one monorepo, created by `create-medusa-app`:
 ## Rules
 
 1. Nothing counts unless it changes a number in your eval report.
-2. One agent through Step 12. Step 13 builds a multi-agent version as an experiment, and it replaces the single agent only if the eval report proves it's worth the cost. A losing result is kept as evidence, not hidden.
+2. One agent through Step 12. Step 13 builds a multi-agent version as an experiment, and it replaces the single agent only if the eval report proves it's worth the cost. A losing result is kept as evidence, not hidden. Even a win doesn't make multi-agent the template's default, and the back-office agents (catalog, marketing, operations) are separate jobs that need no supervisor.
 3. If a week slips, move the schedule. Never skip the eval steps.
 
 ## Reading list (nothing else during the core roadmap)
@@ -246,7 +244,7 @@ Huyen's book follows the reading track below. The other items are named in each 
 - [tau-bench paper](https://arxiv.org/abs/2406.12045) and [repo](https://github.com/sierra-research/tau2-bench) (use its `retail` domain as your benchmark)
 - Designing Data-Intensive Applications, 2nd edition: only the topics listed in the schedule
 - [Google SRE book, Handling Overload](https://sre.google/sre-book/handling-overload/)
-- Official docs, only the parts each step names: [Medusa](https://docs.medusajs.com/learn/customization), LangChain's `create_agent` middleware, assistant-ui, [LangGraph persistence and interrupts](https://docs.langchain.com/oss/python/langgraph/persistence), LangGraph multi-agent, [Railway](https://docs.railway.com/), NeMo Data Designer, NeMo Agent Toolkit, NeMo Guardrails, the chosen speech provider and voice framework, and the chosen fine-tuning library.
+- Official docs, only the parts each step names: [Medusa](https://docs.medusajs.com/learn/customization), LangChain's `create_agent` middleware, assistant-ui, [LangGraph persistence and interrupts](https://docs.langchain.com/oss/python/langgraph/persistence), LangGraph multi-agent, NeMo Data Designer, NeMo Agent Toolkit, and NeMo Guardrails.
 
 ## Book reading track
 
@@ -265,22 +263,23 @@ Priority, highest first: ch. 6, 4, 3, 5, 10, 2, 8, 1, 9, 7.
 | 7 | 5. Prompt Engineering | 2 to 4 Nov | Defensive Prompt Engineering; Organize and Version Prompts | Step 5 |
 | 8 | 8. Dataset Engineering | 5 to 6 Nov | Data Coverage; Acquisition and Annotation; AI-Powered Data Synthesis; Deduplicate Data | Step 4 hand labels; Step 9 |
 | 9 | 9. Inference Optimization | 9 to 10 Nov | Inference Performance Metrics; Inference Service Optimization | Step 10 |
-| 10 | 7. Finetuning | 11 to 12 Nov | When to Finetune; Finetuning and RAG. Skim the rest; the full chapter is read in Step 15 | Step 7 "RAG instead of finetuning" ADR; Step 15 |
+| 10 | 7. Finetuning | 11 to 12 Nov | When to Finetune; Finetuning and RAG. Skim the rest; fine-tuning left the roadmap (ADR 0015) | Step 7 "RAG instead of finetuning" ADR |
 
-From 13 November the block becomes a spaced second read of the sections the current step uses:
+From 16 November the block becomes a spaced second read of the sections the current step uses:
 
 | Dates | Second read | For |
 |---|---|---|
-| 13 to 16 Nov | Ch. 6 RAG and Memory | Step 7 |
-| 17 to 19 Nov | Ch. 6 Agents: planning and failure modes | Step 8 |
-| 20 to 23 Nov | Ch. 8 Data Augmentation and Synthesis; Data Processing | Step 9 |
-| 24 to 26 Nov | Ch. 9 service optimization; ch. 10 router, gateway, and caches | Step 10 |
-| 27 to 30 Nov | Ch. 10 Put in Guardrails; ch. 5 Defensive Prompt Engineering | Step 11 |
-| 1 to 3 Dec | Ch. 10 Monitoring and Observability; User Feedback | Step 12 |
-| 4 to 10 Dec | Ch. 6 Agents: planning, multi-agent, and failure modes; ch. 4 Model Selection | Step 13 multi-agent experiment |
-| 11 to 17 Dec | Ch. 9 Inference Performance Metrics (latency budgets); ch. 10 Put in Guardrails | Step 14 voice |
-| 18 to 24 Dec | Ch. 7 in full (memory math, PEFT and LoRA, model merging); ch. 8 Data Coverage again | Step 15 fine-tuning |
-| 25 to 31 Dec | All chapter summaries and your explain-backs | Step 16 case study and walkthrough |
+| 16 to 23 Nov | Ch. 3 Exact Evaluation; ch. 4 Design Your Evaluation Pipeline; ch. 8 Acquisition and Annotation | Steps 3 and 4 |
+| 24 to 25 Nov | Ch. 5 Defensive Prompt Engineering; Organize and Version Prompts | Step 5 |
+| 26 Nov to 2 Dec | Ch. 6 Agents: tools and failure modes | Step 6 |
+| 3 to 7 Dec | Ch. 6 RAG and Memory | Step 7 |
+| 8 to 14 Dec | Ch. 6 Agents: planning and failure modes | Step 8 |
+| 15 to 16 Dec | Ch. 8 Data Augmentation and Synthesis; Data Processing | Step 9 |
+| 17 to 22 Dec | Ch. 9 service optimization; ch. 10 router, gateway, and caches | Step 10 |
+| 28 to 29 Dec | Ch. 10 Put in Guardrails; ch. 5 Defensive Prompt Engineering | Step 11 |
+| 30 Dec to 5 Jan | Ch. 10 Monitoring and Observability; User Feedback | Step 12 |
+| 7 to 14 Jan | Ch. 6 Agents: planning, multi-agent, and failure modes; ch. 4 Model Selection | Step 13 multi-agent experiment |
+| 18 to 21 Jan | All chapter summaries and your explain-backs | Step 14 case study and walkthrough |
 
 ## What the agent may do
 
@@ -288,7 +287,7 @@ From 13 November the block becomes a spaced second read of the sections the curr
 |---|---|---|
 | Read only | Order status, product questions, shipping policy | Agent alone |
 | Low-risk write | Update address before shipping, start a return | Agent alone, logged |
-| Money or irreversible | Every refund whatever the amount, cancellations after shipping, credits | Agent proposes exception refunds, you approve, and Medusa runs the refund on your approval (ADR 0011) |
+| Money or irreversible | Every refund whatever the amount, cancellations after shipping, credits | Agent proposes exception refunds; you, or the approval policy within its ceiling, approve; Medusa runs the refund on that approval (ADR 0011, ADR 0014). The ceiling launches at 0 PLN |
 | Out of policy or upset customer | Complaints, legal threats, anything unclear | Hand off to a human |
 
 Tell customers they're talking to an AI (EU AI Act requirement).
@@ -304,7 +303,7 @@ Verify the customer (email plus order number, or logged-in session) before any w
 | `search_faq` | Read | pgvector over policy and FAQ docs |
 | `request_return` | Low-risk write | Uses Medusa's return flow; idempotency key |
 | `update_shipping_address` | Low-risk write | Only before fulfillment |
-| `propose_refund` | Needs approval | Creates an approval request. Medusa runs the refund on your approve click; the agent never can (ADR 0011) |
+| `propose_refund` | Needs approval | Creates an approval request. Medusa runs the refund on your approve click, or on the approval policy's decision within its ceiling; the agent never can (ADR 0011, ADR 0014) |
 | `hand_off_to_human` | None | Opens a case for you with a summary |
 
 ## Metrics to track from Step 2
@@ -372,7 +371,7 @@ Store raw machine-readable results separately from the summary. Remove or mask p
 6. **Failure plan:** model call fails, tool fails, worker crashes mid-refund, approval never answered.
 7. **Budgets:** max turns, tokens, and retries per conversation (retries: max 3 per request).
 8. **Metrics:** the three numbers above.
-9. **Build order and out of scope:** build one agent, text only, with no fine-tuned model through Step 12. Multi-agent (Step 13), voice (Step 14), and fine-tuning (Step 15) come after the single agent is hardened, each against the frozen baseline. Write down now which metrics each of them must beat.
+9. **Build order and out of scope:** build one agent, text only, through Step 12. Multi-agent (Step 13) comes after the single agent is hardened, against the frozen baseline. Write down now which metrics it must beat. Voice and fine-tuning are out (ADR 0015).
 
 ```mermaid
 flowchart LR
@@ -404,21 +403,24 @@ Steps run back to back and can cross week boundaries. The detailed plan below de
 | 1 | 28 Sep to 3 Oct | Research (in the background), On-ramp, start of Setup 1 | Book ch. 1 and 2; [Medusa customization](https://docs.medusajs.com/learn/customization); the four research reports |
 | 2 | 5 to 10 Oct | End of Setup 1 Day 1 (slipped two build days), rest of Setup 1 | Book ch. 3; [Medusa installation](https://docs.medusajs.com/learn/installation); Stripe testing docs |
 | 3 | 12 to 17 Oct | Setup 2 (catch-up begins Friday after the gate slipped) | Book ch. 4 and 10 (day 1); [Medusa deployment guide](https://docs.medusajs.com/learn/deployment/general); [Railway docs](https://docs.railway.com/) |
-| 4 | 19 to 24 Oct | Setup 2 catch-up and gate (slipped six build days from 15 Oct) | Railway runbooks; restore drill evidence |
-| 5 | 26 to 31 Oct | Step 1, Step 2 | Book ch. 10 (days 2 to 3) and 6; "Building effective agents"; OpenAI guide |
-| 6 | 2 to 7 Nov | Step 3, Step 4, start of Step 5 | Book ch. 5, 8; first half then rest of "Demystifying evals" |
-| 7 | 9 to 14 Nov | End of Step 5, Step 6, start of Step 7 | Book ch. 9 and 7, then second reads of ch. 6; "Writing effective tools"; DDIA on transactions |
-| 8 | 16 to 21 Nov | End of Step 7, Step 8, start of Step 9 | Second reads of ch. 6 and 8; LangGraph persistence and interrupt docs; Data Designer docs |
-| 9 | 23 to 28 Nov | End of Step 9, Step 10, start of Step 11 | Second reads of ch. 9, 10, and 5; SRE Handling Overload; Guardrails docs |
-| 10 | 30 Nov to 5 Dec | End of Step 11, Step 12, start of Step 13 | Second reads of ch. 10 and 6; DDIA on consistency and derived data; the two multi-agent posts |
-| 11 | 7 to 12 Dec | End of Step 13, start of Step 14 | Second reads of ch. 4, 9, and 10; LangGraph multi-agent docs; speech provider and voice framework docs |
-| 12 | 14 to 19 Dec | End of Step 14, start of Step 15 | Ch. 7 in full; fine-tuning library docs |
-| 13 | 21 to 26 Dec | End of Step 15, start of Step 16 | Ch. 8 again; chapter summaries |
-| 14 | 28 to 31 Dec | End of Step 16, retro | Your explain-backs |
+| 4 | 19 to 24 Oct | Setup 2 catch-up and gate (slipped six build days from 15 Oct) | Hosting runbooks; restore drill evidence |
+| 5 | 26 to 31 Oct | Step 1 | Book ch. 10 (days 2 to 3) and 6; "Building effective agents"; OpenAI guide |
+| 6 | 2 to 7 Nov | Store track planning (#107), the 7 November plan assessment (ADRs 0014 to 0019) | Book ch. 5 and 8 |
+| 7 | 9 to 14 Nov | Step 2 (11 Nov is a holiday) | Book ch. 9 and 7; "Building effective agents"; OpenAI guide |
+| 8 | 16 to 21 Nov | End of Step 2, Step 3, start of Step 4 | Second reads of ch. 3 and 4; "Demystifying evals" |
+| 9 | 23 to 28 Nov | End of Step 4, Step 5, start of Step 6 | Second reads of ch. 8 and 5 |
+| 10 | 30 Nov to 5 Dec | End of Step 6, start of Step 7 | Second read of ch. 6 (tools); "Writing effective tools"; DDIA on transactions |
+| 11 | 7 to 12 Dec | End of Step 7, most of Step 8 | Second read of ch. 6; LangGraph persistence and interrupt docs |
+| 12 | 14 to 19 Dec | End of Step 8, Step 9, start of Step 10 | Second reads of ch. 8 and 9; Data Designer docs |
+| 13 | 21 to 26 Dec | End of Step 10 (24 and 25 Dec are holidays) | Second read of ch. 10; SRE Handling Overload |
+| 14 | 28 Dec to 2 Jan | Step 11, start of Step 12 (1 Jan is a holiday) | Second reads of ch. 10 and 5; Guardrails docs |
+| 15 | 4 to 9 Jan | End of Step 12, start of Step 13 (6 Jan is a holiday) | Second read of ch. 10; DDIA on consistency and derived data |
+| 16 | 11 to 16 Jan | Step 13 | Second reads of ch. 6 and 4; the two multi-agent posts; LangGraph multi-agent docs |
+| 17 | 18 to 23 Jan | Step 14, retro | Chapter summaries; your explain-backs |
 
-These dates predate the store track. From week 6, each week has four agent build days, so the agent steps take about a quarter longer and the end moves to late January 2027. Shift the dates as gates pass.
+Replanned on 8 November 2026 from where the work stands: Step 1 finished in week 5, and Step 2 starts on 9 November. Agent steps take Monday to Thursday and the store track takes Friday, or the last working day of a week with a holiday. Polish public holidays are build days off. Step lengths in agent build days: Step 2 four, Steps 3, 4, 5, 7, 9 and 11 two each, Steps 6 and 8 four, Steps 10 and 12 three, Step 13 five, Step 14 four. Steps 2, 6 and 8 each gained a day on 7 November for the commerce port, the plugin and contract suite, and the approval policy (ADRs 0014 and 0019). There is no slack: Setup 1 and Setup 2 slipped 2 and 6 build days, so shift the dates as gates pass.
 
-Slow down if you're skipping evals or learning gates, or if Steps 6 to 8 run past the end of week 8. Steps 13 to 15 are five build days each. Do not start them until Step 12's gate passes.
+Slow down if you're skipping evals or learning gates, or if Steps 6 to 8 run past the end of week 12. Step 13 is five build days. Do not start it until Step 12's gate passes.
 
 ## Detailed execution plan
 
@@ -568,6 +570,8 @@ This step runs in the background during the On-ramp. Background agents do the so
 
 ### Setup 2: reproducible environments and deployment
 
+Setup 2 ran on Railway, and its gate passed there. The Railway account was deleted on 7 November 2026 (ADR 0016), so the Railway parts below are a record of what was built and learned, not current instructions. The deploy, rollback and restore drills run again on the go-live host.
+
 **Outcome:** a clean machine can run the local stack, and a tested trigger can deploy the test store over HTTPS. Backups and the restore drill moved to "Before taking real orders" on 28 October 2026 ([#19](https://github.com/Tirso0882/goods/issues/19)): the store holds only synthetic data until then.
 
 **Learning objectives:**
@@ -702,7 +706,7 @@ Items 1 to 9 moved to "Before taking real orders" on 28 October 2026 ([#19](http
 
 ### Step 2: build the thinnest end-to-end agent
 
-**Outcome:** a deployed chat can verify a synthetic customer, fetch one order through Medusa's API, answer with evidence, and produce the first baseline report.
+**Outcome:** a running chat, in the local Compose stack, can verify a synthetic customer, fetch one order through the commerce port's Medusa adapter, answer with evidence, and produce the first baseline report.
 
 **Learning objectives:**
 
@@ -717,26 +721,28 @@ Items 1 to 9 moved to "Before taking real orders" on 28 October 2026 ([#19](http
 
 **Steps:**
 
-1. Add `apps/agent` with a pinned Python version, lockfile, FastAPI, typed settings, and `/health/live` plus `/health/ready`.
-2. Add unit-test, lint, format, and type-check commands to CI.
-3. Use LangChain's message and tool-call types. Add only the usage and error records the eval report needs.
-4. Configure LiteLLM with one hosted model. Set a strong `LITELLM_MASTER_KEY`, explicit timeouts, and no automatic write retries.
-5. Give LiteLLM PostgreSQL-backed state before relying on virtual keys, spend tracking, or enforceable budgets. Generate `LITELLM_SALT_KEY` once, store it as durable recovery material, and never rotate it casually because it protects stored provider credentials.
-6. Build the loop with LangChain's `create_agent`, which runs on LangGraph, not a hand-written loop that Step 8 would replace (ADR 0012):
+1. Add `apps/agent` as a FastAPI shell with a pinned Python version, lockfile, typed settings, and `/health/live` plus `/health/ready`. The agent loop and tools live in a separate `agent-core` package that the shell imports, so the core is reusable on another platform (ADR 0019).
+2. Write the commerce port's contract in OpenAPI for the first two operations, verify a shopper and get one order, before their tools exist. The Medusa support routes implement it.
+3. Add unit-test, lint, format, and type-check commands to CI.
+4. Use LangChain's message and tool-call types. Add only the usage and error records the eval report needs.
+5. Configure LiteLLM with one hosted model. Set a strong `LITELLM_MASTER_KEY`, explicit timeouts, and no automatic write retries.
+6. Give LiteLLM PostgreSQL-backed state before relying on virtual keys, spend tracking, or enforceable budgets. Generate `LITELLM_SALT_KEY` once, store it as durable recovery material, and never rotate it casually because it protects stored provider credentials.
+7. Build the loop with LangChain's `create_agent`, which runs on LangGraph, not a hand-written loop that Step 8 would replace (ADR 0012):
    1. accept a message and load the case;
    2. call the model through a LangChain chat model pointed at the LiteLLM proxy, with the read tools only;
    3. enforce the budgets in `docs/design.md`: the model call limit and tool call limit middleware for each message, a wall-clock timeout, and the case's message and token totals;
    4. retry the read tools only, with the tool retry middleware limited to them;
    5. validate structured output;
    6. persist trace metadata.
-7. Implement `verify_customer` and `get_order` as typed wrappers around Medusa APIs.
-8. Ensure `get_order` returns only data belonging to the verified customer.
-9. Return a safe generic error for failed verification. Do not reveal whether an unrelated order exists.
-10. Add the chat widget with assistant-ui instead of building one: AI disclosure, message history, loading state, retry state, and human handoff message. The browser talks only to the storefront server, which calls the agent (`docs/design.md`), so use assistant-ui's runtime for your own server.
-11. Propagate one correlation ID from browser to agent, tool wrapper, and trace.
-12. Redact credentials and unnecessary customer fields before tracing.
-13. Create 10 deterministic cases across success, failed identity, unknown order, cross-customer access, provider timeout, and malformed output.
-14. Clone tau2-bench into its own Python 3.12 `uv` project boundary and pin the benchmark commit. Its LiteLLM constraints can conflict with the agent's dependencies.
+8. Implement `verify_customer` and `get_order` as typed clients of the port contract, never of Medusa's types.
+9. Ensure `get_order` returns only data belonging to the verified customer.
+10. Return a safe generic error for failed verification. Do not reveal whether an unrelated order exists.
+11. Add the chat widget with assistant-ui instead of building one: AI disclosure, message history, loading state, retry state, and human handoff message. The browser talks only to the storefront server, which calls the agent (`docs/design.md`), so use assistant-ui's runtime for your own server.
+12. Rate-limit the chat endpoint by IP and put Cloudflare Turnstile in front of it, before the agent spends a model call. This moved here from Step 12: chat abuse burns model budget and identity guesses from the first running chat.
+13. Propagate one correlation ID from browser to agent, tool wrapper, and trace.
+14. Redact credentials and unnecessary customer fields before tracing.
+15. Create 10 deterministic cases across success, failed identity, unknown order, cross-customer access, provider timeout, and malformed output.
+16. Clone tau2-bench into its own Python 3.12 `uv` project boundary and pin the benchmark commit. Its LiteLLM constraints can conflict with the agent's dependencies.
 
     ```bash
     git clone https://github.com/sierra-research/tau2-bench
@@ -748,12 +754,12 @@ Items 1 to 9 moved to "Before taking real orders" on 28 October 2026 ([#19](http
 
     Clone it outside the Medusa monorepo unless you deliberately manage it as a pinned submodule.
 
-15. Run the unmodified tau2 retail smoke benchmark as an external learning baseline. Do not report it as proof that the Medusa agent works.
-16. If you later build an adapter, keep it separate and continue using Medusa-native tests to validate actual tool arguments and final commerce state.
-17. Run five trials per Medusa-native case and publish the first eval report.
-18. Deploy the agent next to the test store and rerun smoke tests over HTTPS.
+17. Run the unmodified tau2 retail smoke benchmark as an external learning baseline. Do not report it as proof that the Medusa agent works.
+18. If you later build a tau2 adapter, keep it separate and continue using Medusa-native tests to validate actual tool arguments and final commerce state.
+19. Run five trials per Medusa-native case and publish the first eval report.
+20. Add the agent to the Compose stack next to the store and rerun the smoke tests against it. Nothing is hosted until go-live (ADR 0016).
 
-**Gate:** cross-customer access always fails, no write tool exists yet, all budgets terminate correctly, and the baseline report contains the required metadata.
+**Gate:** cross-customer access always fails, no write tool exists yet, all budgets terminate correctly, the chat endpoint rejects traffic over its rate limit or without a Turnstile token, and the baseline report contains the required metadata.
 
 **Learning gate:** without notes, explain every stage of your agent loop and the budget that stops it, and why the tau2 retail score says nothing about the Medusa agent.
 
@@ -780,6 +786,7 @@ Items 1 to 9 moved to "Before taking real orders" on 28 October 2026 ([#19](http
 8. Add at least 20 cases, with extra weight on access-control and failure paths.
 9. Run the accepted baseline five times.
 10. Add CI in report-only mode while thresholds stabilize.
+11. Keep the eval harness in its own `evals` package that depends only on the commerce port, never on Medusa, so the same suite can run against another adapter (ADR 0019).
 
 **Gate:** the same stored result produces the same deterministic score on repeated scoring runs.
 
@@ -864,6 +871,12 @@ Items 1 to 9 moved to "Before taking real orders" on 28 October 2026 ([#19](http
 - Anthropic's "Writing effective tools for agents";
 - DDIA sections on transactions, retries, and idempotence.
 
+**Before the first write tool:**
+
+1. Enable OpenTelemetry in `apps/backend/instrumentation.ts`, so one correlation ID follows a request from the agent through the support route into the Medusa workflow.
+2. Move the support routes, the approvals module and the Support page into a Medusa v2 plugin under `adapters/medusa` (ADR 0019).
+3. Add the approval policy as versioned YAML with the first policy table, its ceiling at 0 PLN (ADR 0014).
+
 **Build one tool at a time. For each tool, follow this sequence:**
 
 1. Write the policy table: required identity, allowed order states, required inputs, prohibited inputs, side effect, retry behavior, and customer response.
@@ -900,6 +913,8 @@ For every write:
 3. Time out after Medusa accepts the request but before the agent receives the response.
 4. Restart the agent between reservation and completion.
 5. Change order state immediately before execution.
+
+Write the five fault tests as a contract suite against the commerce port, so any later adapter must pass them too.
 
 **Gate:** each requested business operation happens zero or one time as policy requires. No model retry can duplicate it.
 
@@ -969,13 +984,16 @@ For every write:
 3. Add the approval interrupt to the Step 2 agent, which already runs on LangGraph (ADR 0012), without changing tool semantics.
 4. Use a production-suitable persistent checkpointer such as LangGraph's PostgreSQL saver, not `InMemorySaver`. Use a UUID for `thread_id` and keep it under the documented 255-character limit.
 5. Keep model messages serializable, set checkpoint retention, and version the stored state schema.
-6. Implement `propose_refund`. It creates an approval record but cannot execute a refund.
-7. Store proposal amount, currency, reason, order, policy evidence, requester, created time, expiration, and status.
-8. Build an authenticated approval interface. Record approver identity and decision time.
-9. On approval, the Medusa approve route re-reads the order and payment state, validates amount and policy again, checks no refund already carries the approval ID, then executes through Medusa's refund workflow (ADR 0011). The agent never executes the refund.
-10. On rejection or expiration, produce no money movement.
-11. Ensure only one approve request can claim an approval, and that a recovery job settles approvals that were claimed but never reported.
-12. Add migration handling for checkpoints created by the previous app version.
+6. Make the approvals module generic: type, payload, policy version, decision actor (`operator` or `policy`), ceiling and expiry (ADR 0014). Refunds are the first type; return inspection, always the operator's, comes next.
+7. Implement `propose_refund`. It creates an approval record but cannot execute a refund.
+8. Store proposal amount, currency, reason, order, policy evidence, requester, created time, expiration, and status.
+9. Build an authenticated approval interface. Record approver identity and decision time.
+10. Add the policy job in Medusa: it decides an approval only within the current policy version's ceiling, under the 200 PLN P1 line and the daily cap, and records its version. The ceiling stays at 0 PLN until eval evidence justifies a new version.
+11. Remind the operator after 24 hours. At 48 hours, let the policy decide an approval within its expiry default, and expire the rest.
+12. On approval, the Medusa approve route re-reads the order and payment state, validates amount and policy again, checks no refund already carries the approval ID, then executes through Medusa's refund workflow (ADR 0011). The agent never executes the refund.
+13. On rejection or expiration, produce no money movement.
+14. Ensure only one approve request, or the policy job, can claim an approval, and that a recovery job settles approvals that were claimed but never reported.
+15. Add migration handling for checkpoints created by the previous app version.
 
 **Required tests:**
 
@@ -984,7 +1002,9 @@ For every write:
 - restart immediately after approval;
 - send approval twice;
 - two approvers race;
-- approval expires;
+- the operator and the policy job race;
+- a proposal exactly at the ceiling, the 200 PLN line, and the daily cap;
+- approval expires, inside and outside the expiry default;
 - order changes while waiting;
 - refund provider times out after accepting;
 - old checkpoint is loaded after a deployment;
@@ -1146,7 +1166,7 @@ Run each destructive fault case against synthetic test payments only.
 3. alerts for health failure, error-rate spikes, queue growth, budget threshold, backup failure, and any wrong action;
 4. redaction tests for logs and traces;
 5. retention and deletion jobs;
-6. rate limits by IP, account, and verified customer where appropriate;
+6. rate limits by account and verified customer where appropriate (the IP limit and Turnstile arrived in Step 2);
 7. an operator kill switch for write tools;
 8. documented model-provider outage fallback;
 9. runbooks for incident, provider outage, stuck approval, failed event, rollback, and secret rotation.
@@ -1161,7 +1181,7 @@ Run each destructive fault case against synthetic test payments only.
 6. Confirm every case ends resolved, safely retried, visibly failed, or handed off.
 7. Confirm zero lost cases and zero duplicate mutations.
 8. Restore the latest backup and record recovery time, with the drill from [#19](https://github.com/Tirso0882/goods/issues/19) (run #19 first if it hasn't been).
-9. Run a complete deploy and rollback drill.
+9. Run a complete deploy and rollback drill against the local Compose stack. The hosted drill runs again at the go-live gate (ADR 0016).
 
 **Gate:** the reliability report accounts for every injected run, zero conversations disappear, zero duplicate refunds occur, and alerts fire with actionable context.
 
@@ -1170,6 +1190,8 @@ Run each destructive fault case against synthetic test payments only.
 ### Step 13: multi-agent experiment against the single-agent baseline
 
 **Outcome:** a supervisor with specialist agents runs on the same dataset as the single agent, and an ADR decides from the eval report which architecture ships.
+
+This is an experiment, not the template's default. A client's support agent starts as the single agent, and the back-office agents (catalog, marketing, operations) are separate jobs that need no supervisor.
 
 **Read:**
 
@@ -1202,70 +1224,7 @@ Run each destructive fault case against synthetic test payments only.
 
 **Learning gate:** without notes, explain where your multi-agent version spent its extra tokens, and which failure mode appeared that the single agent did not have.
 
-### Step 14: voice mode in the storefront chat, then assess a phone line
-
-**Outcome:** customers can talk to the same agent through the chat widget, with the same safety rules and measured latency. A written assessment decides whether a phone line is worth building later.
-
-**Read:**
-
-- book: second read of ch. 9 Inference Performance Metrics, and ch. 10 Put in Guardrails;
-- current docs for the speech provider and voice framework you pick. Recheck with `/research` first.
-
-**Learning objectives:**
-
-- Explain the cascaded voice pipeline (speech-to-text, agent, text-to-speech) and where each part of the latency goes.
-- Explain why a transcribed email or order number cannot be trusted the way typed text is, and what that means for identity and writes.
-- Explain the extra privacy duties that come with audio.
-
-**Steps:**
-
-1. Freeze the accepted text baseline from Step 13.
-2. Use `/research` to compare EU-processing speech-to-text and text-to-speech providers on Polish and English quality, price, data retention, and DPA terms. Record the choice in an ADR.
-3. Add a voice endpoint to the agent service that streams audio in, transcribes it, runs the existing agent unchanged, and streams speech out. Voice is a new channel, not a new agent.
-4. Set a latency budget for time to first audio, p50 and p95, and measure every stage against it.
-5. Speak the AI disclosure at the start of every voice session, and show it in the widget.
-6. Read back identifiers before using them: email, order number, and address. A write needs explicit spoken confirmation of the read-back.
-7. Do not treat voice as identity. Verification stays the same as in text.
-8. Do not store raw audio by default. Store transcripts under the same redaction and retention rules as text, and add the speech provider to the data-flow diagram.
-9. Handle barge-in (the customer talks over the agent), silence, background noise, and a dropped connection. Each ends in a defined state.
-10. Run output through the same guardrails before it reaches text-to-speech, so blocked text is never spoken.
-11. Build voice evals: generate audio from existing text cases with text-to-speech, add noise and accents, and score word error rate on identifiers, task success, and wrong actions against the text baseline.
-12. Assess a phone line in writing: telephony providers with Polish numbers, cost per minute, call recording consent, caller ID as a weak signal and never as identity, and how the voice evals would carry over. End with a go or no-go ADR. Do not build it in this step.
-
-**Gate:** voice task success is within the declared tolerance of text, wrong actions stay at zero, every write in voice cases was confirmed by read-back, latency meets the budget, and the phone ADR is committed.
-
-**Learning gate:** without notes, walk through a voice return request and name every point where a transcription error could cause a wrong action, and what stops it.
-
-### Step 15: fine-tune a small model for one narrow task
-
-**Outcome:** a fine-tuned small model is compared with prompting on a held-out set, and an ADR decides whether it ships.
-
-**Read:** book ch. 7 in full, and ch. 8 Data Coverage again. Current docs for the fine-tuning library. Recheck with `/research` first.
-
-**Learning objectives:**
-
-- Explain when to fine-tune instead of prompting or retrieval, and why the Step 7 ADR still keeps policy knowledge in RAG.
-- Explain LoRA and QLoRA, and why they fit an 8 GB GPU when full fine-tuning does not.
-- Explain how training data leaks into an eval set, and how you prevented it.
-
-**Steps:**
-
-1. Pick one narrow, low-risk, high-volume task with a clear label: the Step 13 router's intent classification, or the Step 10 cheap-model intent. Never a task that decides a write.
-2. Freeze the baseline: the hosted model with the best prompt, and the small base model with the same prompt.
-3. Build the training set from synthetic and human-reviewed cases. Split by source before training, and keep every existing eval case out of the training data.
-4. Write a short dataset card: source, size, label method, split, and known gaps.
-5. Run a short QLoRA job on the laptop GPU to prove it fits. Record VRAM, time, and settings.
-6. Train with fixed seeds and record every hyperparameter.
-7. Evaluate on the held-out set and on the full agent suite with the fine-tuned model in place: accuracy, cost, latency, and wrong actions.
-8. Check for regressions outside the task, such as refusals and the language mix.
-9. Decide how it would run in production. Railway has no GPUs, so the options are a hosted fine-tuning service from an EU provider, or not shipping. Price it.
-10. Write the ADR: ship, do not ship, or retry with more data, with the numbers.
-
-**Gate:** the comparison on the held-out set is reproducible from committed config and data, no eval case was in the training data, and the ADR follows from the numbers.
-
-**Learning gate:** without notes, explain what the fine-tuned model learned that prompting could not give it, or why it learned nothing useful.
-
-### Step 16: close gaps and publish evidence
+### Step 14: close gaps and publish evidence
 
 **Outcome:** a reproducible public case study shows what worked, what failed, and the measured results without exposing secrets or personal data.
 
@@ -1295,8 +1254,8 @@ Run each destructive fault case against synthetic test payments only.
 
 **Day 3: reproducibility and operations**
 
-1. Perform one final backup and isolated restore of all durable state: PostgreSQL, agent workflow data, object storage, and Railway configuration.
-2. Perform one final deployment and rollback.
+1. Perform one final backup and isolated restore of all durable state in the local stack: PostgreSQL, agent workflow data, and object storage. Host configuration joins the scope at go-live (ADR 0016).
+2. Perform one final deployment and rollback against the Compose stack.
 3. Confirm monitoring and budget alerts.
 4. Check every runbook against the live system.
 5. Freeze the final dataset, prompts, configuration, and eval report.
@@ -1313,10 +1272,8 @@ Use the title "An e-commerce support agent, with numbers." Include:
 6. three important failures and the tests they created;
 7. cost and latency changes;
 8. reliability fault results;
-9. voice results compared with text, and the phone-line decision;
-10. the fine-tuning result and why it shipped or did not;
-11. limitations and next experiments;
-12. instructions to reproduce the safe demo.
+9. limitations and next experiments;
+10. instructions to reproduce the safe demo.
 
 Do not claim "production ready" without naming the tested workload and unresolved limits. Do not publish provider keys, real traces, personal data, internal hostnames, or exploitable security details.
 
@@ -1327,7 +1284,7 @@ Do not claim "production ready" without naming the tested workload and unresolve
 3. Create a versioned release.
 4. Publish the post with links to the release, architecture, dataset card, and final report.
 5. Verify every public link in a logged-out browser.
-6. Create issues for post-roadmap work instead of silently extending Step 16.
+6. Create issues for post-roadmap work instead of silently extending Step 14.
 
 **Gate:** a new developer can reproduce the safe local demo, the public evidence supports every numerical claim, and all known limitations are explicit.
 
@@ -1341,7 +1298,7 @@ Use this order:
 2. Keep one complete vertical slice.
 3. Reduce dataset breadth while preserving every high-risk category.
 4. Defer optimization, local-model experiments, dashboard polish, and publication design.
-5. Shrink Steps 13 to 15 before touching Steps 1 to 12: run Step 15 on one task only, then drop Step 14's phone assessment. Never ship voice writes without the read-back and voice safety cases.
+5. Shrink Step 13 before touching Steps 1 to 12: fewer specialists, or fewer intents in the comparison, never fewer safety cases.
 6. Move the completion date.
 
 Never recover schedule by removing identity checks, idempotency, approval, restore testing, fault testing, eval repetitions, or learning gates.
@@ -1356,7 +1313,7 @@ The roadmap is complete only when all of these statements are true:
 - the agent never writes directly to Medusa tables;
 - writes require verified identity and deterministic policy checks;
 - write retries are idempotent under concurrency and crashes;
-- refunds require authenticated, recorded human approval;
+- refunds require a recorded approval: the operator's authenticated click, or a merged approval policy version within its ceiling;
 - pending work survives restarts;
 - retrieval answers point to versioned sources;
 - the eval suite includes at least 100 reviewed cases and five trials per case;
@@ -1365,8 +1322,6 @@ The roadmap is complete only when all of these statements are true:
 - logs and traces are correlated, redacted, and retained deliberately;
 - backup restore, rollback, provider failure, and worker crash have been tested;
 - the multi-agent experiment has a comparison report against the single agent, and an ADR that follows from it;
-- voice mode keeps zero wrong actions, confirms every write by read-back, meets its latency budget, and the phone-line decision is recorded;
-- the fine-tuning experiment is reproducible, no eval case was in its training data, and its ADR follows from the held-out result;
 - public claims link to reproducible evidence;
 - every unresolved production risk is documented;
 - every step's learning gate has passed, and each skill in the skills map has its evidence linked.
@@ -1384,12 +1339,11 @@ The core roadmap should leave public evidence for each skill below. The same evi
 | RAG with citations | Step 7 | Retrieval evals, including injected, outdated, and conflicting documents |
 | Cost and latency | Step 10 | Cost per correct resolution, before and after |
 | Production operations | Setup 2 and Step 12 | Deploy, rollback, and restore drills; alerts; reliability report |
+| Reusable agent design | Steps 2, 3, 6 and 8 | The commerce port contract, the `adapters/medusa` plugin, the contract suite, and the generic approvals module |
 | Multi-agent design | Step 13 | Single versus multi-agent comparison report and the ADR it produced |
-| Voice | Step 14 | Voice evals against text, latency budget per stage, phone-line ADR |
-| Fine-tuning | Step 15 | Dataset card, held-out comparison with prompting, and the ship decision |
-| Communication | Steps 1 and 16 | The design doc, the case study, and the explain-backs |
+| Communication | Steps 1 and 14 | The design doc, the case study, and the explain-backs |
 
-Two enabling skills get learning gates but no public evidence: TypeScript with Medusa (On-ramp) and running the store on Railway (Setup 2).
+Two enabling skills get learning gates but no public evidence: TypeScript with Medusa (On-ramp) and running the store in containers (Setup 2).
 
 ## Outside feedback
 
@@ -1406,38 +1360,41 @@ Your own gates only test what you thought to test. Get outside feedback on a sch
 One build day a week from 2 November 2026 (`docs/adr/0013-a-store-track-takes-one-build-day-a-week.md`, [#107](https://github.com/Tirso0882/goods/issues/107)), in this order:
 
 1. BLIK and Przelewy24 at checkout ([#108](https://github.com/Tirso0882/goods/issues/108)).
-2. InPost parcel lockers at checkout ([#109](https://github.com/Tirso0882/goods/issues/109)).
-3. Markets for all 27 EU countries, opened and closed one at a time in Medusa Admin ([#110](https://github.com/Tirso0882/goods/issues/110)), each with a carrier and price first ([#124](https://github.com/Tirso0882/goods/issues/124)), and the shopper's region suggested from Cloudflare's country header, never forced ([#111](https://github.com/Tirso0882/goods/issues/111)).
-4. Storefront and product translations for each market ([#112](https://github.com/Tirso0882/goods/issues/112)).
-5. The exchange (J7) and claim (J8) journeys for the agent ([#113](https://github.com/Tirso0882/goods/issues/113), [#114](https://github.com/Tirso0882/goods/issues/114)).
-6. Contentful for storefront content ([#122](https://github.com/Tirso0882/goods/issues/122)).
-7. Meilisearch for product search ([#123](https://github.com/Tirso0882/goods/issues/123)).
+2. InPost parcel lockers at checkout ([#109](https://github.com/Tirso0882/goods/issues/109)). The shop packs and ships orders itself, with labels bought by API behind one shipping port, a Medusa fulfillment provider, so a later 3PL is a config change (`docs/adr/0018-the-shop-fulfills-orders-itself-with-api-labels.md`).
+3. Markets for all 27 EU countries, opened and closed one at a time in Medusa Admin ([#110](https://github.com/Tirso0882/goods/issues/110)), with a `markets.yaml` replacing the seed's market list (ADR 0019), each with a carrier and price first ([#124](https://github.com/Tirso0882/goods/issues/124)), and the shopper's region suggested from Cloudflare's country header, never forced ([#111](https://github.com/Tirso0882/goods/issues/111)).
+4. Storefront and product translations for each market ([#112](https://github.com/Tirso0882/goods/issues/112)). A brand pack starts with the second locale (ADR 0019). Content stays as Markdown per locale in the repo.
+5. The exchange (J7) and claim (J8) journeys for the agent ([#113](https://github.com/Tirso0882/goods/issues/113), [#114](https://github.com/Tirso0882/goods/issues/114)). A claim that ends in a refund proposes it through a J6 approval.
+6. Stripe Radar ([#131](https://github.com/Tirso0882/goods/issues/131)): good fraud signals at checkout, risky orders held from fulfillment until the operator decides, and early fraud warnings as P1 handoffs. The free tier first; the paid tier only on chargeback evidence.
 
-The store sells only to EU countries.
+The store sells only to EU countries. Contentful was dropped and Meilisearch deferred on 7 November 2026 (ADR 0017).
 
 Store work follows the same session rule as agent work: one testable outcome, the test first, one coherent commit.
 
 ## After the core roadmap
 
 1. Run a retro: hours actually worked, energy, which learning gates were hard, and what stuck on spaced review. Choose the pace for what comes next from that, not from this plan.
-2. Start the second project: the catalog enrichment agent from `ecommerce-ai-features.md`. It turns supplier data into titles, descriptions, attributes, and PL/EN translations, with your approval before publishing. It reuses the approval, eval, and tracing work, and the real store needs it from day one. Take it through `/grill-with-docs` and `/to-spec` like any new idea.
-3. If the Step 14 phone-line ADR says go, take the phone line through `/grill-with-docs` and `/to-spec` too, and decide its order against the second project.
-4. Read the rest of DDIA (start with stream processing) and the SRE chapters on service level objectives and postmortems.
-5. Keep the demo live, set a reliability target, and publish one post per quarter with the numbers.
+2. Start the second project: the catalog enrichment agent from `ecommerce-ai-features.md` ([#133](https://github.com/Tirso0882/goods/issues/133), which holds the product copy rules), together with agent-readable commerce (ADR 0007). It turns supplier data into titles, descriptions, attributes, and translations, with your approval before publishing, and the same data feeds what AI shopping agents read. It reuses the approval, eval, and tracing work, and the real store needs it from day one. Its skills and back-office workflows live in their own packages (ADR 0019). Take it through `/grill-with-docs` and `/to-spec` like any new idea.
+3. Then the marketing agent ([#132](https://github.com/Tirso0882/goods/issues/132)): newsletters, social posts and promotions drafted from the catalog and sales data, each sent only after your approval, with the same claim checks as catalog copy and discounts only from the pricing rules. No tracking pixels until a consent ADR.
+4. Then a second commerce adapter: Shopify, with WooCommerce as a sidecar (ADR 0019).
+5. Pricing stays out of autonomous scope: a rules engine computes prices, the model only explains them, and changes above a threshold need your approval.
+6. Read the rest of DDIA (start with stream processing) and the SRE chapters on service level objectives and postmortems.
+7. Once the store is live, set a reliability target, and publish one post per quarter with the numbers.
 
 ## Before taking real orders
 
 Your employer is fine with the business and a Polish lawyer has confirmed you can set it up in Poland. These steps remain. Most of the time is spent waiting on other people, so start them in week 1 and work on them inside the weekly docs hours. Confirm the details with your lawyer and an accountant, because thresholds and dates change.
 
 1. Register the business in CEIDG (usually a sole proprietorship, JDG) and pick the tax form with your accountant.
-2. Settle VAT with your accountant: whether the small-business exemption applies to your products, and whether you need OSS registration for sales to consumers in other EU countries (needed once cross-border EU sales pass EUR 10,000 a year).
+2. Settle VAT with your accountant: whether the small-business exemption applies to your products, and whether you need OSS registration for sales to consumers in other EU countries (needed once cross-border EU sales pass EUR 10,000 a year). Add a scheduled job that sums cross-border EU sales for the calendar year from Medusa and alerts you at EUR 8,000, so you register before crossing the threshold.
 3. Write the store terms (regulamin), the 14-day withdrawal right with a return form, the complaints process, and price display rules, including the lowest price from the last 30 days next to any discount. Each market needs them in its own language.
-4. Write the privacy policy. Sign a data processing agreement with every processor: Railway, model provider, speech provider, Langfuse, Stripe, and the email service. Record what you process and how long you keep it, including voice transcripts.
+4. Write the privacy policy. Sign a data processing agreement with every processor: the host, model provider, Langfuse, Stripe, the email service, and each carrier or label broker. Record what you process and how long you keep it.
 5. Tell customers clearly that the chat is an AI, and give them a route to a human.
 6. Check product safety and labeling duties for the category chosen in the Research step.
 7. Switch Stripe to live mode. BLIK and Przelewy24 come earlier, in the store track ([#108](https://github.com/Tirso0882/goods/issues/108)).
-8. Finish backups and a proven restore of all durable state, moved here from Setup 2 Day 5 ([#19](https://github.com/Tirso0882/goods/issues/19)): nightly encrypted dumps of every database, media and Railway configuration to R2, then a restore drill in isolation with recovery time and point measured. Explain, without notes, what the drill proved that a successful backup job did not.
-9. Add point-in-time recovery for Postgres, so a restore loses minutes of orders rather than up to a day. The nightly encrypted dumps to R2 from item 8 stay as the copy with another provider ([#89](https://github.com/Tirso0882/goods/issues/89)).
-10. Put a staging environment in front of production, so a broken release stops there before shoppers see it ([#84](https://github.com/Tirso0882/goods/issues/84)).
-11. Rerun the Step 16 security and privacy review against the live configuration before the first real order.
-12. Launch the agent with read-only tools and human handoff only. Keep write tools behind the kill switch until evals on real, redacted conversations match the synthetic baseline. Real customers will ask things the synthetic set did not cover.
+8. Choose the host in a new ADR (ADR 0016): EU region, DPA, log location, and a project or environment and deploy token for production separate from pre-production. Set `DEPLOY_ENABLED` and `STOREFRONT_URL` only then.
+9. Finish backups and a proven restore of all durable state, moved here from Setup 2 Day 5 ([#19](https://github.com/Tirso0882/goods/issues/19)): nightly encrypted dumps of every database, media and host configuration to R2, then a restore drill in isolation with recovery time and point measured. Explain, without notes, what the drill proved that a successful backup job did not.
+10. Add point-in-time recovery for Postgres, so a restore loses minutes of orders rather than up to a day. The nightly encrypted dumps to R2 from item 9 stay as the copy with another provider ([#89](https://github.com/Tirso0882/goods/issues/89)).
+11. Put pre-production in front of production on the same host, so a broken release stops there before shoppers see it ([#84](https://github.com/Tirso0882/goods/issues/84)).
+12. Replace the agent's support-route secret with short-lived signed tokens.
+13. Rerun the Step 14 security and privacy review against the live configuration before the first real order.
+14. Launch the agent with read-only tools and human handoff only. Keep write tools behind the kill switch until evals on real, redacted conversations match the synthetic baseline. Real customers will ask things the synthetic set did not cover.

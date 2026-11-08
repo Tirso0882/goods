@@ -28,9 +28,9 @@ What to learn in each step of the core roadmap, how its learning gate runs, and 
 | Step 11: guardrails | Answer | To do | |
 | Step 12: reliability and operations | Answer | To do | |
 | Step 13: multi-agent | **Deep stop** | To do | |
-| Step 14: voice | Answer | To do | |
-| Step 15: fine-tuning | Answer | To do | |
-| Step 16: publish evidence | Answer, plus the walkthrough given to someone else | To do | |
+| Step 14: publish evidence | Answer, plus the walkthrough given to someone else | To do | |
+
+Steps 14 (voice) and 15 (fine-tuning) left the roadmap on 7 November 2026, and the old Step 16 became Step 14 (`../docs/adr/0015-voice-and-fine-tuning-leave-the-roadmap.md`).
 
 ## Topics by step
 
@@ -83,7 +83,7 @@ What to learn in each step of the core roadmap, how its learning gate runs, and 
 
 - What a checkpoint makes durable and what it does not, especially external writes.
 - How `thread_id`, interrupts and resume fit together across a process restart.
-- How two approve clicks are prevented from running the same refund twice (ADR 0011).
+- How two approve clicks, or a click and the policy job, are prevented from running the same refund twice (ADR 0011, ADR 0014).
 - **Gate:** the approval flow as a state diagram, where each required test would crash it, and why nothing is duplicated.
 
 ### Step 9: expand coverage with synthetic conversations (deep stop)
@@ -117,21 +117,7 @@ What to learn in each step of the core roadmap, how its learning gate runs, and 
 - Why giving each specialist only its own tools is a security property.
 - **Gate:** where the multi-agent version spent its extra tokens, and which new failure mode appeared.
 
-### Step 14: voice mode
-
-- The cascaded voice pipeline (speech-to-text, agent, text-to-speech) and where its latency goes.
-- Why a transcribed email or order number can't be trusted like typed text, and what that means for identity and writes.
-- The extra privacy duties that come with audio.
-- **Gate:** a voice return request, every point where a transcription error could cause a wrong action, and what stops it.
-
-### Step 15: fine-tune a small model
-
-- When to fine-tune instead of prompting or retrieval, and why policy knowledge stays in RAG.
-- LoRA and QLoRA, and why they fit an 8 GB GPU when full fine-tuning does not.
-- How training data leaks into an eval set, and how you prevented it.
-- **Gate:** what the fine-tuned model learned that prompting could not give it, or why it learned nothing useful.
-
-### Step 16: close gaps and publish evidence
+### Step 14: close gaps and publish evidence
 
 - The whole system for a non-specialist in five minutes, and for an engineer in twenty.
 - Defending every number in the case study from its eval report.

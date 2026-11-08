@@ -1,5 +1,7 @@
 # The agent reaches Medusa only through support routes
 
+> Extended by ADR 0019 on 7 November 2026: the support routes become the Medusa adapter of a commerce port.
+
 On 29 October 2026, in the Step 1 design (#101), we decided that the agent talks to Medusa only through a small set of custom **support routes** in `apps/backend`, called with a dedicated agent secret. The agent holds no Medusa admin key and has no access to Medusa's database, not even read-only.
 
 Each route answers one narrow question and checks identity and ownership itself:

@@ -1,5 +1,7 @@
 # A store track takes one build day a week
 
+> Amended by ADR 0017 on 7 November 2026: Contentful (item 6) was dropped and Meilisearch (item 7) deferred. Claims that end in a refund go through an approval decided by the operator or the approval policy (ADR 0014).
+
 On 31 October 2026 we decided that, from 2 November 2026, one build day a week goes to store features alongside the core roadmap. The agent steps keep the other four build days, so the core roadmap ends about three weeks later, in late January 2027 instead of 31 December 2026. The store is still the vehicle (`learning/MISSION.md`), but selling for real needs more than the single-market test store, and the agent's evals gain realistic cases from it: several currencies, exchanges and claims.
 
 The store track, in order ([#107](https://github.com/Tirso0882/goods/issues/107)):

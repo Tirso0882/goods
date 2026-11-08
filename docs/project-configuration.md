@@ -18,9 +18,10 @@ Hosted model provider: Amazon Bedrock, eu-central-1, through LiteLLM
 Primary model: Claude Sonnet (EU cross-region inference profile)
 Embedding model: BLOCKED
 Monthly model budget: BLOCKED
-Hosting provider, region and plan: Railway, EU West Metal (Amsterdam, europe-west4-drams3a); Trial plan until 12 November 2026 at the latest, then Hobby with a $10 monthly budget (see docs/adr/0006-railway-hosts-the-test-store.md)
+Hosting provider, region and plan: None until the store is mature: everything runs locally in Docker Compose. Pre-production, then production, on one EU host chosen in a new ADR at the go-live gate. Railway hosted the test store until the account was deleted on 7 November 2026 (see docs/adr/0016-the-store-is-built-locally-until-it-is-mature.md)
 Domain: redkraken.tech, storefront at www.redkraken.tech; the other hostnames are set in #16
-Object storage provider: Cloudflare R2, EU jurisdiction buckets, separate buckets for Medusa files and backups (see docs/adr/0006-railway-hosts-the-test-store.md)
+Object storage provider: Cloudflare R2, EU jurisdiction buckets, separate buckets for Medusa files and backups, when hosting returns; whether the October buckets still exist is unconfirmed (see docs/adr/0006-railway-hosts-the-test-store.md and docs/adr/0016-the-store-is-built-locally-until-it-is-mature.md)
+Fulfillment: self-packed and self-shipped, with labels bought by API behind one shipping port (see docs/adr/0018-the-shop-fulfills-orders-itself-with-api-labels.md)
 Transactional email provider: BLOCKED (contact address: tirso.gomez@redkraken.tech)
 Data retention period for conversations: provisional until the lawyer confirms: transcripts 12 months; verifications, tool executions and approvals 6 years with minimal personal data (see docs/design.md)
 Remote: https://github.com/Tirso0882/goods (public), default branch main

@@ -1,5 +1,7 @@
 # Restore all state
 
+> **Moved to the go-live gate.** The Railway account was deleted on 7 November 2026 (`docs/adr/0016-the-store-is-built-locally-until-it-is-mature.md`). The inventory and the drill still apply; the Railway-specific steps (the cron service, `railway ssh`, volume backups) are redone on the go-live host before real orders ([#19](https://github.com/Tirso0882/goods/issues/19)).
+
 What the test store must not lose, how each part is backed up, and the drill that proves a backup restores. Written for [#19](https://github.com/Tirso0882/goods/issues/19). A backup counts only once it has been restored: a green backup job proves the job ran, not that its files hold a working store.
 
 ## Inventory of durable state

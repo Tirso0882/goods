@@ -8,19 +8,17 @@ Become a strong AI agent engineer by shipping a customer support agent for a Med
 - Explain why a Medusa workflow is safer than a plain API route for a multi-step change such as a return.
 - Read every step's stored learning gate answer, and explain the deep-stop gates (evals, idempotency, RAG, synthetic data, multi-agent) without notes. See `learning-gates.md`.
 - Explain the core ideas of Chip Huyen's *AI Engineering* (evals, agents, RAG, prompts, inference, architecture) as they show up in this project's code.
-- Deploy the store to Railway in the EU with only the storefront and server public, and explain each setting and why a proven restore beats a backup.
+- Run the store from the same commit-SHA images locally in Compose, with only the storefront and server public when it is hosted, and explain why a proven restore beats a backup. Nothing is hosted until the store is mature (`../docs/adr/0016-the-store-is-built-locally-until-it-is-mature.md`).
 - Explain when a supervisor with specialist agents beats a single agent, and defend the choice with the Step 13 comparison report.
-- Explain the cascaded voice pipeline, where its latency goes, and why spoken identifiers need read-back before any write.
-- Explain when to fine-tune instead of prompting or retrieval, how LoRA and QLoRA work, and how to keep training data out of evals.
+- Explain why the agent reaches the store through a commerce port, and what an adapter must prove to be safe.
 
 ## Constraints
 - Learning block is 10:00 to 11:30 on build days, plus spaced review on Saturday (10:00 to 12:30). Lessons must fit that block.
-- Core roadmap runs from 28 September to 23 December 2026. Lessons follow the roadmap's step order.
+- Core roadmap runs from 28 September 2026 to 21 January 2027 if no gate slips. Lessons follow the roadmap's step order.
 - Comfortable in Python, little or no TypeScript or JavaScript. Already familiar with Docker, Compose, and GitHub Actions.
 - Prefers learning solo: no communities.
 
 ## Out of scope
 - Frontend depth (React, Next.js internals) beyond what the chat widget and storefront setup need.
-- Telephony depth beyond the Step 14 phone-line assessment.
-- Full fine-tuning and pretraining. Step 15 covers LoRA and QLoRA on a small model only.
+- Voice, telephony and fine-tuning: they left the roadmap on 7 November 2026 (`../docs/adr/0015-voice-and-fine-tuning-leave-the-roadmap.md`).
 - TypeScript features Medusa code does not use.
