@@ -58,17 +58,17 @@ export const CATALOG: FixtureProduct[] = [
     title: 'Classic Solitaire Moissanite Ring',
     category: 'Rings',
     description:
-      'A single 1 ct round brilliant moissanite in a four-prong setting on a slim 925 sterling silver band. Nickel-free and hypoallergenic, made for everyday wear. Comes with a GRA certificate for the stone.',
+      'A single 1 ct round brilliant moissanite in a four-prong setting on a slim 925 sterling silver band. Made for everyday wear.',
     weight_g: 2.1,
     material: '925 sterling silver',
     images: bamoerImages('MSR101.jpg', 'MSR101_4.jpg', 'MSR101_5.jpg'),
     options: [
-      { title: 'Metal', values: ['Silver', '18K Gold Plated'] },
+      { title: 'Metal', values: ['Silver', 'Gold-plated silver'] },
       { title: 'Ring size', values: RING_SIZES },
     ],
     variants: ringVariants('RNG-SOL', [
       { metal: 'Silver', code: 'SLV', price_pln: 189 },
-      { metal: '18K Gold Plated', code: 'GLD', price_pln: 219 },
+      { metal: 'Gold-plated silver', code: 'GLD', price_pln: 219 },
     ]),
   },
   {
@@ -81,12 +81,12 @@ export const CATALOG: FixtureProduct[] = [
     material: '925 sterling silver',
     images: bamoerImages('MSR123.jpg', 'MSR123_4.jpg', 'MSR123_5.jpg'),
     options: [
-      { title: 'Metal', values: ['Silver', 'Rose Gold Plated'] },
+      { title: 'Metal', values: ['Silver', 'Rose gold-plated silver'] },
       { title: 'Ring size', values: RING_SIZES },
     ],
     variants: ringVariants('RNG-HET', [
       { metal: 'Silver', code: 'SLV', price_pln: 109 },
-      { metal: 'Rose Gold Plated', code: 'RSG', price_pln: 129 },
+      { metal: 'Rose gold-plated silver', code: 'RSG', price_pln: 129 },
     ]),
   },
   {
@@ -99,12 +99,12 @@ export const CATALOG: FixtureProduct[] = [
     material: '925 sterling silver',
     images: bamoerImages('MSR110.jpg', 'MSR110_4.jpg', 'MSR110_6.jpg'),
     options: [
-      { title: 'Metal', values: ['Silver', '18K Gold Plated'] },
+      { title: 'Metal', values: ['Silver', 'Gold-plated silver'] },
       { title: 'Ring size', values: RING_SIZES },
     ],
     variants: ringVariants('RNG-HAL', [
       { metal: 'Silver', code: 'SLV', price_pln: 159 },
-      { metal: '18K Gold Plated', code: 'GLD', price_pln: 185 },
+      { metal: 'Gold-plated silver', code: 'GLD', price_pln: 185 },
     ]),
   },
   {
@@ -116,10 +116,10 @@ export const CATALOG: FixtureProduct[] = [
     weight_g: 2.4,
     material: '925 sterling silver',
     images: bamoerImages('MSR125-E.jpg', 'MSR125-E_4.jpg', 'MSR125-E_5.jpg'),
-    options: [{ title: 'Metal', values: ['Silver', '18K Gold Plated'] }],
+    options: [{ title: 'Metal', values: ['Silver', 'Gold-plated silver'] }],
     variants: [
       { sku: 'RNG-PEO-SLV', options: { Metal: 'Silver' }, price_pln: 119, stock: 30 },
-      { sku: 'RNG-PEO-GLD', options: { Metal: '18K Gold Plated' }, price_pln: 139, stock: 18 },
+      { sku: 'RNG-PEO-GLD', options: { Metal: 'Gold-plated silver' }, price_pln: 139, stock: 18 },
     ],
   },
   {
@@ -127,9 +127,9 @@ export const CATALOG: FixtureProduct[] = [
     title: 'V-Shape Pearl Ring',
     category: 'Rings',
     description:
-      'A chevron band holding a 6 mm freshwater pearl at the point. Each pearl is natural, so shape and lustre vary slightly. Put the ring on after perfume and lotion, and wipe the pearl with a soft dry cloth.',
+      'A chevron band holding a 6 mm freshwater pearl at the point. Each pearl is cultured, so shape and lustre vary slightly. Put the ring on after perfume and lotion, and wipe the pearl with a soft dry cloth.',
     weight_g: 1.9,
-    material: '925 sterling silver, freshwater pearl',
+    material: '925 sterling silver, freshwater cultured pearl',
     images: bamoerImages(
       'BSR780_2_WH_a38f49ca-db2b-4aa6-8b7d-cfbb3f54e47a.jpg',
       'BSR780_4_2509c955-9f25-46d0-ab73-2644c57b8554.jpg',
@@ -150,13 +150,13 @@ export const CATALOG: FixtureProduct[] = [
     title: 'Classic Four-Prong Studs',
     category: 'Earrings',
     description:
-      'Round 5 mm stones in a four-prong basket setting with screw-back posts. Choose cubic zirconia for everyday sparkle or moissanite for a harder stone with more fire. Posts are 925 silver, safe for sensitive ears.',
+      'Round 5 mm stones in a four-prong basket setting with screw-back posts. Choose cubic zirconia for everyday sparkle or moissanite for a harder stone with more fire. Posts are 925 sterling silver.',
     weight_g: 1.2,
     material: '925 sterling silver',
     images: bamoerImages('SCE1646-S.jpg', 'SCE1646-LB.jpg', 'SCE1646-LBK.jpg'),
     options: [
       { title: 'Stone', values: ['Cubic Zirconia', 'Moissanite'] },
-      { title: 'Metal', values: ['Silver', '18K Gold Plated'] },
+      { title: 'Metal', values: ['Silver', 'Gold-plated silver'] },
     ],
     variants: [
       {
@@ -167,7 +167,7 @@ export const CATALOG: FixtureProduct[] = [
       },
       {
         sku: 'EAR-4PS-CZ-GLD',
-        options: { Stone: 'Cubic Zirconia', Metal: '18K Gold Plated' },
+        options: { Stone: 'Cubic Zirconia', Metal: 'Gold-plated silver' },
         price_pln: 109,
         stock: 25,
       },
@@ -179,7 +179,7 @@ export const CATALOG: FixtureProduct[] = [
       },
       {
         sku: 'EAR-4PS-MOI-GLD',
-        options: { Stone: 'Moissanite', Metal: '18K Gold Plated' },
+        options: { Stone: 'Moissanite', Metal: 'Gold-plated silver' },
         price_pln: 169,
         stock: 12,
       },
@@ -194,11 +194,18 @@ export const CATALOG: FixtureProduct[] = [
     weight_g: 2.6,
     material: '925 sterling silver',
     images: bamoerImages('MSE156.jpg', 'MSE156_4.jpg', 'MSE156_5.jpg'),
-    options: [{ title: 'Metal', values: ['Silver', '18K Gold Plated', 'Rose Gold Plated'] }],
+    options: [
+      { title: 'Metal', values: ['Silver', 'Gold-plated silver', 'Rose gold-plated silver'] },
+    ],
     variants: [
       { sku: 'EAR-HUG-SLV', options: { Metal: 'Silver' }, price_pln: 109, stock: 30 },
-      { sku: 'EAR-HUG-GLD', options: { Metal: '18K Gold Plated' }, price_pln: 129, stock: 20 },
-      { sku: 'EAR-HUG-RSG', options: { Metal: 'Rose Gold Plated' }, price_pln: 129, stock: 10 },
+      { sku: 'EAR-HUG-GLD', options: { Metal: 'Gold-plated silver' }, price_pln: 129, stock: 20 },
+      {
+        sku: 'EAR-HUG-RSG',
+        options: { Metal: 'Rose gold-plated silver' },
+        price_pln: 129,
+        stock: 10,
+      },
     ],
   },
   {
@@ -210,10 +217,10 @@ export const CATALOG: FixtureProduct[] = [
     weight_g: 3.1,
     material: '925 sterling silver',
     images: bamoerImages('MSE157.jpg', 'MSE157_4.jpg', 'MSE157_5.jpg'),
-    options: [{ title: 'Metal', values: ['Silver', '18K Gold Plated'] }],
+    options: [{ title: 'Metal', values: ['Silver', 'Gold-plated silver'] }],
     variants: [
       { sku: 'EAR-PDH-SLV', options: { Metal: 'Silver' }, price_pln: 129, stock: 22 },
-      { sku: 'EAR-PDH-GLD', options: { Metal: '18K Gold Plated' }, price_pln: 149, stock: 14 },
+      { sku: 'EAR-PDH-GLD', options: { Metal: 'Gold-plated silver' }, price_pln: 149, stock: 14 },
     ],
   },
   {
@@ -240,7 +247,7 @@ export const CATALOG: FixtureProduct[] = [
     material: '925 sterling silver',
     images: bamoerImages('MSN082.jpg', 'MSN082_4.jpg', 'MSN082_5.jpg'),
     options: [
-      { title: 'Metal', values: ['Silver', '18K Gold Plated'] },
+      { title: 'Metal', values: ['Silver', 'Gold-plated silver'] },
       { title: 'Chain length', values: ['40 cm', '45 cm'] },
     ],
     variants: [
@@ -258,13 +265,13 @@ export const CATALOG: FixtureProduct[] = [
       },
       {
         sku: 'NEC-PYN-GLD-40',
-        options: { Metal: '18K Gold Plated', 'Chain length': '40 cm' },
+        options: { Metal: 'Gold-plated silver', 'Chain length': '40 cm' },
         price_pln: 175,
         stock: 8,
       },
       {
         sku: 'NEC-PYN-GLD-45',
-        options: { Metal: '18K Gold Plated', 'Chain length': '45 cm' },
+        options: { Metal: 'Gold-plated silver', 'Chain length': '45 cm' },
         price_pln: 175,
         stock: 12,
       },
@@ -306,14 +313,14 @@ export const CATALOG: FixtureProduct[] = [
     title: 'Four-Leaf Clover Lariat',
     category: 'Necklaces',
     description:
-      'A lariat with a sliding clover bead, so you set the length yourself from choker to 50 cm. The clover has mother-of-pearl inlay on one side and plain polished silver on the other. Hallmarked in Poland.',
+      'A lariat with a sliding clover bead, so you set the length yourself from choker to 50 cm. The clover has mother-of-pearl inlay on one side and plain polished silver on the other.',
     weight_g: 5.6,
     material: '925 sterling silver, mother-of-pearl',
     images: bamoerImages('MSN074.jpg', 'MSN074_4.jpg', 'MSN074_5.jpg'),
-    options: [{ title: 'Metal', values: ['Silver', '18K Gold Plated'] }],
+    options: [{ title: 'Metal', values: ['Silver', 'Gold-plated silver'] }],
     variants: [
       { sku: 'NEC-CLV-SLV', options: { Metal: 'Silver' }, price_pln: 199, stock: 10 },
-      { sku: 'NEC-CLV-GLD', options: { Metal: '18K Gold Plated' }, price_pln: 229, stock: 6 },
+      { sku: 'NEC-CLV-GLD', options: { Metal: 'Gold-plated silver' }, price_pln: 229, stock: 6 },
     ],
   },
 
@@ -323,7 +330,7 @@ export const CATALOG: FixtureProduct[] = [
     title: 'Moissanite Tennis Bracelet 3 mm',
     category: 'Bracelets',
     description:
-      'A continuous line of 3 mm moissanites, each in its own four-prong link, with a box clasp and a safety catch. Measure your wrist and add 1 to 1.5 cm to choose the length. Hallmarked in Poland.',
+      'A continuous line of 3 mm moissanites, each in its own four-prong link, with a box clasp and a safety catch. Measure your wrist and add 1 to 1.5 cm to choose the length.',
     weight_g: 9.5,
     material: '925 sterling silver',
     images: bamoerImages('MSB050.jpg', 'MSB050_5.jpg', 'MSB050_6.jpg'),
@@ -339,7 +346,7 @@ export const CATALOG: FixtureProduct[] = [
     title: 'Heart Snake Chain Bracelet',
     category: 'Bracelets',
     description:
-      'A smooth snake chain with a heart clasp that doubles as the centrepiece. Fits standard European charms. Snake chains kink if folded, so store it straight. Hallmarked in Poland.',
+      'A smooth snake chain with a heart clasp that doubles as the centrepiece. Fits standard European charms. Snake chains kink if folded, so store it straight.',
     weight_g: 8.2,
     material: '925 sterling silver',
     images: bamoerImages('BSB213.jpg', 'BSB213_6.jpg', 'BSB213_7.jpg'),
@@ -358,10 +365,10 @@ export const CATALOG: FixtureProduct[] = [
     weight_g: 1.7,
     material: '925 sterling silver',
     images: bamoerImages('YIB096.jpg', 'YIB096_4.jpg', 'YIB096_5.jpg'),
-    options: [{ title: 'Metal', values: ['Silver', '18K Gold Plated'] }],
+    options: [{ title: 'Metal', values: ['Silver', 'Gold-plated silver'] }],
     variants: [
       { sku: 'BRC-STR-SLV', options: { Metal: 'Silver' }, price_pln: 69, stock: 40 },
-      { sku: 'BRC-STR-GLD', options: { Metal: '18K Gold Plated' }, price_pln: 85, stock: 25 },
+      { sku: 'BRC-STR-GLD', options: { Metal: 'Gold-plated silver' }, price_pln: 85, stock: 25 },
     ],
   },
 ]
