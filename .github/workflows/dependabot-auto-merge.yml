@@ -27,12 +27,15 @@ jobs:
       #   so each bump needs a copy there first (.github/dependabot.yml).
       # - the medusa group: every Medusa upgrade needs a rollback drill
       #   (docs/runbooks/deploy-and-rollback.md#releasing-a-migration-that-breaks-rollback).
+      # - any @medusajs package, even in a security update outside the group.
       # A grouped pull request reports its highest update, so one minor bump in
-      # it leaves the whole group to a person.
+      # it leaves the whole group to a person. The security group follows the
+      # same rule: its patch fixes merge alone, a minor or major fix waits.
       - if: >-
           steps.metadata.outputs.update-type == 'version-update:semver-patch'
           && contains(fromJSON('["npm_and_yarn", "github_actions"]'), steps.metadata.outputs.package-ecosystem)
           && steps.metadata.outputs.dependency-group != 'medusa'
+          && !contains(steps.metadata.outputs.dependency-names, '@medusajs/')
         run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
