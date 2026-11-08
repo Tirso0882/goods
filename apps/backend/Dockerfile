@@ -38,8 +38,11 @@ RUN NODE_OPTIONS=--max-old-space-size=4096 pnpm --filter @dtc/backend build
 # output has no lockfile of its own, so installing there would be unpinned.
 # pnpm 10 only deploys from the lockfile with injected workspace packages;
 # the legacy mode re-resolves versions.
+# --prefer-offline, not --offline: in CI the fetch and install layers can come
+# from the layer cache while this cache mount starts empty on a fresh
+# runner, so the store may be missing tarballs. The lockfile still pins them.
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm --filter @dtc/backend deploy --prod --offline \
+    pnpm --filter @dtc/backend deploy --prod --prefer-offline \
       --config.inject-workspace-packages=true \
       --store-dir /pnpm/store /prod/backend
 
