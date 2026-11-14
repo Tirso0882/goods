@@ -1,7 +1,7 @@
 # Local stack only, not a deployment file: localhost URLs, non-Secure cookies.
 #
-# Postgres with pgvector, Redis, Medusa server and worker, the storefront and
-# Ollama (CPU). Commands and checks are in docs/runbooks/compose-stack.md:
+# Postgres with pgvector, Redis, Medusa server and worker, the storefront, the
+# support agent and Ollama (CPU). Commands and checks are in docs/runbooks/compose-stack.md:
 #
 #   cp .env.example .env              # then fill in the secrets
 #   docker compose up -d --build --wait
@@ -12,7 +12,8 @@
 # NVIDIA GPU (Linux or Windows with WSL 2 only):
 #   docker compose -f compose.yaml -f compose.gpu.yaml up -d
 #
-# Postgres, Redis and Ollama publish no host ports. Use `docker compose exec`.
+# Postgres, Redis, the agent and Ollama publish no host ports. Use
+# `docker compose exec`.
 
 name: goods-stack
 
@@ -206,6 +207,43 @@ services:
         condition: service_completed_successfully
       medusa-server:
         condition: service_healthy
+    restart: unless-stopped
+
+  # Runs on every `up`: creates the agent's and the model proxy's databases and
+  # roles, each role allowed into its own database only. Postgres init scripts
+  # only run on an empty volume, so this also works on one with data, and a
+  # second run changes nothing (infra/postgres/test.sh checks both).
+  agent-db-setup:
+    <<: *pgvector
+    user: postgres
+    environment:
+      PGHOST: postgres
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      AGENT_DB_PASSWORD: ${AGENT_DB_PASSWORD:?set AGENT_DB_PASSWORD in .env}
+      LITELLM_DB_PASSWORD: ${LITELLM_DB_PASSWORD:?set LITELLM_DB_PASSWORD in .env}
+    volumes:
+      - ./infra/postgres/create-databases.sh:/usr/local/bin/create-databases.sh:ro
+    entrypoint: ["sh", "/usr/local/bin/create-databases.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # The support agent. No host port: it is reachable on this network only.
+  # Healthy once /health/ready reaches the agent database.
+  agent:
+    image: ${AGENT_IMAGE:-goods-stack-agent:local}
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile
+    environment:
+      AGENT_DATABASE_URL: postgresql://agent:${AGENT_DB_PASSWORD:?set AGENT_DB_PASSWORD in .env}@postgres:5432/agent
+    depends_on:
+      postgres:
+        condition: service_healthy
+      agent-db-setup:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   # CPU by default. Runs as root: the image has no documented non-root mode.
