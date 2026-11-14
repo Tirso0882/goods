@@ -8,10 +8,11 @@ Process boundaries for the production images (#11). Compose (#12, `compose.yaml`
 | --- | --- | --- |
 | Backend (server and worker) | `apps/backend/Dockerfile` | `docker build -f apps/backend/Dockerfile -t goods-backend .` |
 | Storefront | `apps/storefront/Dockerfile` | `docker build -f apps/storefront/Dockerfile -t goods-storefront .` |
+| Agent | `apps/agent/Dockerfile` | `docker build -f apps/agent/Dockerfile -t goods-agent .` |
 
-Both are multi-stage on `node:24.22.2-alpine3.24`, pinned by digest, and run as the `node` user (uid 1000). The root `.dockerignore` is an allowlist: only the workspace manifests, `apps/backend` and `apps/storefront` enter the build context, and every `.env*`, `node_modules` and build output is excluded.
+The backend and storefront are multi-stage on `node:24.22.2-alpine3.24`, pinned by digest, and run as the `node` user (uid 1000). The agent is multi-stage on `python:3.12.16-slim-trixie`, pinned by digest, installs `agent-service` and `agent-core` from `uv.lock` without dev tools or `evals`, and runs as `nobody` (uid 65534). The root `.dockerignore` is an allowlist: only the workspace manifests (pnpm and uv), `apps/backend`, `apps/storefront`, `apps/backup`, `apps/agent` and `packages/agent-core` enter the build context, and every `.env*`, `node_modules`, `.venv` and build output is excluded.
 
-Neither build needs a database, a backend or a secret. The storefront image holds no publishable key, URL or Stripe key, so the same image runs in every environment.
+No build needs a database, a backend or a secret, and no image holds a secret. The storefront image holds no publishable key, URL or Stripe key, so the same image runs in every environment.
 
 ## Published images
 
@@ -60,6 +61,8 @@ On Linux, add `--add-host=host.docker.internal:host-gateway` to each `docker run
 | Migrate (one-off) | backend, `./node_modules/.bin/medusa db:migrate` | none | exit code 0 | none | `DATABASE_URL`, `REDIS_URL`, plus the CORS and JWT/cookie values the config reads |
 | Seed (one-off) | backend, `./node_modules/.bin/medusa exec ./src/scripts/seed-jewelry.js` | none | exit code 0 | none | as migrate, plus `STRIPE_API_KEY` to enable Stripe in the region |
 | Storefront | storefront, `node apps/storefront/server.js` | 8000, published | `GET /api/health` returns `OK` | none (`.next/cache` is disposable) | `MEDUSA_PUBLISHABLE_KEY` (public by design), `MEDUSA_BACKEND_URL`, `PUBLIC_MEDUSA_BACKEND_URL`, `PUBLIC_BASE_URL`, `PUBLIC_STRIPE_KEY` (public) |
+| Agent | agent, `python -m agent_service` | 8080, internal only | `GET /health/ready` returns 200 (the agent database answers `select 1`) | none | `AGENT_DATABASE_URL` (the `agent` role's password is in it) |
+| Agent database setup (one-off) | `pgvector/pgvector:0.8.7-pg17-bookworm`, `infra/postgres/create-databases.sh` | none | exit code 0 | none | `PGPASSWORD` (the superuser's), `AGENT_DB_PASSWORD`, `LITELLM_DB_PASSWORD` |
 | PostgreSQL + pgvector | `pgvector/pgvector:0.8.7-pg17-bookworm` | 5432, never public | `pg_isready -U postgres -d medusa-goods` | `/var/lib/postgresql/data` | `POSTGRES_PASSWORD` |
 | Redis | `redis:8.10.2-alpine3.23`, `--appendonly yes` | 6379, never public | `redis-cli ping` returns `PONG` | `/data` | none locally; a password on Railway |
 | Ollama | `ollama/ollama:0.40.14` | 11434, internal | `ollama list` | `/root/.ollama` (models, pulled at runtime) | none |
@@ -73,6 +76,7 @@ Each check tests readiness, not that a process exists.
 - Backend `/health`: Medusa's static `OK`, registered once every loader has finished. It means the process booted, and it stays `OK` while Postgres is down, so use it for uptime checks only. Both roles serve it.
 - Backend `/ready` (server only): runs `select 1` on Medusa's Postgres connection and returns 503 with the reason when the query fails or takes longer than 3 seconds. Worker mode loads no API routes, so a worker has no `/ready`.
 - The image's `HEALTHCHECK` runs `healthcheck.mjs` with `node` (no `curl` or `wget` needed). On a server it calls `/ready`. On a worker (`MEDUSA_WORKER_MODE=worker`) it calls `/health` and then runs `select 1` itself with `DATABASE_URL`. Measured in Compose: with Postgres stopped, `/ready` returned 503 within 3 seconds, both containers turned unhealthy after about 40 seconds (three failed checks), and both were healthy again 6 seconds after Postgres started, without a restart.
+- Agent: `/health/live` returns 200 while the process serves requests. `/health/ready` runs `select 1` on the agent database and returns 503 when it fails or takes longer than 3 seconds; the reason goes to the log only. The image's `HEALTHCHECK` runs `healthcheck.py`, which calls `/health/ready`.
 - Storefront: `/api/health` returns 200 only when a publishable key is configured and the backend's `/health` answers within 3 seconds. Otherwise it returns 503 with the reason. This matches what the middleware needs to render any page, so the storefront reports unhealthy while the backend is down and recovers without a restart.
 
 ## Server and worker
