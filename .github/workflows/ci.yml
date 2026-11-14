@@ -115,6 +115,46 @@ jobs:
         env:
           NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_ci_placeholder
 
+  # The Python workspace (apps/agent, packages/agent-core, evals), then the
+  # agent's database setup against a throwaway Postgres.
+  agent:
+    name: agent
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      # The image of compose.yaml: copy its Dependabot bumps here.
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg17-bookworm@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Readiness against a database that answers.
+      AGENT_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Python comes from .python-version.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          # The uv image of apps/agent/Dockerfile: copy its Dependabot bumps here.
+          version: "0.13.8"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked
+      - run: uv run ruff check
+      - run: uv run ruff format --check
+      - run: uv run mypy
+      - run: uv run pytest
+      - run: infra/postgres/test.sh
+
   # Backs up throwaway databases with the backup image and restores them
   # (apps/backup/test.sh). Railway and R2 are not touched.
   backup:
@@ -130,7 +170,7 @@ jobs:
   # Lives in this workflow because `needs:` only reaches jobs in the same run.
   publish:
     name: publish (${{ matrix.image }})
-    needs: [format, lint, typecheck, test, build, backup]
+    needs: [format, lint, typecheck, test, build, backup, agent]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -138,7 +178,7 @@ jobs:
       matrix:
         # backup is the cron service; releases don't deploy it
         # (docs/runbooks/restore-all-state.md#update-the-backup-image).
-        image: [backend, storefront, backup]
+        image: [backend, storefront, agent, backup]
     permissions:
       contents: read # check out the build context
       packages: write # push images, and the attestation, to GHCR
