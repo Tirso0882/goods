@@ -14,7 +14,7 @@ Anna is logged in to the storefront. Her order #1042 (one silver ring) was deliv
 | --- | --- | --- | --- | --- |
 | 1 | First message arrives | (new) to `open` | nobody | `support_cases` row; `messages` (shopper) |
 | 2 | A worker takes the case lock and the message | `open` to `agent_working` | nobody | nothing new |
-| 3 | `verify_customer` with her forwarded session token | `agent_working` | Medusa support route: is the token valid? | `verifications`: session, read and write, scope is her customer, 30 minutes |
+| 3 | `verify_shopper` with her forwarded session token | `agent_working` | Medusa support route: is the token valid? | `verifications`: session, read and write, scope is her customer, 30 minutes |
 | 4 | `get_order` for #1042 | `agent_working` | Route: is #1042 inside the grant's scope? | `tool_executions`: succeeded |
 | 5 | The model picks `request_return(1042, ring x1)` | `agent_working` | The model only chooses | nothing new |
 | 6 | The tool's code runs | `agent_working` | Agent code: kill switch on, write grant covers #1042, arguments valid | `tool_executions`: pending, key `{case}:return:1042:{ring x1}` |
