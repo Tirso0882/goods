@@ -1,0 +1,15 @@
+# The eval cases, the runner and the report writer. They call agent-core
+# in-process and depend on the commerce port, never on Medusa (ADR 0019).
+[project]
+name = "evals"
+version = "0.0.0"
+description = "Eval suite for the support agent"
+requires-python = "==3.12.*"
+dependencies = ["agent-core"]
+
+[tool.uv.sources]
+agent-core = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.9.0,<0.14"]
+build-backend = "uv_build"
