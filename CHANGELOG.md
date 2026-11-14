@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/Tirso0882/goods/compare/v0.3.0...v0.4.0) (2026-11-14)
+
+
+### Features
+
+* **agent:** add the Python workspace and the agent service shell ([#150](https://github.com/Tirso0882/goods/issues/150)) ([87d42b9](https://github.com/Tirso0882/goods/commit/87d42b96691d2eba5d39d32180271442aed3618d))
+* **compose:** create the agent and LiteLLM databases and run the agent ([#150](https://github.com/Tirso0882/goods/issues/150)) ([51b9071](https://github.com/Tirso0882/goods/commit/51b9071bc6c949df65aaccd636057cba5a66b8c6))
+
 ## [0.3.0](https://github.com/Tirso0882/goods/compare/v0.2.2...v0.3.0) (2026-11-08)
 
 
