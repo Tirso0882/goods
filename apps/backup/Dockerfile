@@ -10,7 +10,7 @@
 # Postgres 17 to match the pgvector image the store runs: pg_dump refuses a
 # newer server, and pg_restore reads dumps from its own major or older.
 # Dependabot skips majors here, so it never bumps past the server.
-FROM postgres:17.11-alpine3.24@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+FROM postgres:17.11-alpine3.24@sha256:e5d2edd28b1f8d40a0a6c0c9cdc545b19b56a0d5d88f94bc11a97d970d4700d0
 
 # age encrypts to a public key, so the cron can't decrypt what it wrote.
 # rclone talks to R2's S3 API and mirrors the media bucket.
