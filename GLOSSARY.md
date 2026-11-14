@@ -74,6 +74,14 @@ _Avoid_: Limit, threshold (alone)
 One chat conversation with a shopper. It can cover several orders and requests, and it ends on resolution, handoff, or a day without activity.
 _Avoid_: Ticket, session, thread
 
+**Turn**:
+One shopper message and everything the support agent does until its reply. The per-message budgets apply to one turn.
+_Avoid_: Request, step, run
+
+**Order number**:
+The number the shopper sees on emails and packing slips. It identifies an order and never proves identity.
+_Avoid_: Order ID, display ID
+
 **Verification grant**:
 Short-lived proof, issued by the store, that a shopper may read, or also change, one order or all of their own orders within one support case.
 _Avoid_: Session, login, verified flag
