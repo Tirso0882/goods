@@ -11,12 +11,14 @@ Synthetic data and Stripe test mode only. Never point this stack at a shared or 
 | `storefront` | Next.js storefront | http://localhost:8000/pl |
 | `postgres` | PostgreSQL 17 with pgvector, database `medusa-goods` | `docker compose exec postgres psql -U postgres -d medusa-goods` |
 | `redis` | Redis with append-only persistence | `docker compose exec redis redis-cli` |
+| `agent` | Support agent service (FastAPI), [checks below](#agent-service) | internal only: `docker compose exec agent python /opt/healthcheck.py` |
 | `ollama` | Ollama on CPU | `docker compose exec ollama ollama list` |
 | `medusa-migrate` | One-off: `medusa db:migrate`, runs on every `up` | logs only |
 | `publishable-key` | One-off: copies the publishable key into a volume for the storefront | logs only |
+| `agent-db-setup` | One-off: creates the `agent` and `litellm` databases and roles, runs on every `up` | logs only |
 | `medusa-seed`, `medusa-admin-user`, `ollama-pull` | One-offs in the `setup` profile, run by hand | logs only |
 
-The ports above are the defaults from `MEDUSA_PORT` and `STOREFRONT_PORT`, bound to `127.0.0.1`. Postgres, Redis and Ollama publish no host ports, so the stack can run next to the `goods-postgres` and `goods-redis` containers. Its project name is `goods-stack`, so its containers and volumes (`goods-stack_pgdata` and so on) never touch the `pnpm dev` ones.
+The ports above are the defaults from `MEDUSA_PORT` and `STOREFRONT_PORT`, bound to `127.0.0.1`. Postgres, Redis, the agent and Ollama publish no host ports, so the stack can run next to the `goods-postgres` and `goods-redis` containers. Its project name is `goods-stack`, so its containers and volumes (`goods-stack_pgdata` and so on) never touch the `pnpm dev` ones.
 
 ## First run
 
@@ -28,6 +30,7 @@ Needs Docker Desktop (or Docker Engine with Compose v2) with at least 8 GB of me
    cp .env.example .env
    openssl rand -hex 16   # POSTGRES_PASSWORD
    openssl rand -hex 32   # JWT_SECRET, run again for COOKIE_SECRET
+   openssl rand -hex 16   # AGENT_DB_PASSWORD, run again for LITELLM_DB_PASSWORD
    ```
 
    Also set `ADMIN_PASSWORD`. For Stripe, set `STRIPE_API_KEY` (`sk_test_...`), `PUBLIC_STRIPE_KEY` (`pk_test_...`) and `STRIPE_WEBHOOK_SECRET` (see [Stripe test checkout](#stripe-test-checkout)). If `pnpm dev` is using 9000 and 8000, change `MEDUSA_PORT` and `STOREFRONT_PORT`.
@@ -38,7 +41,7 @@ Needs Docker Desktop (or Docker Engine with Compose v2) with at least 8 GB of me
    docker compose up -d --build --wait
    ```
 
-   This starts Postgres and Redis, runs the migrations (which create the starter data and a publishable key), starts the server and worker, copies the key for the storefront, and starts the storefront. `--wait` returns once every service is healthy.
+   This starts Postgres and Redis, runs the migrations (which create the starter data and a publishable key), starts the server and worker, copies the key for the storefront, and starts the storefront. It also creates the agent's and the model proxy's databases and starts the agent. `--wait` returns once every service is healthy.
 
 3. Seed the jewelry store and create the admin user:
 
@@ -70,6 +73,36 @@ docker compose exec postgres psql -U postgres -d medusa-goods -c \
 ```
 
 A freshly seeded store shows 16 products, 10 customers and 12 orders. Then open http://localhost:8000/pl and http://localhost:9000/app (log in with `ADMIN_EMAIL` and `ADMIN_PASSWORD`).
+
+## Agent service
+
+The agent publishes no host port: it is reachable on the Compose network only. `agent-db-setup` runs before it on every `up`. On a volume made before the agent existed it creates the `agent` and `litellm` databases, each owned by a role of the same name with the password from `.env`; when they exist it changes nothing. Each role can connect only to its own database, never to `medusa-goods` or the other's.
+
+Start or rebuild only the agent (Postgres and the setup come with it):
+
+```bash
+docker compose up -d --build --wait agent
+```
+
+Check it worked:
+
+```bash
+docker compose ps agent                                    # Up ... (healthy)
+docker compose logs agent-db-setup                         # Databases ready: agent, litellm
+docker compose exec agent python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8080/health/ready').read().decode())"
+# {"status":"ok","checks":{"database":"ok"}}
+docker compose port agent 8080                             # no output: no host port
+```
+
+Check that the agent's role can't reach the store's database (`infra/postgres/test.sh` checks this and the other cases in CI):
+
+```bash
+docker compose exec -e PGPASSWORD="$(grep ^AGENT_DB_PASSWORD= .env | cut -d= -f2)" postgres \
+  psql -h 127.0.0.1 -U agent -d medusa-goods -c "select 1"
+# FATAL:  permission denied for database "medusa-goods"
+```
+
+With Postgres stopped, `/health/ready` returns 503 (`{"status":"unavailable","checks":{"database":"unavailable"}}`) and the reason goes to `docker compose logs agent`; the container turns unhealthy after three failed checks. Result on 14 November 2026: all as expected, on a volume that already held store data.
 
 ## Crawlers
 
@@ -202,4 +235,6 @@ If the pull then returns an HTML page instead of a TLS error, the proxy blocks t
 | Store listing is empty but product pages work | The listing calls the backend from the browser at the `backendUrl` that `curl -s localhost:$STOREFRONT_PORT/api/store-config` shows. If it is wrong, fix `MEDUSA_PORT` in `.env` and run `docker compose up -d --wait`. |
 | Credit card isn't offered at checkout | `STRIPE_API_KEY` was empty when the seed ran, or `PUBLIC_STRIPE_KEY` is empty. Set them, run `docker compose up -d --wait`, and re-run the seed. |
 | Admin login fails over plain HTTP on a server you built yourself | Production session cookies are `Secure`. The Compose stack sets `INSECURE_LOCAL_COOKIES=true`, which the backend only honors with a localhost `MEDUSA_BACKEND_URL`; a deployed server needs HTTPS instead. |
+| `required variable AGENT_DB_PASSWORD is missing a value` (or `LITELLM_DB_PASSWORD`) | `.env` predates the agent. Add both, as in First run, then `docker compose up -d --wait`. |
+| `agent` unhealthy, logs say `password authentication failed for user "agent"` | `AGENT_DB_PASSWORD` changed in `.env` but the role still has the old one. `docker compose up -d --wait` reruns `agent-db-setup`, which sets the current password. |
 | `medusa-admin-user` fails with `User with email: ... already exists` | The user is already in this database. Log in, or reset. |
