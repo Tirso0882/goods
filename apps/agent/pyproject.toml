@@ -1,0 +1,24 @@
+# The agent service: a thin FastAPI shell over agent-core. Settings, health
+# endpoints and wiring only; the agent's logic lives in the core (ADR 0019).
+[project]
+name = "agent-service"
+version = "0.0.0"
+description = "FastAPI shell over the support agent core"
+requires-python = "==3.12.*"
+dependencies = [
+  "agent-core",
+  "fastapi>=0.121.0",
+  "psycopg[binary]>=3.2.12",
+  "pydantic-settings>=2.11.0",
+  "uvicorn>=0.38.0",
+]
+
+[project.scripts]
+agent-service = "agent_service.__main__:main"
+
+[tool.uv.sources]
+agent-core = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.9.0,<0.14"]
+build-backend = "uv_build"

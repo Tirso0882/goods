@@ -1,0 +1,61 @@
+# The Python workspace: the agent service, the agent core and the evals, with
+# one lockfile (uv.lock). Python stays out of pnpm and turbo.
+#
+#   uv sync                     # all three packages and the dev tools
+#   uv run ruff check && uv run ruff format --check
+#   uv run mypy
+#   uv run pytest
+#
+# A virtual root: it is not a package itself. The dev group lists the members
+# so a plain `uv sync` installs all of them.
+[tool.uv.workspace]
+members = ["apps/agent", "packages/agent-core", "evals"]
+
+[tool.uv.sources]
+agent-service = { workspace = true }
+agent-core = { workspace = true }
+evals = { workspace = true }
+
+[dependency-groups]
+dev = [
+  "agent-service",
+  "agent-core",
+  "evals",
+  "httpx2>=2.16.0",
+  "mypy>=1.18.2",
+  "pytest>=8.4.2",
+  "ruff>=0.14.4",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+# Python only: Markdown and the TypeScript apps belong to Prettier.
+include = ["*.py", "*.pyi", "**/pyproject.toml"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "S", "PT", "TID"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agent_service", "agent_core", "evals"]
+
+[tool.ruff.lint.per-file-ignores]
+# assert is how pytest checks.
+"**/tests/**" = ["S101"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = [
+  "apps/agent/healthcheck.py",
+  "apps/agent/src",
+  "apps/agent/tests",
+  "packages/agent-core/src",
+  "packages/agent-core/tests",
+  "evals/src",
+]
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["apps/agent/tests", "packages/agent-core/tests"]
+addopts = ["--import-mode=importlib", "--strict-markers"]
