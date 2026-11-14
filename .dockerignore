@@ -1,6 +1,7 @@
 # Allowlist: every image builds from the repo root and needs only the workspace
-# manifests and its own app. Everything else, including .git, docs, learning
-# and agent files, stays out of the build context.
+# manifests and its own app (the agent also needs agent-core). Everything
+# else, including .git, docs, learning and agent files, stays out of the build
+# context.
 *
 !package.json
 !pnpm-lock.yaml
@@ -9,6 +10,14 @@
 !apps/backend
 !apps/storefront
 !apps/backup
+# The Python workspace: its manifests, the agent service and the agent core.
+# evals is a workspace member, so uv needs its manifest, but not its code.
+!pyproject.toml
+!uv.lock
+!.python-version
+!apps/agent
+!packages/agent-core
+!evals/pyproject.toml
 
 # Secrets. Next.js loads .env* from the app folder during build, so a leaked
 # .env.local would bake development values into the image.
@@ -22,6 +31,11 @@
 **/.turbo
 **/tsconfig.tsbuildinfo
 **/coverage
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
 
 # Local uploads from the backend's local file provider
 apps/backend/static
