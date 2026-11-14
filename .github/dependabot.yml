@@ -57,7 +57,8 @@ updates:
           - "*"
 
   # The node image in every FROM line of apps/backend/Dockerfile and
-  # apps/storefront/Dockerfile, and the Postgres image of apps/backup/Dockerfile,
+  # apps/storefront/Dockerfile, the Python and uv images of apps/agent/Dockerfile,
+  # and the Postgres image of apps/backup/Dockerfile,
   # which must stay on the server's major. apps/backup/test.sh pins the node
   # and pgvector images too: copy their bumps there.
   - package-ecosystem: docker
@@ -70,9 +71,13 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # The agent stays on Python 3.12 (requires-python, .python-version).
+      - dependency-name: python
+        update-types: ["version-update:semver-minor"]
 
-  # Postgres, Redis and Ollama in compose.yaml. The CI test job pins the same
-  # Postgres and Redis, which Dependabot leaves alone: copy each bump there.
+  # Postgres, Redis and Ollama in compose.yaml. The CI test and agent jobs pin
+  # the same Postgres, and the test job the same Redis, which Dependabot leaves
+  # alone: copy each bump there, and to infra/postgres/test.sh.
   - package-ecosystem: docker-compose
     directory: /
     schedule:
@@ -85,3 +90,22 @@ updates:
       # Local tags of the images compose.yaml builds; not on any registry.
       - dependency-name: goods-stack-backend
       - dependency-name: goods-stack-storefront
+      - dependency-name: goods-stack-agent
+
+  # The Python workspace's uv.lock (apps/agent, packages/agent-core, evals).
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "chore(deps)"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      python:
+        update-types:
+          - minor
+          - patch
