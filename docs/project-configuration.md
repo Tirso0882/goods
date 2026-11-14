@@ -14,10 +14,10 @@ GPU confirmed by nvidia-smi: BLOCKED (record model, driver, CUDA version and VRA
 Node version: 24 LTS (major pinned in .nvmrc; images run v24.22.2), switched automatically by fnm 1.39.0
 Package manager and version: pnpm 10.33.2, pinned by packageManager in the root package.json and enabled with corepack (Medusa 2.21.2 monorepo from create-medusa-app)
 Python version: 3.12 (3.12.13 via uv), pinned in .python-version
-Hosted model provider: Amazon Bedrock, eu-central-1, through LiteLLM
-Primary model: Claude Sonnet (EU cross-region inference profile)
+Hosted model provider: Amazon Bedrock, eu-central-1, through LiteLLM (AWS account opened on 14 November 2026)
+Primary model: Claude Sonnet 5.5 if the AWS account is granted it, otherwise Claude Sonnet 5 (EU cross-region inference profile); no sampling parameters, effort level medium (see docs/design.md, Budgets)
 Embedding model: BLOCKED
-Monthly model budget: BLOCKED
+Monthly model budget: 20 USD, enforced on the agent's LiteLLM key, with an AWS budget alert behind it; revisit at Step 4
 Hosting provider, region and plan: None until the store is mature: everything runs locally in Docker Compose. Pre-production, then production, on one EU host chosen in a new ADR at the go-live gate. Railway hosted the test store until the account was deleted on 7 November 2026 (see docs/adr/0016-the-store-is-built-locally-until-it-is-mature.md)
 Domain: redkraken.tech, storefront at www.redkraken.tech; the other hostnames are set in #16
 Object storage provider: Cloudflare R2, EU jurisdiction buckets, separate buckets for Medusa files and backups, when hosting returns; whether the October buckets still exist is unconfirmed (see docs/adr/0006-railway-hosts-the-test-store.md and docs/adr/0016-the-store-is-built-locally-until-it-is-mature.md)
