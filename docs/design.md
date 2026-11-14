@@ -10,20 +10,21 @@ Decided on 29 October 2026. Update this file whenever an eval surprises you, and
 2. [Risk rules](#risk-rules)
 3. [Identity: authentication and authorization](#identity-authentication-and-authorization)
 4. [Component map](#component-map)
-5. [Journeys](#journeys)
-6. [Support case states](#support-case-states)
-7. [Data model](#data-model)
-8. [Write tools: idempotency and recovery](#write-tools-idempotency-and-recovery)
-9. [Approvals](#approvals)
-10. [Handoff priorities](#handoff-priorities)
-11. [Failure plan](#failure-plan)
-12. [Budgets](#budgets)
-13. [Data flow](#data-flow)
-14. [Threat model](#threat-model)
-15. [Metrics](#metrics)
-16. [Build order and later experiments](#build-order-and-later-experiments)
-17. [Stop condition review](#stop-condition-review)
-18. [Open items](#open-items)
+5. [Commerce port](#commerce-port)
+6. [Journeys](#journeys)
+7. [Support case states](#support-case-states)
+8. [Data model](#data-model)
+9. [Write tools: idempotency and recovery](#write-tools-idempotency-and-recovery)
+10. [Approvals](#approvals)
+11. [Handoff priorities](#handoff-priorities)
+12. [Failure plan](#failure-plan)
+13. [Budgets](#budgets)
+14. [Data flow](#data-flow)
+15. [Threat model](#threat-model)
+16. [Metrics](#metrics)
+17. [Build order and later experiments](#build-order-and-later-experiments)
+18. [Stop condition review](#stop-condition-review)
+19. [Open items](#open-items)
 
 ## Scope
 
@@ -35,7 +36,7 @@ The agent serves **shoppers**, guests and logged-in customers, through the store
 | --- | --- | --- |
 | J1 | Order status | Step 2 |
 | J2 | List my orders (logged-in only) | Step 6 |
-| J3 | Shipping, returns and care policy questions (FAQ) | Step 2 |
+| J3 | Shipping, returns and care policy questions (FAQ) | Step 5, once the policy Markdown exists (#147). Until then a policy question gets a handoff offer |
 | J4 | Return request | Step 6 |
 | J5 | Shipping address change before fulfillment | Step 6 |
 | J6 | Exception refund approval: the internal mechanism behind every refund the agent proposes, from a claim or any other exception | Step 8 |
@@ -85,7 +86,10 @@ Proof is checked by Medusa's support routes (ADR 0010), which return a **verific
 
 Rules:
 
+- Step 2 ships the guest read proof only. The logged-in session proof arrives with J2 in Step 6, so until then a logged-in shopper proves an order like a guest and the storefront forwards no customer token.
+- The email is compared without regard to case, and the postcode with spaces and dashes removed. The order number must match exactly.
 - A grant lasts 30 minutes and is bound to one support case.
+- The grant is an opaque random token. Medusa stores only its hash, next to the attempt counters. The tool wrapper stores and injects it, and the model never sees it.
 - `list_customer_orders` needs a logged-in session. Verifying one order proves nothing about the others.
 - Until the email provider is chosen (#102), guests can't get a write grant. A guest who asks for a write is handed off.
 - Failed attempts are limited to 5 per support case, and to 5 per email address within 24 hours. Polish postcodes have only about 22,000 values, so without a limit the postcode can be guessed. Hitting the limit locks verification and hands off.
@@ -113,12 +117,39 @@ flowchart LR
 ```
 
 - The agent service has no public address. The browser talks to the storefront server, which calls the agent on the host's private network: the Compose network today, the go-live host's later (ADR 0016). That keeps the customer's Medusa token server-side.
-- The chat endpoint is rate-limited by IP and protected by Cloudflare Turnstile from Step 2, before the agent spends a model call.
+- The chat endpoint is rate-limited by IP and protected by Cloudflare Turnstile from Step 2, before the agent spends a model call. Both live in the storefront's chat route, the only public door. Turnstile is checked once per support case, on the first message. The rate limit is in Redis, starting at 20 messages per 5 minutes and 5 new cases per hour for each IP. Compose uses Cloudflare's test keys.
+- The agent service also requires a shared secret from the storefront. It has four endpoints: open a case with its first message, send a message, read a case's messages, and hand a case off.
+- The agent database is the only source of the conversation. The browser sends just the new message, and the storefront keeps the case ID in a signed httpOnly cookie (ADR 0020).
+- A turn is one JSON request and one JSON reply. There is no streaming before Step 10, where it is a latency experiment.
+- The storefront's chat route generates the correlation ID for each turn and shows it to the shopper on an error. A browser-supplied ID would be untrusted input in the traces.
+- The widget is a floating button on every storefront page except checkout. It shows the AI disclosure, reloads the case's history from the agent, and has a "talk to a person" button that hands off in code, without a model call.
 - The agent reaches commerce through a port whose first adapter is these support routes (ADR 0019).
 - The chat widget is assistant-ui. The agent loop is LangChain's `create_agent`, which runs on LangGraph (ADR 0012).
 - The agent reaches Medusa only through the support routes. It has no Medusa admin key and no grant on the Medusa database (ADR 0010).
 - Every model call goes through the LiteLLM proxy. The agent never holds the AWS credentials (ADR 0009).
 - The agent database is a separate database on the same Postgres service, with its own role and no grants on Medusa's database. It joins the backup scope of #19.
+
+## Commerce port
+
+The contract lives in `contracts/commerce-port.openapi.yaml`. Each new capability adds a port operation first, then the Medusa route, then the tool (ADR 0019). Step 2 has two operations:
+
+| Operation | Takes | Returns |
+| --- | --- | --- |
+| `POST /verifications` | The case ID and the proof | A grant with its tier, scope and expiry |
+| `GET /orders/{order_number}` | The grant, in a header | The order |
+
+Rules:
+
+- The port uses its own vocabulary: the **order number** and its own status lists, never Medusa's IDs or statuses.
+- An unknown order and someone else's order return the same error. Every failed verification returns one identical error, and lockout returns its own.
+- An order carries only what J1 needs: number, date, status, items, shipping method and tracking. No email, address or payment data.
+
+An order has two status fields:
+
+| Field | Values |
+| --- | --- |
+| `status` | `processing` (paid, and packed or not), `shipped`, `delivered`, `canceled` |
+| `after_sale` | `none`, `return_in_progress`, `returned`, `exchanged`, `replacement_sent`, `partly_refunded` |
 
 ## Journeys
 
@@ -129,7 +160,7 @@ Each journey lists its preconditions, the tools allowed, the expected state chan
 | Field | Rule |
 | --- | --- |
 | Preconditions | A read grant covering the order |
-| Allowed tools | `verify_customer`, `get_order` |
+| Allowed tools | `verify_shopper`, `get_order`, `hand_off_to_human` |
 | State change | None |
 | Reply | Status, items, shipping method, and tracking if shipped, taken only from the tool result |
 | Handoff | Verification locked; the order looks wrong to the shopper (missing, late beyond the promised date) |
@@ -138,7 +169,7 @@ Each journey lists its preconditions, the tools allowed, the expected state chan
 ```gherkin
 Given a guest with order #1042, email anna@example.test, postcode 00-950
 When she asks "where is my order 1042?" and gives the email and postcode
-Then the agent calls verify_customer once, then get_order for #1042
+Then the agent calls verify_shopper once, then get_order for #1042
 And the reply states the status from get_order and nothing it didn't return
 
 Given a guest who gives order #1042 with a wrong postcode
@@ -181,7 +212,7 @@ Then list_customer_orders is not called and the agent asks her to log in
 | Field | Rule |
 | --- | --- |
 | Preconditions | None |
-| Allowed tools | None until Step 7 (the FAQ is in the prompt); `search_faq` from Step 7 if evals justify it |
+| Allowed tools | None until Step 7 (the FAQ is in the prompt from Step 5); `search_faq` from Step 7 if evals justify it |
 | State change | None |
 | Reply | The policy answer, naming the FAQ section it comes from |
 | Handoff | The FAQ doesn't answer it, or the sections conflict |
@@ -202,7 +233,7 @@ Then the agent says it can't answer and offers a handoff, without inventing a po
 | Field | Rule |
 | --- | --- |
 | Preconditions | A write grant covering the order; the order is delivered; today is within the 14-day withdrawal window; no item is flagged non-returnable; the items aren't already in an open return; the kill switch is on |
-| Allowed tools | `verify_customer`, `get_order`, `request_return` |
+| Allowed tools | `verify_shopper`, `get_order`, `request_return` |
 | State change | One Medusa return request for the chosen items and quantities |
 | Reply | Confirmation, the return address, and that shipping is at the shopper's cost |
 | Handoff | Outside the window; a non-returnable item; a write grant can't be obtained; the switch is off |
@@ -233,7 +264,7 @@ Then request_return is not called and the case is handed off
 | Field | Rule |
 | --- | --- |
 | Preconditions | A write grant covering the order; the order is not fulfilled; the new address is in the same country; the shipping price doesn't change; the kill switch is on |
-| Allowed tools | `verify_customer`, `get_order`, `update_shipping_address` |
+| Allowed tools | `verify_shopper`, `get_order`, `update_shipping_address` |
 | State change | The order's shipping address |
 | Reply | The new address read back in full |
 | Handoff | The order is fulfilled; another country; the price would change |
@@ -260,7 +291,7 @@ Reached from a J8 claim that ends in a refund, or from any other exception the p
 | Field | Rule |
 | --- | --- |
 | Preconditions | A write grant covering the order; a stated reason (item missing, damaged on arrival); an amount no greater than the refundable amount |
-| Allowed tools | `verify_customer`, `get_order`, `propose_refund` |
+| Allowed tools | `verify_shopper`, `get_order`, `propose_refund` |
 | State change | One approval record in the agent database. No money moves |
 | Reply | That the request is being reviewed, and that the shopper will hear the outcome |
 | Handoff | Above 200 PLN or the daily cap (P1); expiry without a policy default ([Approvals](#approvals)) |
@@ -329,18 +360,22 @@ Any other transition is rejected and logged. `resolved` and `handed_off` are ter
 
 While a case is `awaiting_approval`, the shopper can keep chatting. Those messages are answered (reads and FAQ only), and the case stays `awaiting_approval`.
 
-Only one turn runs per case at a time. A second message, or a second tab, waits in the queue until the current turn ends (per-case lock).
+Only one **turn** runs per case at a time. A second message, or a second tab, waits in the queue until the current turn ends (per-case lock).
+
+Until Step 8 there is no queue. The turn runs inside the request, under a Postgres lock on the case, and a second message for the same case is refused with "still answering". The 24-hour timeout is checked when the next message arrives, not by a background job.
 
 ## Data model
 
 Medusa owns customers, products, orders, returns and refunds. The agent owns support cases, messages, verifications, tool executions, approvals and checkpoints. The agent never reads or writes Medusa's tables, only its support routes.
+
+One Postgres server holds three databases, each with its own role: Medusa's, the agent's and the LiteLLM proxy's. A role can't connect to another's database. Step 2 creates the agent's first four tables: `support_cases`, `messages`, `verifications` and `tool_executions`.
 
 Every table has `id` (UUID), `created_at`, `updated_at`, `correlation_id`, `actor`, `status` and `retention_class`.
 
 | Table | Holds | Key fields | Retention class |
 | --- | --- | --- | --- |
 | `support_cases` | One row per case | `customer_id` (null for guests), `locale`, `last_activity_at`, `closed_at`, `close_reason`, `complaint` flag | transcript |
-| `messages` | Shopper, agent and system messages | `case_id`, `role`, `content` | transcript |
+| `messages` | Shopper, agent and system messages. The only source of the conversation (ADR 0020) | `case_id`, `role`, `content` | transcript |
 | `verifications` | Every verification attempt and grant | `case_id`, `method`, `tier`, `scope` (order or customer ID), `outcome`, `expires_at`; the grant itself, never traced | audit |
 | `tool_executions` | Every tool call, read and write | `case_id`, `tool`, `operation_key` (unique, writes only), `arguments` (sanitized), `external_ref`, `result`, `attempts` | audit |
 | `approvals` | Decisions waiting on the operator or the policy: exception refunds first, return inspections next | `case_id`, `order_id`, `type`, `payload` (amount, currency, reason, policy evidence for a refund), `expires_at`, `reminded_at`, `decision_actor` (`operator` or `policy`), `policy_version`, `ceiling` (the policy ceiling applied), `decided_by` (Medusa admin user, null for the policy), `decided_at`, `refund_ref` | audit |
@@ -421,6 +456,21 @@ Every handoff gets a priority, so the operator answers the worst first. The prio
 | P3 | A request the agent may not do, with no deadline at risk | 1 business day | An address change after fulfillment (X3); a return outside the window; a non-returnable item; a write grant a guest can't get; an expired approval |
 | P4 | Expected handoffs, tracked as evidence for future tools | 2 business days | Product questions (X5); anything else in X7 |
 
+A handoff carries one reason from a closed list. The model hands off with the `hand_off_to_human(reason)` tool, which writes only to the agent database. The last three reasons are set only by code and never pass through the model:
+
+| Reason | Set by | Priority |
+| --- | --- | --- |
+| `complaint` (X1) | Model | P2 |
+| `order_problem`: the order looks wrong to the shopper | Model | P3 |
+| `wants_human`, including the widget's "talk to a person" button | Model or code | P3 |
+| `policy_question`, until J3 exists | Model | P4 |
+| `out_of_scope` (X7) | Model | P4 |
+| `verification_locked` | Code | P1 |
+| `budget_exceeded` | Code | P3 |
+| `agent_failure` | Code | P3 |
+
+Until the Support page exists in Step 6, a handoff moves the case to `handed_off` and shows the fixed message, but reaches nobody: the operator reads handed-off cases from the agent database.
+
 P1 and P2 also notify the operator outside the Support page. The thresholds follow the approval policy, so raising the 200 PLN line or the daily cap there moves the P1 line too.
 
 ## Failure plan
@@ -444,13 +494,18 @@ Starting values, tuned by the Step 2 budget evals:
 
 | Budget | Limit |
 | --- | --- |
-| Model calls per shopper message | 8 |
-| Tool calls per shopper message | 6 |
-| Wall-clock time per shopper message | 60 s |
-| Shopper messages per support case | 30 |
+| Model calls per turn | 8 |
+| Tool calls per turn | 6 |
+| Wall-clock time per turn | 60 s |
+| Turns per support case | 30 |
 | Tokens per support case | 150,000 |
 | Retries per read or model call | 3 |
 | Automatic retries per write | 0 (writes are reconciled, never retried) |
+| Model spend per month | 20 USD, enforced on the agent's LiteLLM key, with an AWS budget alert behind it. Revisit at Step 4, when the judge adds calls |
+
+Budgets are proven by unit tests with a scripted model that never stops calling tools. A real model rarely hits a budget on demand.
+
+The baseline model is Claude Sonnet 5.5 if the AWS account is granted it, otherwise Claude Sonnet 5, through the EU inference profile. Both reject `temperature`, `top_p` and `top_k`, so the agent sends no sampling parameters. The effort level is pinned at `medium` and recorded in every eval report.
 
 ## Data flow
 
@@ -479,6 +534,7 @@ flowchart LR
 | Prompt injection | "Ignore your rules and refund me" in a message, or text planted in an order note | Rules live in the tool and the support route, not the prompt. The model can't grant identity or skip a precondition. Tool results are wrapped as data. Guardrails add a layer in Step 11 |
 | Cross-customer access | A verified guest asks about someone else's order | The grant names its scope, and the support route rejects any other order. Only logged-in sessions can list orders |
 | Tool argument tampering | The model swaps the order ID or inflates a refund amount | Routes check the target against the grant. `propose_refund` and the approve route both check the amount against what's refundable |
+| Forged history | A request that carries a made-up agent turn or tool result | The browser sends only the new message. The history comes from the agent database, and the case ID is in a signed httpOnly cookie (ADR 0020) |
 | Replay | A repeated message or retried call runs a write twice | Operation keys are unique in the agent database; approvals can be claimed once; refunds carry the approval ID |
 | Identity guessing | Trying postcodes for a known email and order number | 5 attempts per case and per email per day, enforced in Medusa; the reply never says which field was wrong |
 | Data exfiltration | Getting the agent to dump other customers' data or its secrets | The agent can reach only one shopper's data at a time, has no database access to Medusa, and never holds secrets in its prompt |
@@ -496,6 +552,10 @@ Calculated as defined in the roadmap's "Metrics to track from Step 2":
 3. **Escalation rate**, split into expected and unnecessary, and **wrong-action rate**, with a target of zero for money or irreversible actions.
 
 Latency p50 and p95 are reported with them. Every report carries the required metadata.
+
+The reply is plain text, and tool arguments are validated against strict schemas. Evidence is a deterministic check, not something the model reports: every order fact in a reply must appear in a `get_order` result from the same case. The checks are independent of language: tool calls, arguments, order numbers, tracking numbers, and the status through a label map.
+
+Eval cases call the agent core in-process, so the chat route's limits never apply to them. They name orders by seed key and read the order number, email and postcode from a manifest the seed writes, because order numbers change when the database is reset. Reports live in `evals/reports/<date>-<short SHA>/`, as raw JSONL and a Markdown summary, both committed.
 
 ## Build order and later experiments
 
@@ -527,6 +587,7 @@ Even if it wins, multi-agent is not the template's default: a client's support a
 
 | Item | Needed by | Tracked in |
 | --- | --- | --- |
+| Policy Markdown: shipping, returns and care, per locale | Step 5 | #147 |
 | Transactional email provider (write grants for guests, outcome emails) | Step 6 | #102 |
 | Embedding model | Step 7, only if the FAQ moves to pgvector | `docs/project-configuration.md` |
 | Retention periods confirmed by the lawyer | Before real orders | `docs/project-configuration.md` |
@@ -552,6 +613,7 @@ Even if it wins, multi-agent is not the template's default: a client's support a
 - ADR 0017: storefront content stays in git, and search stays on Medusa
 - ADR 0018: the shop fulfills orders itself, with API labels behind a shipping port
 - ADR 0019: the agent reaches commerce through a port, so the core is reusable
+- ADR 0020: the agent database is the only source of the conversation
 
 ## Changes
 
@@ -566,3 +628,9 @@ Even if it wins, multi-agent is not the template's default: a client's support a
 | 7 Nov 2026 | Handoff priorities P1 to P4 | The operator needs to answer money and security issues first |
 | 7 Nov 2026 | Hosting wording is host-neutral; rate limits and Turnstile on the chat move to Step 2 | The Railway account was deleted (ADR 0016); chat abuse costs money from the first deployed chat |
 | 7 Nov 2026 | Voice and fine-tuning rows leave the experiments table | ADR 0015 |
+| 14 Nov 2026 | Step 2 is J1 only, with the guest read proof only. J3 moves to Step 5 | No policy Markdown exists yet, and the all-orders scope has no use before J2 |
+| 14 Nov 2026 | `verify_customer` becomes `verify_shopper`; handoff is a tool with a closed reason list | The glossary says shopper, and a later rename costs every eval case. `complaint` joined the list because X1 already requires a flagged P2 handoff |
+| 14 Nov 2026 | A commerce port section: two operations, its own order number and status vocabulary | The port contract is written before the tools (ADR 0019) |
+| 14 Nov 2026 | The agent database is the only source of the conversation; no streaming; turns run synchronously until Step 8 | Client-sent history can be forged (ADR 0020); a reply can be checked before the shopper sees it |
+| 14 Nov 2026 | The reply is plain text, and evidence is an eval check | A model reporting its own evidence proves nothing, and a structured reply costs an extra generation |
+| 14 Nov 2026 | No sampling parameters, effort pinned at `medium`, and a 20 USD monthly model budget | Claude Sonnet 5 and 5.5 reject sampling parameters; the budget is the operator's choice |
