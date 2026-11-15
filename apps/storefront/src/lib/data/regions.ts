@@ -2,11 +2,13 @@
 
 import { sdk } from "@lib/config"
 import { HttpTypes } from "@medusajs/types"
+import { REGIONS_REVALIDATE_SECONDS } from "@lib/util/regions-cache"
 import { getCacheOptions } from "./cookies"
 
 export const listRegions = async () => {
   const next = {
     ...(await getCacheOptions("regions")),
+    revalidate: REGIONS_REVALIDATE_SECONDS,
   }
 
   return await sdk.client
@@ -21,6 +23,7 @@ export const listRegions = async () => {
 export const retrieveRegion = async (id: string) => {
   const next = {
     ...(await getCacheOptions(["regions", id].join("-"))),
+    revalidate: REGIONS_REVALIDATE_SECONDS,
   }
 
   return await sdk.client
