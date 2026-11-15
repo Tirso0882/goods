@@ -27,6 +27,21 @@ x-ollama: &ollama
 # sslmode=disable: Medusa uses SSL for any host but localhost.
 x-database-url: &database-url postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/medusa-goods?sslmode=disable
 
+x-agent: &agent
+  image: ${AGENT_IMAGE:-goods-stack-agent:local}
+  build:
+    context: .
+    dockerfile: apps/agent/Dockerfile
+  environment:
+    AGENT_DATABASE_URL: postgresql://agent:${AGENT_DB_PASSWORD:?set AGENT_DB_PASSWORD in .env}@postgres:5432/agent
+    # The storefront server's secret for the case endpoints.
+    AGENT_STOREFRONT_SECRET: ${AGENT_STOREFRONT_SECRET:?set AGENT_STOREFRONT_SECRET in .env}
+  depends_on: &agent-deps
+    postgres:
+      condition: service_healthy
+    agent-db-setup:
+      condition: service_completed_successfully
+
 x-backend: &backend
   image: ${BACKEND_IMAGE:-goods-stack-backend:local}
   build:
@@ -191,6 +206,11 @@ services:
       MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
       # Empty keeps crawlers out (ADR 0007). Only the real production store sets true.
       ALLOW_INDEXING: ${ALLOW_INDEXING:-}
+      # The support chat: the agent on this network, its shared secret, and the
+      # key that signs the case cookie.
+      AGENT_URL: http://agent:8080
+      AGENT_STOREFRONT_SECRET: ${AGENT_STOREFRONT_SECRET:?set AGENT_STOREFRONT_SECRET in .env}
+      CHAT_COOKIE_SECRET: ${CHAT_COOKIE_SECRET:?set CHAT_COOKIE_SECRET in .env}
     command:
       - sh
       - -ec
@@ -232,19 +252,23 @@ services:
         condition: service_healthy
     restart: "no"
 
-  # The support agent. No host port: it is reachable on this network only.
-  # Healthy once /health/ready reaches the agent database.
+  # Runs on every `up`, before the agent starts: brings the agent database's
+  # tables up to date. A second run changes nothing.
+  agent-migrate:
+    <<: *agent
+    command: ["python", "-m", "agent_service", "migrate"]
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  # The support agent. No host port: it is reachable on this network only,
+  # by the storefront server with the shared secret. Healthy once
+  # /health/ready reaches the agent database.
   agent:
-    image: ${AGENT_IMAGE:-goods-stack-agent:local}
-    build:
-      context: .
-      dockerfile: apps/agent/Dockerfile
-    environment:
-      AGENT_DATABASE_URL: postgresql://agent:${AGENT_DB_PASSWORD:?set AGENT_DB_PASSWORD in .env}@postgres:5432/agent
+    <<: *agent
     depends_on:
-      postgres:
-        condition: service_healthy
-      agent-db-setup:
+      <<: *agent-deps
+      agent-migrate:
         condition: service_completed_successfully
     restart: unless-stopped
 
