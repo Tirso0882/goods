@@ -331,35 +331,43 @@ async function advanceOrder(
     case 'fulfilled':
     case 'shipped':
     case 'delivered':
-      await sendItems(container, orderId, fixture.state)
+      await sendItems(container, orderId, fixture.state, fixture.key)
       return
     case 'return-requested':
     case 'return-approved':
     case 'return-deducted':
-      await sendItems(container, orderId, 'delivered')
+      await sendItems(container, orderId, 'delivered', fixture.key)
       await ensureReturn(container, orderId, fixture, ctx)
       break
     case 'exchanged':
-      await sendItems(container, orderId, 'delivered')
+      await sendItems(container, orderId, 'delivered', fixture.key)
       await ensureExchange(container, orderId, fixture, ctx)
-      await sendItems(container, orderId, 'delivered')
+      await sendItems(container, orderId, 'delivered', fixture.key)
       break
     case 'claim-replaced':
     case 'claim-refunded':
-      await sendItems(container, orderId, 'delivered')
+      await sendItems(container, orderId, 'delivered', fixture.key)
       await ensureClaim(container, orderId, fixture, ctx)
-      await sendItems(container, orderId, 'shipped')
+      await sendItems(container, orderId, 'shipped', fixture.key)
       break
   }
 
   await ensureRefund(container, orderId, fixture)
 }
 
+/**
+ * A made-up tracking number for each parcel, from the seed key and the
+ * parcel's place among the order's fulfillments, so re-seeding gives the same one.
+ */
+const trackingNumber = (seedKey: string, parcel: number) =>
+  `TEST-${seedKey.replace(/\W/g, '')}-${parcel}`
+
 /** Fulfills, ships and delivers whatever hasn't reached `until` yet, including exchange and claim items. */
 async function sendItems(
   container: MedusaContainer,
   orderId: string,
-  until: 'fulfilled' | 'shipped' | 'delivered'
+  until: 'fulfilled' | 'shipped' | 'delivered',
+  seedKey: string
 ) {
   const unfulfilled = items(await loadOrder(container, orderId))
     .filter((i) => i.quantity > i.fulfilled)
@@ -373,10 +381,13 @@ async function sendItems(
     return
   }
 
-  const fulfillments = ((await loadOrder(container, orderId)).fulfillments ?? []).filter(
-    (f) => f && !f.canceled_at
-  )
-  for (const f of fulfillments.filter((f) => !f!.shipped_at)) {
+  // IDs sort by creation, so each parcel keeps its number across re-runs.
+  const fulfillments = ((await loadOrder(container, orderId)).fulfillments ?? [])
+    .filter((f) => f && !f.canceled_at)
+    .sort((a, b) => a!.id.localeCompare(b!.id))
+  for (const [parcel, f] of fulfillments.entries()) {
+    if (f!.shipped_at) continue
+    const tracking_number = trackingNumber(seedKey, parcel + 1)
     await createOrderShipmentWorkflow(container).run({
       input: {
         order_id: orderId,
@@ -385,6 +396,13 @@ async function sendItems(
           id: i!.line_item_id!,
           quantity: Number(i!.quantity),
         })),
+        labels: [
+          {
+            tracking_number,
+            tracking_url: `https://tracking.example.com/${tracking_number}`,
+            label_url: `https://tracking.example.com/${tracking_number}/label.pdf`,
+          },
+        ],
       },
     })
   }
