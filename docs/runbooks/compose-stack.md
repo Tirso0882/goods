@@ -16,6 +16,7 @@ Synthetic data and Stripe test mode only. Never point this stack at a shared or 
 | `medusa-migrate` | One-off: `medusa db:migrate`, runs on every `up` | logs only |
 | `publishable-key` | One-off: copies the publishable key into a volume for the storefront | logs only |
 | `agent-db-setup` | One-off: creates the `agent` and `litellm` databases and roles, runs on every `up` | logs only |
+| `agent-migrate` | One-off: creates or updates the agent database's tables, runs on every `up` | logs only |
 | `medusa-seed`, `medusa-admin-user`, `ollama-pull` | One-offs in the `setup` profile, run by hand | logs only |
 
 The ports above are the defaults from `MEDUSA_PORT` and `STOREFRONT_PORT`, bound to `127.0.0.1`. Postgres, Redis, the agent and Ollama publish no host ports, so the stack can run next to the `goods-postgres` and `goods-redis` containers. Its project name is `goods-stack`, so its containers and volumes (`goods-stack_pgdata` and so on) never touch the `pnpm dev` ones.
@@ -31,6 +32,7 @@ Needs Docker Desktop (or Docker Engine with Compose v2) with at least 8 GB of me
    openssl rand -hex 16   # POSTGRES_PASSWORD
    openssl rand -hex 32   # JWT_SECRET, run again for COOKIE_SECRET
    openssl rand -hex 16   # AGENT_DB_PASSWORD, run again for LITELLM_DB_PASSWORD
+   openssl rand -hex 32   # AGENT_STOREFRONT_SECRET, run again for CHAT_COOKIE_SECRET
    ```
 
    Also set `ADMIN_PASSWORD`. For Stripe, set `STRIPE_API_KEY` (`sk_test_...`), `PUBLIC_STRIPE_KEY` (`pk_test_...`) and `STRIPE_WEBHOOK_SECRET` (see [Stripe test checkout](#stripe-test-checkout)). If `pnpm dev` is using 9000 and 8000, change `MEDUSA_PORT` and `STOREFRONT_PORT`.
@@ -89,6 +91,7 @@ Check it worked:
 ```bash
 docker compose ps agent                                    # Up ... (healthy)
 docker compose logs agent-db-setup                         # Databases ready: agent, litellm
+docker compose logs agent-migrate                          # Applied 1 migration(s): ... (none on a rerun)
 docker compose exec agent python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8080/health/ready').read().decode())"
 # {"status":"ok","checks":{"database":"ok"}}
 docker compose port agent 8080                             # no output: no host port
@@ -101,6 +104,26 @@ docker compose exec -e PGPASSWORD="$(grep ^AGENT_DB_PASSWORD= .env | cut -d= -f2
   psql -h 127.0.0.1 -U agent -d medusa-goods -c "select 1"
 # FATAL:  permission denied for database "medusa-goods"
 ```
+
+### Support chat
+
+The storefront's `/api/chat` route is the chat's only public door. It calls the agent on this network with `AGENT_STOREFRONT_SECRET` and keeps the support case's ID in the `goods_support_case` cookie, signed with `CHAT_COOKIE_SECRET` (ADR 0020). Until the model proxy is wired in, every reply is the same scripted text (`AGENT_SCRIPTED_REPLY` overrides it).
+
+Check one turn and the history, with a cookie jar in place of a browser:
+
+```bash
+curl -s -c /tmp/chat -b /tmp/chat -H 'content-type: application/json' \
+  -d '{"message":"Where is my order?"}' http://localhost:8000/api/chat   # {"reply":{...},"correlation_id":"..."}
+curl -s -b /tmp/chat http://localhost:8000/api/chat                     # {"messages":[shopper, agent]}
+docker compose exec postgres psql -U postgres -d agent \
+  -c "select role, correlation_id, left(content, 30) from messages order by seq"
+```
+
+In the browser, the chat button sits at the bottom right of every page but checkout. Result on 15 November 2026: the scripted reply came back, both messages were stored with the turn's correlation ID, a reload showed the same conversation, a cookie with a changed signature got an empty history, and the agent answered 401 without the secret.
+
+`required variable AGENT_STOREFRONT_SECRET is missing a value` (or `CHAT_COOKIE_SECRET`) means `.env` predates the chat: add both as in First run.
+
+### Health
 
 With Postgres stopped, `/health/ready` returns 503 (`{"status":"unavailable","checks":{"database":"unavailable"}}`) and the reason goes to `docker compose logs agent`; the container turns unhealthy after three failed checks. Result on 14 November 2026: all as expected, on a volume that already held store data.
 
