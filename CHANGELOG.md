@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0](https://github.com/Tirso0882/goods/compare/v0.4.0...v0.5.0) (2026-11-15)
+
+
+### Features
+
+* **backend:** get one order through the commerce port ([#152](https://github.com/Tirso0882/goods/issues/152)) ([5342dd1](https://github.com/Tirso0882/goods/commit/5342dd16cca538bbc5726a4adb6a5fbebeb95fd7))
+* **backend:** verify a guest shopper through the support route ([#151](https://github.com/Tirso0882/goods/issues/151)) ([2d673c0](https://github.com/Tirso0882/goods/commit/2d673c0f75c2faaec1bd769b247d42a71663956b))
+* **compose:** pass the agent support secret to the backend ([#151](https://github.com/Tirso0882/goods/issues/151)) ([3b3a549](https://github.com/Tirso0882/goods/commit/3b3a5492072169cb1123ad8410ee409512407bdb))
+* **contracts:** add the commerce port contract with verify and get-order ([#151](https://github.com/Tirso0882/goods/issues/151)) ([e2c5d64](https://github.com/Tirso0882/goods/commit/e2c5d64df01025a29f8925f37a4b601c84d0e86b))
+* **seed:** give every seeded parcel a tracking number ([#152](https://github.com/Tirso0882/goods/issues/152)) ([ff9f232](https://github.com/Tirso0882/goods/commit/ff9f23280fa31897eccd7ed0b804be7faf0800c9))
+
 ## [0.4.0](https://github.com/Tirso0882/goods/compare/v0.3.0...v0.4.0) (2026-11-14)
 
 
