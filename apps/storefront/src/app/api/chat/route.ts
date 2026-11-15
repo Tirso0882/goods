@@ -1,9 +1,9 @@
 import {
   AgentError,
-  ChatMessage,
   openCase,
   readMessages,
   sendMessage,
+  toShownMessage,
 } from "@lib/chat/agent-client"
 import {
   CASE_COOKIE,
@@ -22,14 +22,6 @@ import { NextRequest, NextResponse } from "next/server"
 export const dynamic = "force-dynamic"
 
 const MAX_MESSAGE_LENGTH = 4000
-
-type ShownMessage = Pick<ChatMessage, "id" | "role" | "content">
-
-const shown = ({ id, role, content }: ChatMessage): ShownMessage => ({
-  id,
-  role,
-  content,
-})
 
 const cookieSecret = () => {
   const secret = process.env.CHAT_COOKIE_SECRET ?? ""
@@ -73,7 +65,7 @@ export async function GET() {
 
   try {
     const { messages } = await readMessages(caseId)
-    return json({ messages: messages.map(shown) })
+    return json({ messages: messages.map(toShownMessage) })
   } catch (error) {
     if (error instanceof AgentError && error.status === 404) {
       // The agent no longer knows the case: start fresh next time.
@@ -87,14 +79,13 @@ export async function GET() {
 
 /** One turn: the shopper's new message in, the agent's reply out. */
 export async function POST(request: NextRequest) {
+  // Shown to the shopper with an error, so they can quote it if they write in.
   const correlationId = randomUUID()
+  const turnError = (error: string, status: number) =>
+    json({ error, correlation_id: correlationId }, status, correlationId)
   const secret = cookieSecret()
   if (!secret) {
-    return json(
-      { error: "chat_unavailable", correlation_id: correlationId },
-      503,
-      correlationId
-    )
+    return turnError("chat_unavailable", 503)
   }
 
   const body: unknown = await request.json().catch(() => null)
@@ -105,11 +96,7 @@ export async function POST(request: NextRequest) {
     !message.trim() ||
     message.length > MAX_MESSAGE_LENGTH
   ) {
-    return json(
-      { error: "invalid_message", correlation_id: correlationId },
-      400,
-      correlationId
-    )
+    return turnError("invalid_message", 400)
   }
 
   try {
@@ -127,23 +114,15 @@ export async function POST(request: NextRequest) {
       await rememberCase(turn.case_id, secret)
     }
     return json(
-      { reply: shown(turn.reply), correlation_id: correlationId },
+      { reply: toShownMessage(turn.reply), correlation_id: correlationId },
       200,
       correlationId
     )
   } catch (error) {
     if (error instanceof AgentError && error.status === 409) {
-      return json(
-        { error: "still_answering", correlation_id: correlationId },
-        409,
-        correlationId
-      )
+      return turnError("still_answering", 409)
     }
     console.error(`chat turn ${correlationId} failed:`, error)
-    return json(
-      { error: "chat_unavailable", correlation_id: correlationId },
-      502,
-      correlationId
-    )
+    return turnError("chat_unavailable", 502)
   }
 }

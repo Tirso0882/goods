@@ -11,6 +11,19 @@ export type ChatMessage = {
   created_at: string
 }
 
+/** A message as the browser sees it. */
+export type ShownMessage = Pick<ChatMessage, "id" | "role" | "content">
+
+export const toShownMessage = ({
+  id,
+  role,
+  content,
+}: ChatMessage): ShownMessage => ({
+  id,
+  role,
+  content,
+})
+
 export type AgentTurn = { case_id: string; reply: ChatMessage }
 
 /** The agent answered with an error status. */

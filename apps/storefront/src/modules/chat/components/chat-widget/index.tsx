@@ -9,17 +9,12 @@ import {
   ThreadPrimitive,
   useExternalStoreRuntime,
 } from "@assistant-ui/react"
+import type { ShownMessage } from "@lib/chat/agent-client"
 import { useCallback, useEffect, useState } from "react"
 
 // The support chat: a floating button on every page but checkout. The
 // conversation lives in the agent's database; this keeps only what is on
 // screen, and sends the server just the new message (ADR 0020).
-
-type ShownMessage = {
-  id: string
-  role: "shopper" | "agent" | "system"
-  content: string
-}
 
 type ChatError = { text: string; reference?: string }
 
@@ -106,6 +101,8 @@ function useSupportChat(enabled: boolean) {
     convertMessage,
     isRunning,
     isLoading,
+    // Until the history is in, a send would be overwritten by it.
+    isDisabled: isLoading,
     onNew,
   })
   return { runtime, error }
