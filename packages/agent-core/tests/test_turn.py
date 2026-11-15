@@ -56,7 +56,7 @@ async def test_the_history_comes_only_from_the_database(database_url: str) -> No
         await conn.execute(
             "UPDATE messages SET content = 'Stored reply' WHERE id = %s", (first.reply.id,)
         )
-    model = ScriptedChatModel(["Second reply"])
+    model = ScriptedChatModel(["Second reply"], record=True)
 
     await SupportAgent(database_url, model).take_turn(
         first.case_id, "Order 1001", correlation_id=uuid4()
