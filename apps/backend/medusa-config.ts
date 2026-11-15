@@ -57,6 +57,8 @@ module.exports = defineConfig({
     disable: process.env.DISABLE_MEDUSA_ADMIN === 'true',
   },
   modules: [
+    // Verification attempts and grants for the commerce port's support routes.
+    { resolve: './src/modules/support-verification' },
     {
       resolve: '@medusajs/medusa/caching',
       options: {
