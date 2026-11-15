@@ -30,6 +30,7 @@
   "exclude": [
     "node_modules",
     ".next",
+    "src/**/*.test.ts",
     ".nyc_output",
     "coverage",
     "jest-coverage"
