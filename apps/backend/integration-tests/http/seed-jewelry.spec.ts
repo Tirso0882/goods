@@ -1,13 +1,10 @@
-import path from 'path'
-import { MigrationScriptsMigrator } from '@medusajs/framework/migrations'
-import type { ExecArgs, MedusaContainer } from '@medusajs/framework/types'
+import type { MedusaContainer } from '@medusajs/framework/types'
 import { ContainerRegistrationKeys } from '@medusajs/framework/utils'
 import {
   createProductCategoriesWorkflow,
   createProductsWorkflow,
 } from '@medusajs/medusa/core-flows'
 import { medusaIntegrationTestRunner } from '@medusajs/test-utils'
-import seedJewelry from '../../src/scripts/seed-jewelry'
 import {
   CUSTOMERS,
   type FixtureOrder,
@@ -16,6 +13,7 @@ import {
   type OrderState,
 } from '../../src/seed/customers-and-orders'
 import { CATALOG, CATEGORIES } from '../../src/seed/jewelry-catalog'
+import { runMigrationScripts, seed } from '../helpers/seed'
 
 jest.setTimeout(300_000)
 
@@ -95,22 +93,6 @@ function expectedStockChange() {
 
 const ADMIN_HANDLE = 'silver-anklet'
 const ADMIN_CATEGORY = 'Anklets'
-
-/**
- * `db:migrate` runs these, the test runner does not. Core's create the default
- * shipping profile; ours create the sales channel, API key and stock location.
- */
-async function runMigrationScripts(container: MedusaContainer) {
-  const migrator = new MigrationScriptsMigrator({ container })
-  await migrator.ensureMigrationsTable()
-  await migrator.run([
-    path.join(path.dirname(require.resolve('@medusajs/medusa')), 'migration-scripts'),
-    path.join(__dirname, '../../src/migration-scripts'),
-  ])
-}
-
-const seed = (container: MedusaContainer) =>
-  seedJewelry({ container, args: [] } as unknown as ExecArgs)
 
 /** Everything the seed owns, without generated IDs, sorted so runs compare equal. */
 async function snapshot(container: MedusaContainer) {
