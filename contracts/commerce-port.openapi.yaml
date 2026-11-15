@@ -1,0 +1,319 @@
+openapi: 3.1.0
+info:
+  title: Commerce port
+  version: 0.1.0
+  description: |
+    The contract through which the support agent reaches a store, whatever
+    platform runs it (ADR 0019). Each platform has its own adapter behind it;
+    Medusa's support routes are the first.
+
+    The port uses its own vocabulary. An order is named by its **order
+    number**, the one the shopper sees on emails and packing slips, and its
+    state by the port's own `status` and `after_sale` lists. No platform IDs
+    or statuses appear here.
+
+    Every call carries the agent secret. A call about an order also carries
+    a **verification grant**, which the store issues after a shopper proves
+    the order and which covers one order, in one support case, for 30
+    minutes.
+servers:
+  - url: http://backend:9000/support
+    description: Medusa adapter on the Compose network
+security:
+  - agentSecret: []
+paths:
+  /verifications:
+    post:
+      operationId: verifyShopper
+      summary: Verify a shopper
+      description: |
+        Checks a proof of identity and returns a verification grant.
+
+        Failed attempts are limited to 5 per support case, and to 5 per email
+        address within 24 hours. Once either limit is reached, every attempt
+        returns `verification_locked`, even with a correct proof. Every attempt
+        is recorded with its outcome. The call changes nothing in the order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerificationRequest"
+      responses:
+        "201":
+          description: The proof matched. The grant is shown only here.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationGrant"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            The proof didn't match. The same status and body whatever went
+            wrong: an unknown order number, a wrong email or a wrong postcode.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: verification_failed
+                message: The details don't match an order.
+        "429":
+          description: Verification is locked for this support case or this email address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: verification_locked
+                message: Too many failed attempts. Verification is locked.
+  /orders/{order_number}:
+    get:
+      operationId: getOrder
+      summary: Get one order
+      description: The order, if the grant covers it. Changes nothing.
+      parameters:
+        - name: order_number
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/OrderNumber"
+        - $ref: "#/components/parameters/VerificationGrant"
+      responses:
+        "200":
+          description: The order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The grant is missing, unknown or expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: grant_invalid
+                message: The verification grant is missing, unknown or expired.
+        "404":
+          description: |
+            No order the grant covers has this number. An unknown order and
+            someone else's order return the same status and body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: order_not_found
+                message: No order with this number is covered by the grant.
+components:
+  securitySchemes:
+    agentSecret:
+      type: http
+      scheme: bearer
+      description: |
+        A long random secret dedicated to the agent. It is not an admin key
+        and reaches only the port's operations.
+  parameters:
+    VerificationGrant:
+      name: X-Verification-Grant
+      in: header
+      required: true
+      description: The grant token from verifyShopper.
+      schema:
+        type: string
+        minLength: 1
+  responses:
+    InvalidRequest:
+      description: The request doesn't match this contract.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: invalid_request
+            message: "proof.email: Required"
+    Unauthorized:
+      description: The agent secret is missing or wrong.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: unauthorized
+            message: Missing or wrong agent secret.
+  schemas:
+    CaseId:
+      description: The support case the call is made for. Owned by the agent; opaque to the store.
+      type: string
+      format: uuid
+    OrderNumber:
+      description: The number the shopper sees on emails and packing slips, matched exactly.
+      type: string
+      minLength: 1
+      maxLength: 32
+    VerificationRequest:
+      type: object
+      additionalProperties: false
+      required: [case_id, proof]
+      properties:
+        case_id:
+          $ref: "#/components/schemas/CaseId"
+        proof:
+          $ref: "#/components/schemas/GuestOrderProof"
+    GuestOrderProof:
+      description: |
+        A guest proves one order with its email and shipping postcode. The
+        email is compared without regard to case, the postcode with spaces
+        and dashes removed and without regard to case, and the order number
+        exactly.
+      type: object
+      additionalProperties: false
+      required: [method, email, order_number, postcode]
+      properties:
+        method:
+          const: guest_order
+        email:
+          type: string
+          minLength: 1
+          maxLength: 320
+        order_number:
+          $ref: "#/components/schemas/OrderNumber"
+        postcode:
+          type: string
+          minLength: 1
+          maxLength: 32
+    VerificationGrant:
+      type: object
+      additionalProperties: false
+      required: [grant, case_id, tier, scope, expires_at]
+      properties:
+        grant:
+          description: Opaque token. The store keeps only its hash. Never show it to the model.
+          type: string
+          minLength: 32
+        case_id:
+          $ref: "#/components/schemas/CaseId"
+        tier:
+          description: "`read` lets the agent read the scope. `write` arrives with the one-time code."
+          type: string
+          enum: [read]
+        scope:
+          $ref: "#/components/schemas/OrderScope"
+        expires_at:
+          type: string
+          format: date-time
+    OrderScope:
+      description: The grant covers this one order.
+      type: object
+      additionalProperties: false
+      required: [type, order_number]
+      properties:
+        type:
+          const: order
+        order_number:
+          $ref: "#/components/schemas/OrderNumber"
+    OrderStatus:
+      description: |
+        Where the order is on its way to the shopper.
+        `processing`: paid, packed or not. `shipped`: handed to the carrier.
+        `delivered`: every parcel delivered. `canceled`: canceled before shipping.
+      type: string
+      enum: [processing, shipped, delivered, canceled]
+    AfterSale:
+      description: |
+        What happened after delivery, if anything.
+        `none`, `return_in_progress` (asked, not yet received and inspected),
+        `returned` (received and refunded), `exchanged`, `replacement_sent`,
+        `partly_refunded`.
+      type: string
+      enum:
+        [
+          none,
+          return_in_progress,
+          returned,
+          exchanged,
+          replacement_sent,
+          partly_refunded,
+        ]
+    Order:
+      description: What the order-status journey needs, and nothing more. No email, address or payment data.
+      type: object
+      additionalProperties: false
+      required:
+        [
+          order_number,
+          placed_at,
+          status,
+          after_sale,
+          items,
+          shipping_method,
+          tracking,
+        ]
+      properties:
+        order_number:
+          $ref: "#/components/schemas/OrderNumber"
+        placed_at:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/OrderStatus"
+        after_sale:
+          $ref: "#/components/schemas/AfterSale"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItem"
+        shipping_method:
+          description: The name of the shipping option the shopper chose.
+          type: string
+        tracking:
+          description: One entry per tracked parcel. Empty until the order ships.
+          type: array
+          items:
+            $ref: "#/components/schemas/Tracking"
+    OrderItem:
+      type: object
+      additionalProperties: false
+      required: [title, quantity]
+      properties:
+        title:
+          type: string
+        variant:
+          description: The variant's title, such as a ring size, when the product has variants.
+          type: [string, "null"]
+        sku:
+          type: [string, "null"]
+        quantity:
+          type: integer
+          minimum: 1
+    Tracking:
+      type: object
+      additionalProperties: false
+      required: [number]
+      properties:
+        number:
+          type: string
+        url:
+          type: [string, "null"]
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - invalid_request
+            - unauthorized
+            - verification_failed
+            - verification_locked
+            - grant_invalid
+            - order_not_found
+        message:
+          type: string
