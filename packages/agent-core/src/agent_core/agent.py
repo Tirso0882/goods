@@ -13,7 +13,7 @@ from langchain.agents.middleware import InputAgentState
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
 
-from agent_core.cases import Message, SupportCase, SupportCases
+from agent_core.cases import Message, Role, SupportCase, SupportCases
 
 SYSTEM_PROMPT = (
     "You are the AI support assistant of an online jewelry store. "
@@ -27,17 +27,16 @@ class Turn:
     reply: Message
 
 
+_MODEL_MESSAGE: dict[Role, type[HumanMessage | AIMessage | SystemMessage]] = {
+    "shopper": HumanMessage,
+    "agent": AIMessage,
+    "system": SystemMessage,
+}
+
+
 def to_model_messages(history: list[Message]) -> list[AnyMessage | dict[str, Any]]:
     """The stored conversation in the model's terms."""
-    converted: list[AnyMessage | dict[str, Any]] = []
-    for message in history:
-        if message.role == "shopper":
-            converted.append(HumanMessage(content=message.content))
-        elif message.role == "agent":
-            converted.append(AIMessage(content=message.content))
-        else:
-            converted.append(SystemMessage(content=message.content))
-    return converted
+    return [_MODEL_MESSAGE[message.role](content=message.content) for message in history]
 
 
 class SupportAgent:

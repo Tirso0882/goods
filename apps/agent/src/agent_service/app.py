@@ -4,7 +4,7 @@ import hmac
 import logging
 from collections.abc import Callable
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated
 from uuid import UUID
 
 import psycopg
@@ -17,6 +17,7 @@ from agent_core import (
     CaseNotFoundError,
     CaseNotOpenError,
     Message,
+    Role,
     ScriptedChatModel,
     SupportAgent,
     Turn,
@@ -52,7 +53,7 @@ class ShopperMessage(BaseModel):
 
 class MessageOut(BaseModel):
     id: UUID
-    role: Literal["shopper", "agent", "system"]
+    role: Role
     content: str
     created_at: datetime
 

@@ -47,10 +47,6 @@ class SupportCase:
     last_activity_at: datetime
 
 
-# Who writes each role's messages: the `actor` column.
-_ACTOR: dict[Role, str] = {"shopper": "shopper", "agent": "agent", "system": "system"}
-
-
 class SupportCases:
     """Reads and writes cases and messages, one connection per call."""
 
@@ -142,7 +138,8 @@ class SupportCases:
             "INSERT INTO messages (id, case_id, role, content, correlation_id, actor)"
             " VALUES (%s, %s, %s, %s, %s, %s)"
             " RETURNING id, role, content, correlation_id, created_at",
-            (uuid4(), case_id, role, content, correlation_id, _ACTOR[role]),
+            # Until operators write messages, each role is its own actor.
+            (uuid4(), case_id, role, content, correlation_id, role),
         )
         message = await cursor.fetchone()
         assert message is not None  # noqa: S101 - INSERT ... RETURNING returns a row

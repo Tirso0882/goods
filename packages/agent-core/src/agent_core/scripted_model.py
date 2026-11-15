@@ -1,8 +1,9 @@
 """A chat model that replies from a script: free, repeatable, no network.
 
 Tests use it to drive the real agent loop, and the service uses it until the
-LiteLLM proxy is wired in. It records what it was shown, so a test can check
-exactly which conversation reached the model.
+LiteLLM proxy is wired in. With `record`, it keeps what it was shown, so a
+test can check exactly which conversation reached the model. The service
+leaves it off: a long-lived model would hold every conversation in memory.
 """
 
 from collections.abc import Callable, Sequence
@@ -30,12 +31,15 @@ class ScriptedChatModel(BaseChatModel):
 
     replies: list[str]
     repeat: bool = False
-    # Every call's input, oldest first.
+    record: bool = False
+    # Every call's input, oldest first, when `record` is on.
     calls: list[list[BaseMessage]] = Field(default_factory=list)
     _next: int = PrivateAttr(default=0)
 
-    def __init__(self, replies: list[str], *, repeat: bool = False, **kwargs: Any) -> None:
-        super().__init__(replies=replies, repeat=repeat, **kwargs)
+    def __init__(
+        self, replies: list[str], *, repeat: bool = False, record: bool = False, **kwargs: Any
+    ) -> None:
+        super().__init__(replies=replies, repeat=repeat, record=record, **kwargs)
 
     @property
     def _llm_type(self) -> str:
@@ -48,7 +52,8 @@ class ScriptedChatModel(BaseChatModel):
         run_manager: CallbackManagerForLLMRun | None = None,
         **kwargs: Any,
     ) -> ChatResult:
-        self.calls.append(list(messages))
+        if self.record:
+            self.calls.append(list(messages))
         if self._next >= len(self.replies):
             if not (self.repeat and self.replies):
                 raise ScriptExhaustedError(f"no reply scripted for call {self._next + 1}")
