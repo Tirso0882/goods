@@ -2,7 +2,12 @@ import type { MedusaResponse } from '@medusajs/framework/http'
 
 /** The commerce port's error codes (contracts/commerce-port.openapi.yaml, `Error`). */
 export type PortErrorCode =
-  'invalid_request' | 'unauthorized' | 'verification_failed' | 'verification_locked'
+  | 'invalid_request'
+  | 'unauthorized'
+  | 'verification_failed'
+  | 'verification_locked'
+  | 'grant_invalid'
+  | 'order_not_found'
 
 /** The port's errors are `{ code, message }`, not Medusa's `{ type, message }`. */
 export function sendPortError(
