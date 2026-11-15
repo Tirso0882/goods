@@ -1,12 +1,12 @@
-"""The core stays reusable: it imports nothing from the web shell (ADR 0019)."""
+"""The core stays reusable: it imports nothing from the web shell or Medusa (ADR 0019)."""
 
 import ast
 from pathlib import Path
 
 import agent_core
 
-# The service shell and the web stack it is built on.
-FORBIDDEN = {"agent_service", "fastapi", "starlette", "uvicorn"}
+# The service shell, the web stack it is built on, and the store platform.
+FORBIDDEN = {"agent_service", "fastapi", "starlette", "uvicorn", "medusa", "medusajs"}
 SOURCE = Path(agent_core.__file__).parent
 
 
