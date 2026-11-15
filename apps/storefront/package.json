@@ -13,9 +13,11 @@
     "start": "next start -p 8000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "test": "node --test 'src/**/*.test.ts'",
     "analyze": "ANALYZE=true next build"
   },
   "dependencies": {
+    "@assistant-ui/react": "0.15.32",
     "@headlessui/react": "^2.2.0",
     "@medusajs/icons": "2.22.2",
     "@medusajs/instantsearch-adapter": "2.22.2",
