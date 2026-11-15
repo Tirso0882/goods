@@ -94,7 +94,8 @@ Rules:
 - Until the email provider is chosen (#102), guests can't get a write grant. A guest who asks for a write is handed off.
 - Failed attempts are limited to 5 per support case, and to 5 per email address within 24 hours. Polish postcodes have only about 22,000 values, so without a limit the postcode can be guessed. Hitting the limit locks verification and hands off.
 - A failed verification gets the same generic reply whatever went wrong. It never reveals whether an order exists or which field was wrong.
-- The limits live in Medusa, next to the check, so they hold even if the agent is compromised.
+- The limits live in Medusa, next to the check, so they hold even if the agent is compromised. The agent picks the case ID, so against a compromised agent only the per-email limit holds.
+- Medusa's `supportVerification` module keeps every attempt with its outcome, and each grant as its hash. The agent's `verifications` table is its own record of the same events.
 
 ## Component map
 
