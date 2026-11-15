@@ -25,6 +25,7 @@ dev = [
   "mypy>=1.18.2",
   "pytest>=8.4.2",
   "ruff>=0.14.4",
+  "pytest-asyncio>=1.5.0",
 ]
 
 [tool.ruff]
@@ -40,13 +41,14 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "S", "PT", "TID"]
 known-first-party = ["agent_service", "agent_core", "evals"]
 
 [tool.ruff.lint.per-file-ignores]
-# assert is how pytest checks.
-"**/tests/**" = ["S101"]
+# assert is how pytest checks, and test secrets are made up.
+"**/tests/**" = ["S101", "S105", "S106"]
 
 [tool.mypy]
 strict = true
 python_version = "3.12"
 files = [
+  "conftest.py",
   "apps/agent/healthcheck.py",
   "apps/agent/src",
   "apps/agent/tests",
@@ -59,3 +61,6 @@ plugins = ["pydantic.mypy"]
 [tool.pytest.ini_options]
 testpaths = ["apps/agent/tests", "packages/agent-core/tests"]
 addopts = ["--import-mode=importlib", "--strict-markers"]
+# Async tests and fixtures run without a marker each.
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
