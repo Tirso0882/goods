@@ -43,6 +43,8 @@ x-backend: &backend
     AUTH_CORS: http://localhost:${MEDUSA_PORT:-9000},http://localhost:${STOREFRONT_PORT:-8000}
     STRIPE_API_KEY: ${STRIPE_API_KEY:-}
     STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    # The agent's secret for the support routes. Empty or short, they refuse every call.
+    AGENT_SUPPORT_SECRET: ${AGENT_SUPPORT_SECRET:-}
     # Non-Secure session cookies so Admin login works over plain HTTP. The
     # backend ignores the flag unless MEDUSA_BACKEND_URL is a localhost URL.
     MEDUSA_BACKEND_URL: http://localhost:${MEDUSA_PORT:-9000}
