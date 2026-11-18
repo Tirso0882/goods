@@ -27,6 +27,14 @@ class Turn:
     reply: Message
 
 
+class TurnFailedError(RuntimeError):
+    """The turn produced no reply. The shopper's message stays, for a retry."""
+
+    def __init__(self, case_id: UUID) -> None:
+        super().__init__(f"the turn on case {case_id} produced no reply")
+        self.case_id = case_id
+
+
 _MODEL_MESSAGE: dict[Role, type[HumanMessage | AIMessage | SystemMessage]] = {
     "shopper": HumanMessage,
     "agent": AIMessage,
@@ -45,20 +53,34 @@ class SupportAgent:
         self._graph = create_agent(model, tools=[], system_prompt=SYSTEM_PROMPT)
 
     async def open_case(self, message: str, correlation_id: UUID) -> Turn:
-        """Opens a case with the shopper's first message and answers it."""
+        """Opens a case with the shopper's first message and answers it.
+
+        If the answer fails, the case stays, with the message, for a retry.
+        """
         case_id = await self._cases.create(correlation_id)
         return await self.take_turn(case_id, message, correlation_id)
 
-    async def take_turn(self, case_id: UUID, message: str, correlation_id: UUID) -> Turn:
+    async def take_turn(
+        self, case_id: UUID, message: str, correlation_id: UUID, *, retry: bool = False
+    ) -> Turn:
         """Answers one shopper message on an open case.
 
-        Raises `CaseNotFoundError` for an unknown case, and `CaseNotOpenError`
-        when the case is not `open`.
+        `retry` sends again a message whose reply the shopper never saw: it
+        is answered without being stored twice, and a reply already stored
+        for it is returned as it is.
+
+        Raises `CaseNotFoundError` for an unknown case, `CaseNotOpenError`
+        when the case is not `open`, and `TurnFailedError` when no reply came.
         """
-        history = await self._cases.begin_turn(case_id, message, correlation_id)
+        begun = await self._cases.begin_turn(case_id, message, correlation_id, retry=retry)
+        if begun.answered:
+            return Turn(case_id=case_id, reply=begun.answered)
         try:
-            state: InputAgentState = {"messages": to_model_messages(history)}
+            state: InputAgentState = {"messages": to_model_messages(begun.history)}
             result = await self._graph.ainvoke(state)
+        except Exception as error:
+            await self._cases.abandon_turn(case_id)
+            raise TurnFailedError(case_id) from error
         except BaseException:
             await self._cases.abandon_turn(case_id)
             raise

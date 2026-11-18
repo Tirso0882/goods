@@ -1,6 +1,6 @@
 """The support agent's core. It imports nothing from Medusa or the web shell."""
 
-from agent_core.agent import SupportAgent, Turn
+from agent_core.agent import SupportAgent, Turn, TurnFailedError
 from agent_core.cases import (
     CaseNotFoundError,
     CaseNotOpenError,
@@ -22,4 +22,5 @@ __all__ = [
     "SupportAgent",
     "SupportCase",
     "Turn",
+    "TurnFailedError",
 ]
