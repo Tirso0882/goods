@@ -84,7 +84,8 @@ function useSupportChat(enabled: boolean) {
         error?: string
         correlation_id?: string
       }
-      if (!response.ok || !body.reply) {
+      const reply = body.reply
+      if (!response.ok || !reply) {
         const shown = describeTurnError(body.error, body.correlation_id)
         if (!shown.canRetry && pendingId) {
           // The agent refused the message without storing it: take it off
@@ -94,7 +95,7 @@ function useSupportChat(enabled: boolean) {
         setError({ ...shown, retry: shown.canRetry ? text : undefined })
         return
       }
-      setMessages((shown) => [...shown, body.reply!])
+      setMessages((shown) => [...shown, reply])
     } catch {
       setError({ ...describeTurnError(undefined, undefined), retry: text })
     } finally {
