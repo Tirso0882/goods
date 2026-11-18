@@ -26,11 +26,24 @@ export const toShownMessage = ({
 
 export type AgentTurn = { case_id: string; reply: ChatMessage }
 
-/** The agent answered with an error status. */
+/**
+ * The agent answered with an error status. A failed turn names its case, so
+ * a failed first message can be retried on the case that holds it.
+ */
 export class AgentError extends Error {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    readonly caseId?: string
+  ) {
     super(`agent answered ${status}`)
   }
+}
+
+async function caseOf(response: Response) {
+  const body: unknown = await response.json().catch(() => null)
+  return body && typeof body === "object" && "case_id" in body
+    ? String(body.case_id)
+    : undefined
 }
 
 // A turn is one request and one reply; the agent's own budget is 60 s.
@@ -57,7 +70,9 @@ async function call<T>(
     cache: "no-store",
     signal: AbortSignal.timeout(timeoutMs),
   })
-  if (!response.ok) throw new AgentError(response.status)
+  if (!response.ok) {
+    throw new AgentError(response.status, await caseOf(response))
+  }
   return (await response.json()) as T
 }
 
@@ -68,14 +83,16 @@ export const openCase = (message: string, correlationId: string) =>
     TURN_TIMEOUT_MS
   )
 
+/** One turn on an open case. `retry` sends again an unanswered message. */
 export const sendMessage = (
   caseId: string,
   message: string,
+  retry: boolean,
   correlationId: string
 ) =>
   call<AgentTurn>(
     `/cases/${encodeURIComponent(caseId)}/messages`,
-    { method: "POST", body: { message }, correlationId },
+    { method: "POST", body: { message, retry }, correlationId },
     TURN_TIMEOUT_MS
   )
 
