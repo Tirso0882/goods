@@ -40,6 +40,14 @@ class Message:
 
 
 @dataclass(frozen=True)
+class BegunTurn:
+    """A turn under way: the conversation to answer, or a reply already stored."""
+
+    history: list[Message]
+    answered: Message | None
+
+
+@dataclass(frozen=True)
 class SupportCase:
     id: UUID
     status: CaseStatus
@@ -91,10 +99,14 @@ class SupportCases:
             )
             return await cursor.fetchall()
 
-    async def begin_turn(self, case_id: UUID, content: str, correlation_id: UUID) -> list[Message]:
+    async def begin_turn(
+        self, case_id: UUID, content: str, correlation_id: UUID, *, retry: bool = False
+    ) -> BegunTurn:
         """Stores the shopper's message and marks the case `agent_working`.
 
-        Returns the whole conversation, the new message last.
+        With `retry`, the shopper is sending again a message whose reply they
+        never saw, so it is stored only if it never arrived. If it was
+        answered, the stored reply is returned and the case is left as it was.
         """
         async with await self._connect() as conn:
             cursor = await conn.execute(
@@ -106,9 +118,22 @@ class SupportCases:
             status: CaseStatus = row[0]  # type: ignore[assignment]
             if status != "open":
                 raise CaseNotOpenError(status)
-            await self._insert(conn, case_id, "shopper", content, correlation_id)
+            last, before_last = await self._last_two(conn, case_id)
+            if retry and last and last.role == "shopper" and last.content == content:
+                pass  # It arrived and failed: answer it again.
+            elif (
+                retry
+                and last
+                and before_last
+                and last.role == "agent"
+                and before_last.role == "shopper"
+                and before_last.content == content
+            ):
+                return BegunTurn(history=[], answered=last)
+            else:
+                await self._insert(conn, case_id, "shopper", content, correlation_id)
             await self._set_status(conn, case_id, "agent_working")
-        return await self.messages(case_id)
+        return BegunTurn(history=await self.messages(case_id), answered=None)
 
     async def finish_turn(self, case_id: UUID, reply: str, correlation_id: UUID) -> Message:
         """Stores the agent's reply and returns the case to `open`."""
@@ -124,6 +149,20 @@ class SupportCases:
         """
         async with await self._connect() as conn:
             await self._set_status(conn, case_id, "open")
+
+    @staticmethod
+    async def _last_two(
+        conn: psycopg.AsyncConnection[tuple[object, ...]], case_id: UUID
+    ) -> tuple[Message | None, Message | None]:
+        """The case's last message and the one before it, if there are any."""
+        cursor = conn.cursor(row_factory=class_row(Message))
+        await cursor.execute(
+            "SELECT id, role, content, correlation_id, created_at"
+            " FROM messages WHERE case_id = %s ORDER BY seq DESC LIMIT 2",
+            (case_id,),
+        )
+        rows = await cursor.fetchall()
+        return (rows[0] if rows else None, rows[1] if len(rows) > 1 else None)
 
     @staticmethod
     async def _insert(
