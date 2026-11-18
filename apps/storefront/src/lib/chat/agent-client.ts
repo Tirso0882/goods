@@ -41,9 +41,8 @@ export class AgentError extends Error {
 
 async function caseOf(response: Response) {
   const body: unknown = await response.json().catch(() => null)
-  return body && typeof body === "object" && "case_id" in body
-    ? String(body.case_id)
-    : undefined
+  if (!body || typeof body !== "object" || !("case_id" in body)) return
+  return typeof body.case_id === "string" ? body.case_id : undefined
 }
 
 // A turn is one request and one reply; the agent's own budget is 60 s.

@@ -16,7 +16,8 @@ export type TurnRequest = {
 /** The browser's request body as a turn, or null if it has no usable message. */
 export function readTurnRequest(body: unknown): TurnRequest | null {
   if (!body || typeof body !== "object") return null
-  const { message, retry } = body as Record<string, unknown>
+  const message = "message" in body ? body.message : undefined
+  const retry = "retry" in body ? body.retry : undefined
   if (
     typeof message !== "string" ||
     !message.trim() ||
