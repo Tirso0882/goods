@@ -1,11 +1,9 @@
 """The case endpoints: what the storefront server calls for each turn."""
 
-from typing import Any
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from langchain_core.outputs import ChatResult
 
 from agent_core import ScriptedChatModel
 from agent_service.app import create_app
@@ -97,31 +95,20 @@ def test_a_turn_needs_a_correlation_id(database_url: str) -> None:
     assert response.status_code == 422
 
 
-class FailsFirstCall(ScriptedChatModel):
-    """A scripted model whose first call fails, as a model provider can."""
-
-    failed: bool = False
-
-    def _generate(self, *args: Any, **kwargs: Any) -> ChatResult:
-        if not self.failed:
-            self.failed = True
-            raise TimeoutError("the model did not answer")
-        return super()._generate(*args, **kwargs)
-
-
-def failing_then(database_url: str, replies: list[str]) -> TestClient:
-    """A client whose model fails on its first call and then replies."""
+def failing(database_url: str) -> TestClient:
+    """A client whose model has no reply to give, so every turn fails."""
     settings = Settings(database_url=database_url, storefront_secret=SECRET)
-    return TestClient(create_app(settings, model=FailsFirstCall(replies=replies)))
+    return TestClient(create_app(settings, model=ScriptedChatModel([])))
 
 
 def test_a_failed_first_message_names_its_case_and_a_retry_answers_it(database_url: str) -> None:
-    app = failing_then(database_url, ["Here to help."])
-
-    failed = app.post("/cases", json={"message": "Where is my order?"}, headers=turn_headers())
+    failed = failing(database_url).post(
+        "/cases", json={"message": "Where is my order?"}, headers=turn_headers()
+    )
     assert failed.status_code == 502
     case_id = failed.json()["case_id"]
 
+    app = client(database_url, ["Here to help."])
     retried = app.post(
         f"/cases/{case_id}/messages",
         json={"message": "Where is my order?", "retry": True},
