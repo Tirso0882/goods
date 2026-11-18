@@ -8,7 +8,7 @@ from typing import Annotated
 from uuid import UUID
 
 import psycopg
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, status
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field
@@ -21,6 +21,7 @@ from agent_core import (
     ScriptedChatModel,
     SupportAgent,
     Turn,
+    TurnFailedError,
 )
 from agent_service.settings import MIN_SECRET_LENGTH, Settings
 
@@ -49,6 +50,11 @@ async def database_answers(settings: Settings) -> bool:
 
 class ShopperMessage(BaseModel):
     message: str = Field(min_length=1, max_length=MAX_MESSAGE_LENGTH)
+
+
+class ShopperMessageOnCase(ShopperMessage):
+    # The shopper sends again a message whose reply they never saw.
+    retry: bool = False
 
 
 class MessageOut(BaseModel):
@@ -109,10 +115,10 @@ def case_routes(settings: Settings, agent: SupportAgent) -> APIRouter:
 
     @router.post("/cases/{case_id}/messages")
     async def send_message(
-        case_id: UUID, body: ShopperMessage, correlation_id: CorrelationId
+        case_id: UUID, body: ShopperMessageOnCase, correlation_id: CorrelationId
     ) -> TurnOut:
         try:
-            turn = await agent.take_turn(case_id, body.message, correlation_id)
+            turn = await agent.take_turn(case_id, body.message, correlation_id, retry=body.retry)
         except CaseNotFoundError:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "no such case") from None
         except CaseNotOpenError as error:
@@ -147,6 +153,21 @@ def create_app(settings: Settings, model: BaseChatModel | None = None) -> FastAP
         return JSONResponse(
             {"status": "ok" if healthy else "unavailable", "checks": checks},
             status_code=200 if healthy else 503,
+        )
+
+    @app.exception_handler(TurnFailedError)
+    async def turn_failed(request: Request, error: Exception) -> JSONResponse:
+        # The case is named so a failed first message can be retried on it.
+        assert isinstance(error, TurnFailedError)  # noqa: S101 - registered for this type only
+        logger.error(
+            "turn %s on case %s failed",
+            request.headers.get("x-correlation-id"),
+            error.case_id,
+            exc_info=error.__cause__,
+        )
+        return JSONResponse(
+            {"detail": "the turn failed", "case_id": str(error.case_id)},
+            status_code=status.HTTP_502_BAD_GATEWAY,
         )
 
     app.include_router(case_routes(settings, agent))
