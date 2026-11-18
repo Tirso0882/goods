@@ -11,6 +11,7 @@ import {
   readCaseCookie,
   signCaseCookie,
 } from "@lib/chat/case-cookie"
+import { readTurnRequest } from "@lib/chat/turn"
 import { randomUUID } from "crypto"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
@@ -20,8 +21,6 @@ import { NextRequest, NextResponse } from "next/server"
 // database (ADR 0020).
 
 export const dynamic = "force-dynamic"
-
-const MAX_MESSAGE_LENGTH = 4000
 
 const cookieSecret = () => {
   const secret = process.env.CHAT_COOKIE_SECRET ?? ""
@@ -88,29 +87,33 @@ export async function POST(request: NextRequest) {
     return turnError("chat_unavailable", 503)
   }
 
-  const body: unknown = await request.json().catch(() => null)
-  const message =
-    body && typeof body === "object" && "message" in body ? body.message : null
-  if (
-    typeof message !== "string" ||
-    !message.trim() ||
-    message.length > MAX_MESSAGE_LENGTH
-  ) {
+  const turnRequest = readTurnRequest(await request.json().catch(() => null))
+  if (!turnRequest) {
     return turnError("invalid_message", 400)
   }
+  const { message, retry } = turnRequest
 
   try {
     const caseId = await currentCase(secret)
     let turn
     if (caseId) {
       try {
-        turn = await sendMessage(caseId, message, correlationId)
+        turn = await sendMessage(caseId, message, retry, correlationId)
       } catch (error) {
         if (!(error instanceof AgentError && error.status === 404)) throw error
       }
     }
     if (!turn) {
-      turn = await openCase(message, correlationId)
+      try {
+        turn = await openCase(message, correlationId)
+      } catch (error) {
+        // The case holds the failed message: a retry must answer it there,
+        // not open another case with the message again.
+        if (error instanceof AgentError && error.caseId) {
+          await rememberCase(error.caseId, secret)
+        }
+        throw error
+      }
       await rememberCase(turn.case_id, secret)
     }
     return json(

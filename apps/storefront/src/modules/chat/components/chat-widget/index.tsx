@@ -10,13 +10,15 @@ import {
   useExternalStoreRuntime,
 } from "@assistant-ui/react"
 import type { ShownMessage } from "@lib/chat/agent-client"
+import { describeTurnError, type ShownTurnError } from "@lib/chat/turn"
 import { useCallback, useEffect, useState } from "react"
 
 // The support chat: a floating button on every page but checkout. The
 // conversation lives in the agent's database; this keeps only what is on
 // screen, and sends the server just the new message (ADR 0020).
 
-type ChatError = { text: string; reference?: string }
+// An error on screen. `retry` is the unanswered message a retry sends again.
+type ChatError = ShownTurnError & { retry?: string }
 
 const ROLE: Record<ShownMessage["role"], ThreadMessageLike["role"]> = {
   shopper: "user",
@@ -54,24 +56,28 @@ function useSupportChat(enabled: boolean) {
         const body = (await response.json()) as { messages: ShownMessage[] }
         setMessages(body.messages)
       })
-      .catch(() => setError({ text: "The chat history couldn't be loaded." }))
+      .catch(() =>
+        setError({
+          text: "The chat history couldn't be loaded. You can still write.",
+          canRetry: false,
+        })
+      )
       .finally(() => setIsLoading(false))
   }, [enabled, loaded])
 
-  const onNew = useCallback(async (message: AppendMessage) => {
-    const text = textOf(message)
-    if (!text) return
+  // One turn. The working state shows from the send until the reply or the
+  // error. A new message comes with the ID it is shown under; without one,
+  // the turn is a retry of the unanswered message, which the agent answers
+  // without storing it a second time.
+  const runTurn = useCallback(async (text: string, pendingId?: string) => {
+    const retry = pendingId === undefined
     setError(null)
-    setMessages((shown) => [
-      ...shown,
-      { id: `pending-${Date.now()}`, role: "shopper", content: text },
-    ])
     setIsRunning(true)
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, retry }),
       })
       const body = (await response.json().catch(() => ({}))) as {
         reply?: ShownMessage
@@ -79,22 +85,40 @@ function useSupportChat(enabled: boolean) {
         correlation_id?: string
       }
       if (!response.ok || !body.reply) {
-        setError({
-          text:
-            body.error === "still_answering"
-              ? "Still answering your last message."
-              : "Sorry, something went wrong.",
-          reference: body.correlation_id,
-        })
+        const shown = describeTurnError(body.error, body.correlation_id)
+        if (!shown.canRetry && pendingId) {
+          // The agent refused the message without storing it: take it off
+          // the screen, so what is shown matches the stored conversation.
+          setMessages((messages) => messages.filter((m) => m.id !== pendingId))
+        }
+        setError({ ...shown, retry: shown.canRetry ? text : undefined })
         return
       }
       setMessages((shown) => [...shown, body.reply!])
     } catch {
-      setError({ text: "Sorry, the chat couldn't be reached." })
+      setError({ ...describeTurnError(undefined, undefined), retry: text })
     } finally {
       setIsRunning(false)
     }
   }, [])
+
+  const onNew = useCallback(
+    async (message: AppendMessage) => {
+      const text = textOf(message)
+      if (!text) return
+      const pendingId = `pending-${Date.now()}`
+      setMessages((shown) => [
+        ...shown,
+        { id: pendingId, role: "shopper", content: text },
+      ])
+      await runTurn(text, pendingId)
+    },
+    [runTurn]
+  )
+
+  const retry = useCallback(() => {
+    if (error?.retry) void runTurn(error.retry)
+  }, [error, runTurn])
 
   const runtime = useExternalStoreRuntime({
     messages,
@@ -105,7 +129,7 @@ function useSupportChat(enabled: boolean) {
     isDisabled: isLoading,
     onNew,
   })
-  return { runtime, error }
+  return { runtime, error, retry }
 }
 
 const UserMessage = () => (
@@ -126,9 +150,11 @@ const AssistantMessage = () => (
 
 function ChatPanel({
   error,
+  onRetry,
   onClose,
 }: {
   error: ChatError | null
+  onRetry: () => void
   onClose: () => void
 }) {
   return (
@@ -170,15 +196,40 @@ function ChatPanel({
             components={{ UserMessage, AssistantMessage }}
           />
           <ThreadPrimitive.If running>
-            <p className="text-ui-fg-subtle" aria-live="polite">
-              The assistant is typing…
+            <p
+              className="text-ui-fg-subtle"
+              role="status"
+              data-testid="chat-working"
+            >
+              The assistant is working on a reply…
             </p>
           </ThreadPrimitive.If>
           {error && (
-            <p role="alert" className="text-ui-fg-error">
-              {error.text}
-              {error.reference && <> Reference: {error.reference}</>}
-            </p>
+            <div
+              role="alert"
+              className="flex flex-col items-start gap-2 text-ui-fg-error"
+              data-testid="chat-error"
+            >
+              <p>{error.text}</p>
+              {error.reference && (
+                <p className="txt-compact-small">
+                  Reference:{" "}
+                  <span className="select-all font-mono">
+                    {error.reference}
+                  </span>
+                </p>
+              )}
+              {error.retry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  data-testid="chat-retry"
+                  className="rounded-md border border-ui-border-base px-3 py-1 txt-compact-small-plus text-ui-fg-base hover:bg-ui-bg-subtle-hover"
+                >
+                  Try again
+                </button>
+              )}
+            </div>
           )}
         </ThreadPrimitive.Viewport>
 
@@ -201,11 +252,17 @@ function ChatPanel({
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false)
-  const { runtime, error } = useSupportChat(open)
+  const { runtime, error, retry } = useSupportChat(open)
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      {open && <ChatPanel error={error} onClose={() => setOpen(false)} />}
+      {open && (
+        <ChatPanel
+          error={error}
+          onRetry={retry}
+          onClose={() => setOpen(false)}
+        />
+      )}
       <button
         type="button"
         onClick={() => setOpen((isOpen) => !isOpen)}
