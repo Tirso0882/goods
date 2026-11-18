@@ -121,6 +121,23 @@ docker compose exec postgres psql -U postgres -d agent \
 
 In the browser, the chat button sits at the bottom right of every page but checkout. Result on 15 November 2026: the scripted reply came back, both messages were stored with the turn's correlation ID, a reload showed the same conversation, a cookie with a changed signature got an empty history, and the agent answered 401 without the secret.
 
+#### Waiting, retry and error states
+
+Check each by hand in the browser, with the chat open:
+
+1. **Waiting:** send a message. "The assistant is working on a reply…" shows from the send until the reply.
+2. **Error:** stop the agent with `docker compose stop agent` and send a message. The chat shows an apology, an offer to talk to a person, a "Reference" (the turn's correlation ID, also in the response's `X-Correlation-ID` header and in `docker compose logs storefront`) and a "Try again" button.
+3. **Retry:** start the agent with `docker compose up -d --wait agent` and press "Try again". The reply arrives, and the message is stored once:
+
+   ```bash
+   docker compose exec postgres psql -U postgres -d agent \
+     -c "select role, left(content, 30) from messages order by seq"
+   ```
+
+4. **Continue:** stop the agent again, send a message, start it, and send a new message instead of retrying. The conversation goes on.
+
+A failed turn whose message reached the agent keeps it in the case, unanswered. A retry answers that message without storing it again, and a retry of a message that was answered after all returns the stored reply.
+
 `required variable AGENT_STOREFRONT_SECRET is missing a value` (or `CHAT_COOKIE_SECRET`) means `.env` predates the chat: add both as in First run.
 
 ### Health
