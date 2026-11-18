@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0](https://github.com/Tirso0882/goods/compare/v0.5.0...v0.6.0) (2026-11-18)
+
+
+### Features
+
+* **agent-core:** retry a turn without storing the shopper's message twice ([#160](https://github.com/Tirso0882/goods/issues/160)) ([83781fd](https://github.com/Tirso0882/goods/commit/83781fdd96b0adf2279baccc23bc7f034e3ef094))
+* **agent:** answer a failed turn with its case and take a retry flag ([#160](https://github.com/Tirso0882/goods/issues/160)) ([1b7d9cb](https://github.com/Tirso0882/goods/commit/1b7d9cba0138b564b3d9e89b02f18a897c757ebe))
+* **storefront:** show the chat's working, retry and error states ([#160](https://github.com/Tirso0882/goods/issues/160)) ([b385a5a](https://github.com/Tirso0882/goods/commit/b385a5a9a70054b2d57118bc71d1ddd5240a324f))
+
+
+### Bug Fixes
+
+* **storefront:** refresh the region list every 60 seconds ([accb38b](https://github.com/Tirso0882/goods/commit/accb38ba960da4ca62d718d299cb601e75134f24))
+
 ## [0.5.0](https://github.com/Tirso0882/goods/compare/v0.4.0...v0.5.0) (2026-11-15)
 
 
