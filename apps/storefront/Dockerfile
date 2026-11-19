@@ -7,6 +7,9 @@
 #   PUBLIC_MEDUSA_BACKEND_URL  backend as seen from the browser
 #   PUBLIC_BASE_URL            this storefront's public URL
 #   PUBLIC_STRIPE_KEY          Stripe publishable key (pk_test_... or pk_live_...)
+#   REDIS_URL                  Redis for the chat's rate limit
+#   TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY  Cloudflare Turnstile for the chat
+#   CHAT_TRUSTED_PROXIES       how many proxies of ours stand in front, 0 unless set
 #
 # Build from the repo root: docker build -f apps/storefront/Dockerfile .
 #
@@ -47,6 +50,7 @@ WORKDIR /storefront
 COPY --from=build /repo/apps/storefront/.next/standalone ./
 COPY --from=build /repo/apps/storefront/.next/static ./apps/storefront/.next/static
 COPY --from=build /repo/apps/storefront/public ./apps/storefront/public
+COPY --from=build /repo/apps/storefront/client-ip.cjs ./apps/storefront/client-ip.cjs
 # Next writes its fetch and page cache under .next at runtime.
 RUN chown -R node:node apps/storefront/.next
 USER node
@@ -54,4 +58,6 @@ EXPOSE 8000
 # Ready means the key is set and the backend answers (see src/app/api/health).
 HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||8000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-CMD ["node", "apps/storefront/server.js"]
+# client-ip.cjs appends the address the server saw to X-Forwarded-For, so the
+# chat's rate limit counts an IP the client can't pick.
+CMD ["node", "--require", "./apps/storefront/client-ip.cjs", "apps/storefront/server.js"]

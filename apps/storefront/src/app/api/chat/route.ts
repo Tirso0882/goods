@@ -11,7 +11,15 @@ import {
   readCaseCookie,
   signCaseCookie,
 } from "@lib/chat/case-cookie"
+import {
+  CLIENT_IP_HEADER,
+  clientIp,
+  readTrustedProxies,
+} from "@lib/chat/client-ip"
+import { ChatGuard, type ChatRefusal, readChatLimits } from "@lib/chat/guard"
+import { RedisRateLimiter } from "@lib/chat/rate-limit"
 import { readTurnRequest } from "@lib/chat/turn"
+import { verifyTurnstileToken } from "@lib/chat/turnstile"
 import { randomUUID } from "crypto"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
@@ -19,6 +27,12 @@ import { NextRequest, NextResponse } from "next/server"
 // The chat's only public door. The browser sends just the new message; the
 // case ID lives in a signed httpOnly cookie and the history in the agent's
 // database (ADR 0020).
+//
+// Before any call to the agent, every message is counted against its IP's
+// limit, and a message that would open a support case needs a Turnstile token
+// that passes and a place in the IP's limit on new cases (guard.ts). The IP
+// comes from X-Forwarded-For, read from the right as client-ip.ts explains,
+// so a client can't pick its own.
 
 export const dynamic = "force-dynamic"
 
@@ -35,6 +49,51 @@ const json = (body: unknown, status = 200, correlationId?: string) =>
       ...(correlationId ? { "X-Correlation-ID": correlationId } : {}),
     },
   })
+
+// The public site key the widget renders the check with.
+const turnstileSiteKey = () => process.env.TURNSTILE_SITE_KEY ?? ""
+
+// Built on first use and kept: one Redis connection per server.
+let guard: { chatGuard: ChatGuard; trustedProxies: number } | null = null
+
+function chatGuard() {
+  if (guard) return guard
+  try {
+    // Every setting is read before the Redis connection is opened, so a wrong
+    // one refuses the chat without leaving a connection behind each request.
+    const limits = readChatLimits(process.env)
+    const trustedProxies = readTrustedProxies(process.env.CHAT_TRUSTED_PROXIES)
+    const secret = process.env.TURNSTILE_SECRET_KEY ?? ""
+    // Without the site key the widget can't render the check, and without
+    // the secret no token passes: either way no case could ever open.
+    if (!secret || !turnstileSiteKey()) {
+      throw new Error("TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY must be set")
+    }
+    guard = {
+      chatGuard: new ChatGuard({
+        limiter: new RedisRateLimiter(
+          process.env.REDIS_URL || "redis://localhost:6379",
+          "goods:chat:rate:"
+        ),
+        limits,
+        verifyTurnstile: (token, remoteIp) =>
+          verifyTurnstileToken(token, { secret, remoteIp }),
+      }),
+      trustedProxies,
+    }
+    return guard
+  } catch (error) {
+    console.error("chat protection misconfigured:", error)
+    return null
+  }
+}
+
+const REFUSAL_STATUS: Record<ChatRefusal, number> = {
+  rate_limited: 429,
+  turnstile_required: 403,
+  turnstile_failed: 403,
+  chat_unavailable: 503,
+}
 
 async function currentCase(secret: string) {
   return readCaseCookie((await cookies()).get(CASE_COOKIE)?.value, secret)
@@ -59,8 +118,10 @@ export async function GET() {
   const secret = cookieSecret()
   if (!secret) return json({ error: "chat_unavailable" }, 503)
 
+  // Without a case, the next message opens one and needs the check.
+  const noCase = { messages: [], turnstile_site_key: turnstileSiteKey() }
   const caseId = await currentCase(secret)
-  if (!caseId) return json({ messages: [] })
+  if (!caseId) return json(noCase)
 
   try {
     const { messages } = await readMessages(caseId)
@@ -69,7 +130,7 @@ export async function GET() {
     if (error instanceof AgentError && error.status === 404) {
       // The agent no longer knows the case: start fresh next time.
       await forgetCase()
-      return json({ messages: [] })
+      return json(noCase)
     }
     console.error("chat history failed:", error)
     return json({ error: "chat_unavailable" }, 502)
@@ -82,16 +143,36 @@ export async function POST(request: NextRequest) {
   const correlationId = randomUUID()
   const turnError = (error: string, status: number) =>
     json({ error, correlation_id: correlationId }, status, correlationId)
+  const refuse = (refusal: ChatRefusal) =>
+    refusal === "turnstile_required" || refusal === "turnstile_failed"
+      ? json(
+          {
+            error: refusal,
+            correlation_id: correlationId,
+            turnstile_site_key: turnstileSiteKey(),
+          },
+          REFUSAL_STATUS[refusal],
+          correlationId
+        )
+      : turnError(refusal, REFUSAL_STATUS[refusal])
   const secret = cookieSecret()
-  if (!secret) {
+  const protection = chatGuard()
+  if (!secret || !protection) {
     return turnError("chat_unavailable", 503)
   }
+
+  const ip = clientIp(
+    request.headers.get(CLIENT_IP_HEADER),
+    protection.trustedProxies
+  )
+  const overLimit = await protection.chatGuard.admitMessage(ip)
+  if (overLimit) return refuse(overLimit)
 
   const turnRequest = readTurnRequest(await request.json().catch(() => null))
   if (!turnRequest) {
     return turnError("invalid_message", 400)
   }
-  const { message, retry } = turnRequest
+  const { message, retry, turnstileToken } = turnRequest
 
   try {
     const caseId = await currentCase(secret)
@@ -104,6 +185,12 @@ export async function POST(request: NextRequest) {
       }
     }
     if (!turn) {
+      // The case's first message: checked once, here, for the whole case.
+      const refused = await protection.chatGuard.admitNewCase(
+        ip,
+        turnstileToken
+      )
+      if (refused) return refuse(refused)
       try {
         turn = await openCase(message, correlationId)
       } catch (error) {
