@@ -155,6 +155,8 @@ The `smoke` job in `ci.yml` runs it after `deploy`, against `STOREFRONT_URL` at 
 scripts/smoke-test.sh https://goods-storefront-production.up.railway.app
 ```
 
+With `--compose`, it also checks the support chat's route. That mode clears the chat's rate-limit counters through `docker compose`, so it runs only against the Compose stack: see the [Compose runbook](compose-stack.md#smoke-test).
+
 ### Why there's no test checkout
 
 A scripted checkout (cart, shipping, Stripe test payment, order) would test the flow that matters most, and the smoke test doesn't do it:
