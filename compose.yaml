@@ -1,7 +1,7 @@
 # Local stack only, not a deployment file: localhost URLs, non-Secure cookies.
 #
 # Postgres with pgvector, Redis, Medusa server and worker, the storefront, the
-# support agent and Ollama (CPU). Commands and checks are in docs/runbooks/compose-stack.md:
+# support agent, the LiteLLM model proxy and Ollama (CPU). Commands and checks are in docs/runbooks/compose-stack.md:
 #
 #   cp .env.example .env              # then fill in the secrets
 #   docker compose up -d --build --wait
@@ -12,7 +12,7 @@
 # NVIDIA GPU (Linux or Windows with WSL 2 only):
 #   docker compose -f compose.yaml -f compose.gpu.yaml up -d
 #
-# Postgres, Redis, the agent and Ollama publish no host ports. Use
+# Postgres, Redis, the agent, the model proxy and Ollama publish no host ports. Use
 # `docker compose exec`.
 
 name: goods-stack
@@ -25,6 +25,9 @@ x-ollama: &ollama
   image: ollama/ollama:0.40.14@sha256:ebaef4f4c5d93660e1f25f8ad085a112f51ccfb0e8458073e71793959dba91c9
 
 # sslmode=disable: Medusa uses SSL for any host but localhost.
+x-litellm: &litellm
+  image: ghcr.io/berriai/litellm:v1.110.1@sha256:81ce9f779284689bbd209a3b366060d5fc5140bf2d8b9725650f35e2409a2248
+
 x-database-url: &database-url postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/medusa-goods?sslmode=disable
 
 x-agent: &agent
@@ -36,6 +39,11 @@ x-agent: &agent
     AGENT_DATABASE_URL: postgresql://agent:${AGENT_DB_PASSWORD:?set AGENT_DB_PASSWORD in .env}@postgres:5432/agent
     # The storefront server's secret for the case endpoints.
     AGENT_STOREFRONT_SECRET: ${AGENT_STOREFRONT_SECRET:?set AGENT_STOREFRONT_SECRET in .env}
+    # Every model call goes through the proxy, with the agent's own virtual
+    # key (ADR 0009). The agent holds no provider credential and no master key.
+    AGENT_MODEL: proxy
+    AGENT_PROXY_URL: http://litellm:4000
+    AGENT_PROXY_KEY: ${AGENT_PROXY_KEY:?set AGENT_PROXY_KEY in .env}
   depends_on: &agent-deps
     postgres:
       condition: service_healthy
@@ -270,7 +278,64 @@ services:
       <<: *agent-deps
       agent-migrate:
         condition: service_completed_successfully
+      litellm-setup:
+        condition: service_completed_successfully
     restart: unless-stopped
+
+  # The model proxy, the only path to a model (ADR 0009). No host port: the
+  # agent reaches it on this network with its virtual key. Its keys, budgets
+  # and spend are in the `litellm` database. Runs as root: the image has no
+  # documented non-root mode.
+  litellm:
+    <<: *litellm
+    command: ["--config", "/etc/litellm/config.yaml", "--port", "4000"]
+    environment:
+      DATABASE_URL: postgresql://litellm:${LITELLM_DB_PASSWORD}@postgres:5432/litellm
+      # Both start with sk-. How they are made and kept: the runbook's Model proxy.
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY in .env}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?set LITELLM_SALT_KEY in .env}
+      LITELLM_LOCAL_MODEL: ollama_chat/${OLLAMA_MODEL:-nemotron-3-nano:4b}
+      # No .env file read inside the container, and no admin UI.
+      LITELLM_MODE: PRODUCTION
+      DISABLE_ADMIN_UI: "True"
+    volumes:
+      - ./infra/litellm/config.yaml:/etc/litellm/config.yaml:ro
+    healthcheck:
+      # Ready once its database answers.
+      test:
+        - CMD
+        - python3
+        - -c
+        - import urllib.request as u; u.urlopen('http://127.0.0.1:4000/health/readiness', timeout=4)
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 10
+    depends_on:
+      postgres:
+        condition: service_healthy
+      agent-db-setup:
+        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Runs on every `up`, before the agent starts: creates the agent's virtual
+  # key with its 20 USD monthly budget. A second run changes nothing. It is
+  # the only service besides the proxy that holds the master key.
+  litellm-setup:
+    <<: *litellm
+    environment:
+      LITELLM_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      AGENT_PROXY_KEY: ${AGENT_PROXY_KEY}
+    volumes:
+      - ./infra/litellm/setup_keys.py:/opt/litellm-setup/setup_keys.py:ro
+    entrypoint: ["python3", "/opt/litellm-setup/setup_keys.py"]
+    depends_on:
+      litellm:
+        condition: service_healthy
+    restart: "no"
 
   # CPU by default. Runs as root: the image has no documented non-root mode.
   ollama:
