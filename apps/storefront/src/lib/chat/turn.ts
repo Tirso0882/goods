@@ -11,6 +11,8 @@ export type TurnRequest = {
   // The shopper sends again a message whose reply they never saw. The agent
   // answers it without storing it a second time.
   retry: boolean
+  // The Turnstile token, needed only on a support case's first message.
+  turnstileToken?: string
 }
 
 /** The browser's request body as a turn, or null if it has no usable message. */
@@ -18,6 +20,7 @@ export function readTurnRequest(body: unknown): TurnRequest | null {
   if (!body || typeof body !== "object") return null
   const message = "message" in body ? body.message : undefined
   const retry = "retry" in body ? body.retry : undefined
+  const token = "turnstile_token" in body ? body.turnstile_token : undefined
   if (
     typeof message !== "string" ||
     !message.trim() ||
@@ -25,7 +28,11 @@ export function readTurnRequest(body: unknown): TurnRequest | null {
   ) {
     return null
   }
-  return { message, retry: retry === true }
+  return {
+    message,
+    retry: retry === true,
+    turnstileToken: typeof token === "string" && token ? token : undefined,
+  }
 }
 
 export type ShownTurnError = {
@@ -33,6 +40,8 @@ export type ShownTurnError = {
   // The turn's correlation ID, for the shopper to quote if they write in.
   reference?: string
   canRetry: boolean
+  // The shopper must pass the Turnstile check before the retry.
+  needsCheck?: true
 }
 
 const APOLOGY =
@@ -40,8 +49,11 @@ const APOLOGY =
 
 /**
  * What the shopper is told when a turn brings no reply. `error` is the chat
- * route's code (`chat_unavailable`, `invalid_message` or `still_answering`),
- * or undefined when the route couldn't be reached at all.
+ * route's code (`chat_unavailable`, `invalid_message`, `still_answering`,
+ * `turnstile_required`, `turnstile_failed` or `rate_limited`), or undefined
+ * when the route couldn't be reached at all.
+ *
+ * A refused message was never stored, so it stays on screen for a retry.
  */
 export function describeTurnError(
   error: string | undefined,
@@ -57,6 +69,19 @@ export function describeTurnError(
     return {
       text: `That message couldn't be sent. Messages can be up to ${MAX_MESSAGE_LENGTH} characters.`,
       canRetry: false,
+    }
+  }
+  if (error === "turnstile_required" || error === "turnstile_failed") {
+    return {
+      text: "We couldn't confirm that this message was sent by a person. Complete the check below, then try again.",
+      canRetry: true,
+      needsCheck: true,
+    }
+  }
+  if (error === "rate_limited") {
+    return {
+      text: "Too many messages have come from your connection in a short time. Please wait a few minutes, then try again.",
+      canRetry: true,
     }
   }
   return { text: APOLOGY, reference, canRetry: true }
