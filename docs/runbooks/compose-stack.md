@@ -171,7 +171,17 @@ The master key is the proxy's admin key: it creates keys and changes budgets. To
 
 The salt key encrypts the credentials the proxy stores in its database. **Never rotate it casually.** With a new salt key, everything stored under the old one can't be decrypted: the stored provider credentials become unreadable and must be entered again. Keep the copy in the password manager, and restore the same value with the `litellm` database. Rotating it is a planned migration, never a routine secret change.
 
-`litellm-setup` registers the agent's key on every `up` with a 20 USD budget that resets every month (`1mo`), for the `local` route only. A second run changes nothing; a budget changed by hand is set back, and the month's spend stays. The `local` route costs 0 USD a call, so the budget bites only once the hosted model is added.
+`litellm-setup` registers the agent's key on every `up` with a 20 USD budget that resets every month (`1mo`), for the `local` route only. A second run changes nothing; a budget changed by hand is set back, and the month's spend stays. The `local` route costs 0 USD a call, so the budget bites only once the hosted model is added. A key deleted on the proxy is created again.
+
+To rotate `AGENT_PROXY_KEY`, delete the old key first: LiteLLM keeps key aliases unique, so otherwise `litellm-setup` fails with `POST /key/generate: HTTP 400`. The month's spend goes with the old key.
+
+```bash
+master=$(grep ^LITELLM_MASTER_KEY= .env | cut -d= -f2)
+docker run --rm --network goods-stack_default curlimages/curl -s http://litellm:4000/key/delete \
+  -H "authorization: Bearer $master" -H 'content-type: application/json' \
+  -d '{"key_aliases":["agent"]}'                 # {"deleted_keys":["agent"]}
+# then put the new value in .env and run: docker compose up -d --wait
+```
 
 ### Check it
 
@@ -346,6 +356,7 @@ If the pull then returns an HTML page instead of a TLS error, the proxy blocks t
 | Admin login fails over plain HTTP on a server you built yourself | Production session cookies are `Secure`. The Compose stack sets `INSECURE_LOCAL_COOKIES=true`, which the backend only honors with a localhost `MEDUSA_BACKEND_URL`; a deployed server needs HTTPS instead. |
 | `required variable LITELLM_MASTER_KEY is missing a value` (or `LITELLM_SALT_KEY`, `AGENT_PROXY_KEY`) | `.env` predates the model proxy. Generate the three as in First run, keep the salt key's copy, then `docker compose up -d --wait`. |
 | `litellm-setup` exits with `AGENT_PROXY_KEY must start with sk-` | LiteLLM only takes virtual keys that start with `sk-`. Make one with `echo "sk-$(openssl rand -hex 32)"`. |
+| `litellm-setup` exits with `POST /key/generate: HTTP 400` | `AGENT_PROXY_KEY` changed, and the old key still holds the alias `agent`. Delete it as in [Model proxy keys](#keys), then `docker compose up -d --wait`. |
 | Every chat turn fails, `docker compose logs litellm` says the model is not found | The model isn't pulled yet. `docker compose run --rm ollama-pull`. |
 | `required variable AGENT_DB_PASSWORD is missing a value` (or `LITELLM_DB_PASSWORD`) | `.env` predates the agent. Add both, as in First run, then `docker compose up -d --wait`. |
 | `agent` unhealthy, logs say `password authentication failed for user "agent"` | `AGENT_DB_PASSWORD` changed in `.env` but the role still has the old one. `docker compose up -d --wait` reruns `agent-db-setup`, which sets the current password. |
