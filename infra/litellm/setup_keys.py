@@ -64,12 +64,14 @@ def ensure_agent_key(
     status, found = call(
         proxy_url, master_key, "GET", f"/key/info?{urllib.parse.urlencode({'key': hashed})}"
     )
-    if status == 404:
-        write("/key/generate", proxy_url, master_key, {"key": agent_key, **AGENT_KEY_SETTINGS})
-        return "created"
-    if status != 200:
+    if status not in (200, 404):
         raise SetupError(f"GET /key/info: HTTP {status}")
     info = found.get("info", {})
+    # LiteLLM still answers for a deleted key, from its archive, and refuses
+    # any call made with it: a deleted key is a missing one.
+    if status == 404 or info.get("status") == "deleted":
+        write("/key/generate", proxy_url, master_key, {"key": agent_key, **AGENT_KEY_SETTINGS})
+        return "created"
     # Only what differs: sending budget_duration again would move the reset date.
     changed = {name: want for name, want in AGENT_KEY_SETTINGS.items() if info.get(name) != want}
     if not changed:
