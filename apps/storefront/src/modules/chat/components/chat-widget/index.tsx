@@ -214,14 +214,16 @@ function useSupportChat(enabled: boolean) {
     if (error?.retry) void runTurn(error.retry)
   }, [error, runTurn])
 
+  // A first message, or its retry, waits for the check: without a token it
+  // would only be refused, and still count against the shopper's limit.
+  const waitingForCheck = checkSiteKey !== null && checkToken === null
   const runtime = useExternalStoreRuntime({
     messages,
     convertMessage,
     isRunning,
     isLoading,
-    // Until the history is in, a send would be overwritten by it. A first
-    // message waits for the check.
-    isDisabled: isLoading || (checkSiteKey !== null && checkToken === null),
+    // Until the history is in, a send would be overwritten by it.
+    isDisabled: isLoading || waitingForCheck,
     onNew,
   })
   const check = checkSiteKey
@@ -232,7 +234,7 @@ function useSupportChat(enabled: boolean) {
         onError: onCheckError,
       }
     : null
-  return { runtime, error, retry, check }
+  return { runtime, error, retry, canRetry: !waitingForCheck, check }
 }
 
 const UserMessage = () => (
@@ -298,11 +300,13 @@ function TurnstileCheck({ siteKey, onToken, onError }: Omit<Check, "round">) {
 function ChatPanel({
   error,
   check,
+  canRetry,
   onRetry,
   onClose,
 }: {
   error: ChatError | null
   check: Check | null
+  canRetry: boolean
   onRetry: () => void
   onClose: () => void
 }) {
@@ -372,8 +376,9 @@ function ChatPanel({
                 <button
                   type="button"
                   onClick={onRetry}
+                  disabled={!canRetry}
                   data-testid="chat-retry"
-                  className="rounded-md border border-ui-border-base px-3 py-1 txt-compact-small-plus text-ui-fg-base hover:bg-ui-bg-subtle-hover"
+                  className="rounded-md border border-ui-border-base px-3 py-1 txt-compact-small-plus text-ui-fg-base hover:bg-ui-bg-subtle-hover disabled:opacity-50"
                 >
                   Try again
                 </button>
@@ -410,7 +415,7 @@ function ChatPanel({
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false)
-  const { runtime, error, retry, check } = useSupportChat(open)
+  const { runtime, error, retry, canRetry, check } = useSupportChat(open)
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -418,6 +423,7 @@ export default function ChatWidget() {
         <ChatPanel
           error={error}
           check={check}
+          canRetry={canRetry}
           onRetry={retry}
           onClose={() => setOpen(false)}
         />
