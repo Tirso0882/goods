@@ -24,10 +24,10 @@ x-pgvector: &pgvector
 x-ollama: &ollama
   image: ollama/ollama:0.40.14@sha256:ebaef4f4c5d93660e1f25f8ad085a112f51ccfb0e8458073e71793959dba91c9
 
-# sslmode=disable: Medusa uses SSL for any host but localhost.
 x-litellm: &litellm
   image: ghcr.io/berriai/litellm:v1.110.1@sha256:81ce9f779284689bbd209a3b366060d5fc5140bf2d8b9725650f35e2409a2248
 
+# sslmode=disable: Medusa uses SSL for any host but localhost.
 x-database-url: &database-url postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/medusa-goods?sslmode=disable
 
 x-agent: &agent
@@ -271,7 +271,7 @@ services:
 
   # The support agent. No host port: it is reachable on this network only,
   # by the storefront server with the shared secret. Healthy once
-  # /health/ready reaches the agent database.
+  # /health/ready reaches the agent database and the model proxy.
   agent:
     <<: *agent
     depends_on:
