@@ -1,5 +1,6 @@
 """The FastAPI application: health endpoints, the case endpoints and wiring."""
 
+import asyncio
 import hmac
 import logging
 from collections.abc import Callable
@@ -18,11 +19,11 @@ from agent_core import (
     CaseNotOpenError,
     Message,
     Role,
-    ScriptedChatModel,
     SupportAgent,
     Turn,
     TurnFailedError,
 )
+from agent_service.model import chat_model, proxy_answers
 from agent_service.settings import MIN_SECRET_LENGTH, Settings
 
 logger = logging.getLogger(__name__)
@@ -137,10 +138,16 @@ def case_routes(settings: Settings, agent: SupportAgent) -> APIRouter:
 
 
 def create_app(settings: Settings, model: BaseChatModel | None = None) -> FastAPI:
-    """The service. Without a model, every turn gets the scripted reply."""
+    """The service. Without a model, it uses the one the settings choose."""
     app = FastAPI(title="Support agent", docs_url=None, redoc_url=None, openapi_url=None)
-    chat_model = model or ScriptedChatModel([settings.scripted_reply], repeat=True)
-    agent = SupportAgent(str(settings.database_url), chat_model)
+    agent = SupportAgent(str(settings.database_url), model or chat_model(settings))
+
+    async def readiness_checks() -> dict[str, bool]:
+        # Side by side, so the healthcheck's wait covers the slowest, not the sum.
+        if settings.model != "proxy":
+            return {"database": await database_answers(settings)}
+        database, proxy = await asyncio.gather(database_answers(settings), proxy_answers(settings))
+        return {"database": database, "proxy": proxy}
 
     @app.get("/health/live")
     async def live() -> dict[str, str]:
@@ -148,7 +155,10 @@ def create_app(settings: Settings, model: BaseChatModel | None = None) -> FastAP
 
     @app.get("/health/ready")
     async def ready() -> JSONResponse:
-        checks = {"database": "ok" if await database_answers(settings) else "unavailable"}
+        checks = {
+            name: "ok" if answers else "unavailable"
+            for name, answers in (await readiness_checks()).items()
+        }
         healthy = all(result == "ok" for result in checks.values())
         return JSONResponse(
             {"status": "ok" if healthy else "unavailable", "checks": checks},

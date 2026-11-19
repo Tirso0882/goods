@@ -1,0 +1,44 @@
+# The LiteLLM proxy, the only path to a model (ADR 0009). Mounted read-only
+# into the `litellm` service. Secrets are not here: the master key, the salt
+# key and the database URL come from the environment.
+#
+# Checks and key handling: docs/runbooks/compose-stack.md#model-proxy.
+
+model_list:
+  # The local Nemotron, served by the stack's Ollama: free, for building the
+  # loop. The agent calls it as `local`, so the model behind it can change
+  # without a code change. LiteLLM has no price for it, so its calls cost 0.
+  - model_name: local
+    litellm_params:
+      # ollama_chat/<OLLAMA_MODEL>, set in compose.yaml.
+      model: os.environ/LITELLM_LOCAL_MODEL
+      api_base: http://ollama:11434
+      # One attempt. On CPU a reply takes seconds, so this is generous but
+      # still ends inside the agent's 55 s wait for a model call.
+      timeout: 45
+
+litellm_settings:
+  # The proxy retries model calls, and nothing else: it has no write to
+  # retry (ADR 0009). The agent's client does not retry on top of this.
+  num_retries: 3
+  request_timeout: 45
+  # A parameter the model can't take is an error, never silently dropped:
+  # the agent sends no sampling parameters, and this keeps it honest.
+  drop_params: false
+  # Prompts and replies stay out of the spend logs: they carry shoppers'
+  # personal data. Tokens and cost are still recorded per key.
+  turn_off_message_logging: true
+
+router_settings:
+  num_retries: 3
+  timeout: 45
+  # No fallback model (ADR 0009). Nothing is listed under `fallbacks`.
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+  # Keys, budgets and spend live in the proxy's own database, `litellm`.
+  # Models come from this file only, so no provider credential is stored there.
+  store_model_in_db: false
+  # Without its database the proxy can't check a key's budget, so it refuses.
+  allow_requests_on_db_unavailable: false

@@ -14,6 +14,8 @@ What the test store must not lose, how each part is backed up, and the drill tha
 | Railway configuration: services, images, start and pre-deploy commands, health checks, regions, variables (references unrendered), volumes, domains, volume backup schedules | Railway project `goods-production`, environment `production` | `railway.json` in the nightly backup, plus [the Railway runbook](railway.md) | Decrypt and compare with the runbook; rebuild from the runbook |
 | Sealed variables (`JWT_SECRET`, `COOKIE_SECRET`, Stripe keys, R2 keys) | Railway only; sealed values can't be read back | Not backed up: Railway's API returns them empty | Rotated: generate, set, redeploy ([where secrets are kept](railway.md#where-secrets-are-kept)) |
 | The backup private key | Bitwarden (`goods / goods-production / backup key`), and offline on paper | Itself recovery material: without it no backup decrypts | Read from Bitwarden |
+| LiteLLM data: virtual keys, budgets, spend logs | Postgres database `litellm` on the same server | Nightly `pg_dump` (every database on the server) | `restore.sh` into a new database, with the same `LITELLM_SALT_KEY` |
+| `LITELLM_SALT_KEY` | `.env`, and the operator's password manager | Itself recovery material: with a different one, the credentials the proxy stored can't be decrypted | Read from the password manager. Never generate a new one for a restore |
 | Redis: queues, workflow checkpoints, locks, cache | `Redis` service volume | Not backed up: see [Redis](#redis) | Rebuilt empty |
 | Code, images, release history | GitHub and GHCR | GitHub | Out of scope here |
 | Payments | Stripe, the system of record for money | Stripe | Out of scope here |
