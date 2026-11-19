@@ -113,10 +113,11 @@ test("a refused token doesn't use up the IP's new cases", async () => {
 })
 
 test("when the limit can't be checked, the message is refused", async () => {
+  // Nothing listens on port 1: a Redis that is down.
+  const down = new RedisRateLimiter("redis://127.0.0.1:1", "test:down:")
+  after(() => down.close().catch(() => {}))
   const guard = new ChatGuard({
-    limiter: {
-      take: () => Promise.reject(new Error("Redis is down")),
-    },
+    limiter: down,
     limits: DEFAULT_CHAT_LIMITS,
     verifyTurnstile: async () => "passed",
   })
