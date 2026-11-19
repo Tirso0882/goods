@@ -34,8 +34,10 @@ class Settings(BaseSettings):
     proxy_url: AnyHttpUrl | None = None
     proxy_key: SecretStr = SecretStr("")
     proxy_model: str = "local"
-    # One model call, the proxy's own retries included. Under the storefront's
-    # 65 s wait for a turn.
+    # The wait for one model call, the proxy's retries included, under the
+    # storefront's 65 s wait for a turn. It holds one 45 s attempt
+    # (infra/litellm/config.yaml) and quick retries after it, but no retry
+    # after an attempt that timed out.
     model_timeout_seconds: float = 55.0
 
     @model_validator(mode="after")
