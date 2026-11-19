@@ -12,14 +12,16 @@ Synthetic data and Stripe test mode only. Never point this stack at a shared or 
 | `postgres` | PostgreSQL 17 with pgvector, database `medusa-goods` | `docker compose exec postgres psql -U postgres -d medusa-goods` |
 | `redis` | Redis with append-only persistence | `docker compose exec redis redis-cli` |
 | `agent` | Support agent service (FastAPI), [checks below](#agent-service) | internal only: `docker compose exec agent python /opt/healthcheck.py` |
+| `litellm` | LiteLLM model proxy, the only path to a model, [checks below](#model-proxy) | internal only: `docker compose logs litellm` |
 | `ollama` | Ollama on CPU | `docker compose exec ollama ollama list` |
 | `medusa-migrate` | One-off: `medusa db:migrate`, runs on every `up` | logs only |
 | `publishable-key` | One-off: copies the publishable key into a volume for the storefront | logs only |
 | `agent-db-setup` | One-off: creates the `agent` and `litellm` databases and roles, runs on every `up` | logs only |
 | `agent-migrate` | One-off: creates or updates the agent database's tables, runs on every `up` | logs only |
+| `litellm-setup` | One-off: creates the agent's virtual key on the proxy with its budget, runs on every `up` | logs only |
 | `medusa-seed`, `medusa-admin-user`, `ollama-pull` | One-offs in the `setup` profile, run by hand | logs only |
 
-The ports above are the defaults from `MEDUSA_PORT` and `STOREFRONT_PORT`, bound to `127.0.0.1`. Postgres, Redis, the agent and Ollama publish no host ports, so the stack can run next to the `goods-postgres` and `goods-redis` containers. Its project name is `goods-stack`, so its containers and volumes (`goods-stack_pgdata` and so on) never touch the `pnpm dev` ones.
+The ports above are the defaults from `MEDUSA_PORT` and `STOREFRONT_PORT`, bound to `127.0.0.1`. Postgres, Redis, the agent, the model proxy and Ollama publish no host ports, so the stack can run next to the `goods-postgres` and `goods-redis` containers. Its project name is `goods-stack`, so its containers and volumes (`goods-stack_pgdata` and so on) never touch the `pnpm dev` ones.
 
 ## First run
 
@@ -33,7 +35,10 @@ Needs Docker Desktop (or Docker Engine with Compose v2) with at least 8 GB of me
    openssl rand -hex 32   # JWT_SECRET, run again for COOKIE_SECRET
    openssl rand -hex 16   # AGENT_DB_PASSWORD, run again for LITELLM_DB_PASSWORD
    openssl rand -hex 32   # AGENT_STOREFRONT_SECRET, run again for CHAT_COOKIE_SECRET
+   echo "sk-$(openssl rand -hex 32)"   # LITELLM_MASTER_KEY, run again for LITELLM_SALT_KEY and AGENT_PROXY_KEY
    ```
+
+   Before going on, copy `LITELLM_SALT_KEY` into your password manager: it is recovery material ([Model proxy keys](#keys)).
 
    Also set `ADMIN_PASSWORD`. For Stripe, set `STRIPE_API_KEY` (`sk_test_...`), `PUBLIC_STRIPE_KEY` (`pk_test_...`) and `STRIPE_WEBHOOK_SECRET` (see [Stripe test checkout](#stripe-test-checkout)). If `pnpm dev` is using 9000 and 8000, change `MEDUSA_PORT` and `STOREFRONT_PORT`.
 
@@ -43,7 +48,7 @@ Needs Docker Desktop (or Docker Engine with Compose v2) with at least 8 GB of me
    docker compose up -d --build --wait
    ```
 
-   This starts Postgres and Redis, runs the migrations (which create the starter data and a publishable key), starts the server and worker, copies the key for the storefront, and starts the storefront. It also creates the agent's and the model proxy's databases and starts the agent. `--wait` returns once every service is healthy.
+   This starts Postgres and Redis, runs the migrations (which create the starter data and a publishable key), starts the server and worker, copies the key for the storefront, and starts the storefront. It also creates the agent's and the model proxy's databases, starts the proxy, creates the agent's key on it, and starts the agent. `--wait` returns once every service is healthy.
 
 3. Seed the jewelry store and create the admin user:
 
@@ -61,7 +66,9 @@ Needs Docker Desktop (or Docker Engine with Compose v2) with at least 8 GB of me
    docker compose exec ollama ollama run nemotron-3-nano:4b "Say hello in Polish"
    ```
 
-   On a slow machine, or with little memory for Docker, set `OLLAMA_MODEL=qwen3:0.6b` (about 520 MB) in `.env` first and use that name in the `ollama run` line.
+   On a slow machine, or with little memory for Docker, set `OLLAMA_MODEL=qwen3:0.6b` (about 520 MB) in `.env` first and use that name in the `ollama run` line. The proxy's `local` route follows `OLLAMA_MODEL`, so run `docker compose up -d --wait` after changing it.
+
+   The chat's replies come from this model. Until it is pulled, every turn fails and the chat offers a retry.
 
 Check it worked:
 
@@ -93,7 +100,7 @@ docker compose ps agent                                    # Up ... (healthy)
 docker compose logs agent-db-setup                         # Databases ready: agent, litellm
 docker compose logs agent-migrate                          # Applied 1 migration(s): ... (none on a rerun)
 docker compose exec agent python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8080/health/ready').read().decode())"
-# {"status":"ok","checks":{"database":"ok"}}
+# {"status":"ok","checks":{"database":"ok","proxy":"ok"}}
 docker compose port agent 8080                             # no output: no host port
 ```
 
@@ -107,7 +114,7 @@ docker compose exec -e PGPASSWORD="$(grep ^AGENT_DB_PASSWORD= .env | cut -d= -f2
 
 ### Support chat
 
-The storefront's `/api/chat` route is the chat's only public door. It calls the agent on this network with `AGENT_STOREFRONT_SECRET` and keeps the support case's ID in the `goods_support_case` cookie, signed with `CHAT_COOKIE_SECRET` (ADR 0020). Until the model proxy is wired in, every reply is the same scripted text (`AGENT_SCRIPTED_REPLY` overrides it).
+The storefront's `/api/chat` route is the chat's only public door. It calls the agent on this network with `AGENT_STOREFRONT_SECRET` and keeps the support case's ID in the `goods_support_case` cookie, signed with `CHAT_COOKIE_SECRET` (ADR 0020). The agent answers with the local model through the [model proxy](#model-proxy). With `AGENT_MODEL=scripted` on the agent instead, every reply is the same scripted text (`AGENT_SCRIPTED_REPLY` overrides it) and no proxy is needed.
 
 Check one turn and the history, with a cookie jar in place of a browser:
 
@@ -119,7 +126,7 @@ docker compose exec postgres psql -U postgres -d agent \
   -c "select role, correlation_id, left(content, 30) from messages order by seq"
 ```
 
-In the browser, the chat button sits at the bottom right of every page but checkout. Result on 15 November 2026: the scripted reply came back, both messages were stored with the turn's correlation ID, a reload showed the same conversation, a cookie with a changed signature got an empty history, and the agent answered 401 without the secret.
+In the browser, the chat button sits at the bottom right of every page but checkout. Result on 15 November 2026, with the scripted model: the scripted reply came back, both messages were stored with the turn's correlation ID, a reload showed the same conversation, a cookie with a changed signature got an empty history, and the agent answered 401 without the secret.
 
 #### Waiting, retry and error states
 
@@ -142,7 +149,68 @@ A failed turn whose message reached the agent keeps it in the case, unanswered. 
 
 ### Health
 
-With Postgres stopped, `/health/ready` returns 503 (`{"status":"unavailable","checks":{"database":"unavailable"}}`) and the reason goes to `docker compose logs agent`; the container turns unhealthy after three failed checks. Result on 14 November 2026: all as expected, on a volume that already held store data.
+With Postgres stopped, `/health/ready` returns 503 (`{"status":"unavailable","checks":{"database":"unavailable","proxy":"unavailable"}}`: the proxy's own readiness needs its database too) and the reason goes to `docker compose logs agent`; the container turns unhealthy after three failed checks. Result on 14 November 2026, before the proxy check: all as expected, on a volume that already held store data.
+
+With only the proxy stopped (`docker compose stop litellm`), `/health/ready` returns 503 with `"proxy":"unavailable"` and `"database":"ok"`. `docker compose up -d --wait litellm` brings it back.
+
+## Model proxy
+
+LiteLLM is the only path to a model (ADR 0009). Its config is `infra/litellm/config.yaml`: one route, `local`, to `ollama_chat/$OLLAMA_MODEL` on the stack's Ollama (the Nemotron by default), explicit timeouts (45 s a call), 3 retries of model calls and nothing else, and no fallback model. Its virtual keys, budgets and spend are in the `litellm` database, which `agent-db-setup` creates.
+
+The agent holds only `AGENT_PROXY_KEY`, its virtual key. The proxy holds the master key and any provider credentials; the hosted model's arrive in a later step. The agent sends no sampling parameters (`temperature`, `top_p`, `top_k`): the hosted models reject them, and `test_the_model_request_carries_no_sampling_parameters` in `apps/agent/tests` checks the request.
+
+### Keys
+
+| Key | Made with | Kept in | Who sees it |
+| --- | --- | --- | --- |
+| `LITELLM_MASTER_KEY` | `echo "sk-$(openssl rand -hex 32)"` | `.env` | `litellm` and `litellm-setup` only |
+| `LITELLM_SALT_KEY` | `echo "sk-$(openssl rand -hex 32)"`, once | `.env`, and a copy in the operator's password manager as recovery material | `litellm` only |
+| `AGENT_PROXY_KEY` | `echo "sk-$(openssl rand -hex 32)"` | `.env` | the agent, and `litellm-setup`, which registers it |
+
+The master key is the proxy's admin key: it creates keys and changes budgets. To rotate it, put a new value in `.env` and run `docker compose up -d --wait`. Nothing stored depends on it.
+
+The salt key encrypts the credentials the proxy stores in its database. **Never rotate it casually.** With a new salt key, everything stored under the old one can't be decrypted: the stored provider credentials become unreadable and must be entered again. Keep the copy in the password manager, and restore the same value with the `litellm` database. Rotating it is a planned migration, never a routine secret change.
+
+`litellm-setup` registers the agent's key on every `up` with a 20 USD budget that resets every month (`1mo`), for the `local` route only. A second run changes nothing; a budget changed by hand is set back, and the month's spend stays. The `local` route costs 0 USD a call, so the budget bites only once the hosted model is added.
+
+### Check it
+
+```bash
+docker compose ps litellm                     # Up ... (healthy)
+docker compose logs litellm-setup             # Agent key created: ... (unchanged on a rerun)
+docker compose run --rm litellm-setup         # Agent key unchanged: ...
+docker compose exec agent env | grep -E '^(AGENT_PROXY|LITELLM|AWS)'
+# AGENT_PROXY_URL=http://litellm:4000 and AGENT_PROXY_KEY=sk-... only: no master key, no provider credentials
+```
+
+Send a chat message as in [Support chat](#support-chat); the reply is the local model's. Within about 10 seconds the proxy writes the call's tokens against the agent's key (the key is stored as its SHA-256):
+
+```bash
+key_hash=$(grep ^AGENT_PROXY_KEY= .env | cut -d= -f2 | tr -d '\n' | sha256sum | cut -d' ' -f1)
+docker compose exec postgres psql -U postgres -d litellm -c \
+  "select \"startTime\", model_group, prompt_tokens, completion_tokens, spend
+   from \"LiteLLM_SpendLogs\" where api_key = '$key_hash' order by \"startTime\" desc limit 5"
+docker compose exec postgres psql -U postgres -d litellm -c \
+  "select key_alias, max_budget, budget_duration, models, spend
+   from \"LiteLLM_VerificationToken\" where token = '$key_hash'"
+# agent | 20 | 1mo | {local} | 0
+```
+
+A key over its budget is refused. Show it with a throwaway key whose budget is 0 USD, which its first call has already reached (the `local` route is free, so any positive budget would never run out). The proxy has no host port, so curl runs in a container on the stack's network:
+
+```bash
+master=$(grep ^LITELLM_MASTER_KEY= .env | cut -d= -f2)
+curl_net() { docker run --rm --network goods-stack_default curlimages/curl -s "$@"; }
+curl_net http://litellm:4000/key/generate -H "authorization: Bearer $master" \
+  -H 'content-type: application/json' \
+  -d '{"key_alias":"budget-check","max_budget":0,"models":["local"]}'          # note the "key"
+curl_net http://litellm:4000/v1/chat/completions -H "authorization: Bearer sk-..." \
+  -H 'content-type: application/json' \
+  -d '{"model":"local","messages":[{"role":"user","content":"Hi"}]}'
+# {"error":{"message":"Budget has been exceeded! Key=budget-check ... Max budget: 0.0", ...}}
+curl_net http://litellm:4000/key/delete -H "authorization: Bearer $master" \
+  -H 'content-type: application/json' -d '{"key_aliases":["budget-check"]}'
+```
 
 ## Crawlers
 
@@ -276,6 +344,9 @@ If the pull then returns an HTML page instead of a TLS error, the proxy blocks t
 | Store listing is empty but product pages work | The listing calls the backend from the browser at the `backendUrl` that `curl -s localhost:$STOREFRONT_PORT/api/store-config` shows. If it is wrong, fix `MEDUSA_PORT` in `.env` and run `docker compose up -d --wait`. |
 | Credit card isn't offered at checkout | `STRIPE_API_KEY` was empty when the seed ran, or `PUBLIC_STRIPE_KEY` is empty. Set them, run `docker compose up -d --wait`, and re-run the seed. |
 | Admin login fails over plain HTTP on a server you built yourself | Production session cookies are `Secure`. The Compose stack sets `INSECURE_LOCAL_COOKIES=true`, which the backend only honors with a localhost `MEDUSA_BACKEND_URL`; a deployed server needs HTTPS instead. |
+| `required variable LITELLM_MASTER_KEY is missing a value` (or `LITELLM_SALT_KEY`, `AGENT_PROXY_KEY`) | `.env` predates the model proxy. Generate the three as in First run, keep the salt key's copy, then `docker compose up -d --wait`. |
+| `litellm-setup` exits with `AGENT_PROXY_KEY must start with sk-` | LiteLLM only takes virtual keys that start with `sk-`. Make one with `echo "sk-$(openssl rand -hex 32)"`. |
+| Every chat turn fails, `docker compose logs litellm` says the model is not found | The model isn't pulled yet. `docker compose run --rm ollama-pull`. |
 | `required variable AGENT_DB_PASSWORD is missing a value` (or `LITELLM_DB_PASSWORD`) | `.env` predates the agent. Add both, as in First run, then `docker compose up -d --wait`. |
 | `agent` unhealthy, logs say `password authentication failed for user "agent"` | `AGENT_DB_PASSWORD` changed in `.env` but the role still has the old one. `docker compose up -d --wait` reruns `agent-db-setup`, which sets the current password. |
 | `medusa-admin-user` fails with `User with email: ... already exists` | The user is already in this database. Log in, or reset. |
