@@ -2,6 +2,7 @@
 
 The fake keeps virtual keys by their SHA-256, as LiteLLM does, and answers
 the three key management routes the setup uses, with the master key only.
+Like LiteLLM, it still answers /key/info for a deleted key, as "deleted".
 """
 
 import hashlib
@@ -40,6 +41,7 @@ setup = load_setup()
 class FakeLiteLLM:
     url: str = ""
     keys: dict[str, dict[str, Any]] = field(default_factory=dict)
+    deleted: dict[str, dict[str, Any]] = field(default_factory=dict)
     writes: list[str] = field(default_factory=list)
 
 
@@ -62,10 +64,14 @@ def litellm() -> Iterator[FakeLiteLLM]:
                 self.answer(404, {})
                 return
             [token] = parse_qs(url.query)["key"]
-            if token not in fake.keys:
+            if token in fake.keys:
+                info = {**fake.keys[token], "status": "active"}
+                self.answer(200, {"key": token, "info": info})
+            elif token in fake.deleted:
+                info = {**fake.deleted[token], "status": "deleted"}
+                self.answer(200, {"key": token, "info": info})
+            else:
                 self.answer(404, {"error": {"message": "Key not found in database"}})
-                return
-            self.answer(200, {"key": token, "info": fake.keys[token]})
 
         def do_POST(self) -> None:
             if not self.authorized():
@@ -129,6 +135,17 @@ def test_a_second_run_changes_nothing(litellm: FakeLiteLLM) -> None:
     assert outcome == "unchanged"
     assert litellm.writes == ["/key/generate"]
     assert agent_key(litellm) == before
+
+
+def test_a_deleted_agent_key_is_created_again(litellm: FakeLiteLLM) -> None:
+    setup.ensure_agent_key(litellm.url, MASTER_KEY, AGENT_KEY)
+    token = hashlib.sha256(AGENT_KEY.encode()).hexdigest()
+    litellm.deleted[token] = litellm.keys.pop(token)
+
+    outcome = setup.ensure_agent_key(litellm.url, MASTER_KEY, AGENT_KEY)
+
+    assert outcome == "created"
+    assert agent_key(litellm)["max_budget"] == 20.0
 
 
 def test_a_key_whose_budget_was_changed_by_hand_is_set_back(litellm: FakeLiteLLM) -> None:
