@@ -50,24 +50,36 @@ const json = (body: unknown, status = 200, correlationId?: string) =>
     },
   })
 
+// The public site key the widget renders the check with.
+const turnstileSiteKey = () => process.env.TURNSTILE_SITE_KEY ?? ""
+
 // Built on first use and kept: one Redis connection per server.
 let guard: { chatGuard: ChatGuard; trustedProxies: number } | null = null
 
 function chatGuard() {
   if (guard) return guard
   try {
+    // Every setting is read before the Redis connection is opened, so a wrong
+    // one refuses the chat without leaving a connection behind each request.
+    const limits = readChatLimits(process.env)
+    const trustedProxies = readTrustedProxies(process.env.CHAT_TRUSTED_PROXIES)
     const secret = process.env.TURNSTILE_SECRET_KEY ?? ""
+    // Without the site key the widget can't render the check, and without
+    // the secret no token passes: either way no case could ever open.
+    if (!secret || !turnstileSiteKey()) {
+      throw new Error("TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY must be set")
+    }
     guard = {
       chatGuard: new ChatGuard({
         limiter: new RedisRateLimiter(
           process.env.REDIS_URL || "redis://localhost:6379",
           "goods:chat:rate:"
         ),
-        limits: readChatLimits(process.env),
+        limits,
         verifyTurnstile: (token, remoteIp) =>
           verifyTurnstileToken(token, { secret, remoteIp }),
       }),
-      trustedProxies: readTrustedProxies(process.env.CHAT_TRUSTED_PROXIES),
+      trustedProxies,
     }
     return guard
   } catch (error) {
@@ -75,9 +87,6 @@ function chatGuard() {
     return null
   }
 }
-
-// The public site key the widget renders the check with.
-const turnstileSiteKey = () => process.env.TURNSTILE_SITE_KEY ?? ""
 
 const REFUSAL_STATUS: Record<ChatRefusal, number> = {
   rate_limited: 429,
