@@ -20,7 +20,7 @@ import {
   isApiTrouble,
   isAuthFailure,
 } from "../../shared/failures.mts"
-import { commentOnPullRequest, readIssueText } from "../../shared/github.mts"
+import { commentOnPullRequest, readTicket } from "../../shared/github.mts"
 import {
   HostError,
   fetchBranch,
@@ -126,16 +126,16 @@ const resolveConflicts = async (
 /** The issue the branch builds, if you wrote it: the agent's spec. */
 const readIssue = (branch: string) => {
   const number = issueFor(branch)
-  const text =
+  const ticket =
     number === undefined
       ? undefined
-      : onHost(`Reading issue #${number}`, () => readIssueText(number))
-  if (number === undefined || text === undefined) {
+      : onHost(`Reading issue #${number}`, () => readTicket(number))
+  if (ticket === undefined) {
     throw new UpdateFailure(
       "Its branch names no issue the maintainer wrote, so the agent has no spec to resolve the conflicts against."
     )
   }
-  return { number, text }
+  return ticket
 }
 
 /** Its merge goes out only if it's a finished merge of the base. */

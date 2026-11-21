@@ -4,6 +4,10 @@
 //              pull request that conflicts with it. The host merges, and an
 //              agent resolves the conflicts if there are any. A pull request
 //              that is only behind merges cleanly and is left alone.
+//   Address    Each factory pull request you labelled `ready-for-agent` goes
+//              back to an agent with your unresolved review comments. It fixes
+//              or answers them in the pull request's sandbox; the host pushes,
+//              posts its replies, removes the label and waits for CI.
 //   Plan       The host lists the open `ready-for-agent` issues you wrote and
 //              drops any with an open blocker or an open factory pull request.
 //              A planner picks the ones that can be built side by side.
@@ -35,6 +39,7 @@
 //   pnpm factory                             # the backlog
 //   pnpm factory --issue 160 --parallel 1
 //   pnpm factory --update-pr 187             # only merge main into it
+//   pnpm factory --address-pr 187            # only address your review of it
 
 import { parseArgs } from "node:util"
 import { MAX_SLOTS, startServices, stopServices } from "./environment.mts"
@@ -54,6 +59,10 @@ import {
 import { git } from "./shared/host.mts"
 import type { FactoryPullRequest } from "./shared/pull-requests.mts"
 import { type Outcome, runTicket } from "./ticket.mts"
+import {
+  type AddressOutcome,
+  addressPullRequest,
+} from "./workflows/address-review/address-review.mts"
 import { plan } from "./workflows/plan/plan.mts"
 import { preflight } from "./workflows/preflight/preflight.mts"
 import {
@@ -70,6 +79,7 @@ const { values: cli } = parseArgs({
     issue: { type: "string", multiple: true },
     parallel: { type: "string" },
     "update-pr": { type: "string" },
+    "address-pr": { type: "string" },
   },
 })
 
@@ -83,18 +93,28 @@ if ([...onlyIssues].some((n) => !Number.isInteger(n) || n < 1)) {
   throw new Error(`--issue takes issue numbers, got ${cli.issue?.join(", ")}.`)
 }
 
-const onlyPullRequest =
-  cli["update-pr"] === undefined ? undefined : Number(cli["update-pr"])
+const pullRequestOption = (name: "update-pr" | "address-pr") => {
+  const value = cli[name]
+  if (value === undefined) return undefined
+  const number = Number(value)
+  if (!Number.isInteger(number) || number < 1) {
+    throw new Error(`--${name} takes a pull request number, got ${value}.`)
+  }
+  return number
+}
+
+const onlyUpdate = pullRequestOption("update-pr")
+const onlyAddress = pullRequestOption("address-pr")
+if (onlyUpdate !== undefined && onlyAddress !== undefined) {
+  throw new Error("--update-pr and --address-pr run on their own: pick one.")
+}
 if (
-  onlyPullRequest !== undefined &&
-  (!Number.isInteger(onlyPullRequest) || onlyPullRequest < 1)
+  (onlyUpdate !== undefined || onlyAddress !== undefined) &&
+  onlyIssues.size > 0
 ) {
   throw new Error(
-    `--update-pr takes a pull request number, got ${cli["update-pr"]}.`
+    "--update-pr and --address-pr run on their own: drop --issue."
   )
-}
-if (onlyPullRequest !== undefined && onlyIssues.size > 0) {
-  throw new Error("--update-pr runs on its own: drop --issue.")
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +165,7 @@ const withSlot = createSlotPool(parallel)
 const done = new Set<number>()
 const outcomes = new Map<number, Outcome>()
 const updates = new Map<number, UpdateOutcome>()
+const addresses = new Map<number, AddressOutcome>()
 
 const updatePullRequests = (pullRequests: readonly FactoryPullRequest[]) =>
   Promise.all(
@@ -163,15 +184,29 @@ const updatePullRequests = (pullRequests: readonly FactoryPullRequest[]) =>
     )
   )
 
-// Merge main into one pull request you named, whatever GitHub says of it.
-const updateOnePullRequest = async (number: number) => {
+const addressPullRequests = (pullRequests: readonly FactoryPullRequest[]) =>
+  Promise.all(
+    pullRequests.map((pr) =>
+      withSlot(async (slot) => {
+        console.log(`  PR #${pr.number}: addressing your review`)
+        addresses.set(
+          pr.number,
+          stop.signal.aborted
+            ? { status: "interrupted", reason: "The run stopped first." }
+            : await addressPullRequest(pr, slot, stop)
+        )
+      })
+    )
+  )
+
+// One pull request you named, whatever GitHub says of it or its labels.
+const onePullRequest = (number: number) => {
   git("fetch", "--quiet", "origin", BASE_BRANCH)
   const pr = openFactoryPullRequests().find((p) => p.number === number)
   if (pr === undefined) {
     console.warn(`PR #${number} isn't an open factory pull request.`)
-    return
   }
-  await updatePullRequests([pr])
+  return pr
 }
 
 await preflight(stop.signal)
@@ -191,6 +226,18 @@ const runWaves = async () => {
         `${conflicting.length} pull request(s) conflict with ${BASE_BRANCH}:`
       )
       await updatePullRequests(conflicting)
+    }
+    if (stop.signal.aborted) break
+
+    // A pull request is addressed once a run, and not while it conflicts.
+    const sentBack = openFactoryPullRequests(READY_LABEL).filter(
+      (pr) =>
+        !addresses.has(pr.number) &&
+        (updates.get(pr.number)?.status ?? "updated") === "updated"
+    )
+    if (sentBack.length > 0) {
+      console.log(`${sentBack.length} pull request(s) sent back for review:`)
+      await addressPullRequests(sentBack)
     }
     if (stop.signal.aborted) break
 
@@ -232,10 +279,21 @@ const runWaves = async () => {
   }
 }
 
+const runOne = async () => {
+  if (onlyUpdate !== undefined) {
+    const pr = onePullRequest(onlyUpdate)
+    if (pr) await updatePullRequests([pr])
+  } else if (onlyAddress !== undefined) {
+    const pr = onePullRequest(onlyAddress)
+    if (pr) await addressPullRequests([pr])
+  } else {
+    await runWaves()
+  }
+}
+
 startServices()
 try {
-  if (onlyPullRequest === undefined) await runWaves()
-  else await updateOnePullRequest(onlyPullRequest)
+  await runOne()
 } finally {
   stopServices()
 }
@@ -253,6 +311,28 @@ for (const [number, update] of updates) {
       break
     case "interrupted":
       console.log(`  … PR #${number}: not updated: ${update.reason}`)
+      break
+  }
+}
+for (const [number, address] of addresses) {
+  switch (address.status) {
+    case "addressed":
+      console.log(
+        `  ✎ PR #${number}: review addressed: ${address.commits} commit(s), ${address.replies} reply(ies), ${address.comments} comment(s)`
+      )
+      break
+    case "nothing to do":
+      console.log(`  ✎ PR #${number}: nothing actionable, commented`)
+      break
+    case "failed":
+      console.log(
+        `  ✗ PR #${number}: review not addressed, commented: ${address.reason}`
+      )
+      break
+    case "interrupted":
+      console.log(
+        `  … PR #${number}: interrupted, still ${READY_LABEL}: ${address.reason}`
+      )
       break
   }
 }
@@ -275,4 +355,5 @@ for (const [number, outcome] of outcomes) {
       break
   }
 }
-if (outcomes.size === 0 && updates.size === 0) console.log("  Nothing ran.")
+if (outcomes.size === 0 && updates.size === 0 && addresses.size === 0)
+  console.log("  Nothing ran.")
