@@ -165,7 +165,7 @@ const withSlot = createSlotPool(parallel)
 const done = new Set<number>()
 const outcomes = new Map<number, Outcome>()
 const updates = new Map<number, UpdateOutcome>()
-const addresses = new Map<number, AddressOutcome>()
+const reviewOutcomes = new Map<number, AddressOutcome>()
 
 const updatePullRequests = (pullRequests: readonly FactoryPullRequest[]) =>
   Promise.all(
@@ -189,7 +189,7 @@ const addressPullRequests = (pullRequests: readonly FactoryPullRequest[]) =>
     pullRequests.map((pr) =>
       withSlot(async (slot) => {
         console.log(`  PR #${pr.number}: addressing your review`)
-        addresses.set(
+        reviewOutcomes.set(
           pr.number,
           stop.signal.aborted
             ? { status: "interrupted", reason: "The run stopped first." }
@@ -232,7 +232,7 @@ const runWaves = async () => {
     // A pull request is addressed once a run, and not while it conflicts.
     const sentBack = openFactoryPullRequests(READY_LABEL).filter(
       (pr) =>
-        !addresses.has(pr.number) &&
+        !reviewOutcomes.has(pr.number) &&
         (updates.get(pr.number)?.status ?? "updated") === "updated"
     )
     if (sentBack.length > 0) {
@@ -314,7 +314,7 @@ for (const [number, update] of updates) {
       break
   }
 }
-for (const [number, address] of addresses) {
+for (const [number, address] of reviewOutcomes) {
   switch (address.status) {
     case "addressed":
       console.log(
@@ -355,5 +355,5 @@ for (const [number, outcome] of outcomes) {
       break
   }
 }
-if (outcomes.size === 0 && updates.size === 0 && addresses.size === 0)
+if (outcomes.size === 0 && updates.size === 0 && reviewOutcomes.size === 0)
   console.log("  Nothing ran.")

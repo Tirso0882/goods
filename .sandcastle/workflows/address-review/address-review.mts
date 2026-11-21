@@ -22,9 +22,9 @@ import {
 import {
   commentOnPullRequest,
   readFeedback,
-  readTicket,
   removeReadyLabel,
   replyToReviewComment,
+  ticketForBranch,
 } from "../../shared/github.mts"
 import {
   HostError,
@@ -43,16 +43,12 @@ import {
 } from "../../shared/review-feedback.mts"
 import { runWithExtraction } from "../../shared/run-with-extraction.mts"
 import { SandboxSetupError } from "../../shared/setup.mts"
-import { type Ticket, issueFor } from "../../shared/tickets.mts"
+import type { Ticket } from "../../shared/tickets.mts"
 import { untilCiPasses } from "../implement/implement.mts"
 
 /** The issue the branch builds, if you wrote it: what the review is about. */
 const readIssue = (branch: string) => {
-  const number = issueFor(branch)
-  const ticket =
-    number === undefined
-      ? undefined
-      : onHost(`Reading issue #${number}`, () => readTicket(number))
+  const ticket = ticketForBranch(branch)
   if (ticket === undefined) {
     throw new TicketFailure(
       "Its branch names no issue the maintainer wrote, so the agent has no spec to weigh the review against."

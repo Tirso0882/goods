@@ -8,7 +8,7 @@ import {
   MERGEABILITY_RECHECK_MS,
   READY_LABEL,
 } from "./config.mts"
-import { OWNER, REPO, gh, ghJson, host } from "./host.mts"
+import { OWNER, REPO, gh, ghJson, host, onHost } from "./host.mts"
 import {
   type FactoryPullRequest,
   type GhMergeability,
@@ -26,6 +26,7 @@ import {
   type GhParentIssue,
   type Ticket,
   branchFor,
+  issueFor,
   ticketText,
 } from "./tickets.mts"
 
@@ -117,6 +118,14 @@ export const readTicket = (number: number): Ticket | undefined => {
     branch: branchFor(number),
     text: ticketText(issue, OWNER, parentOf(number)),
   }
+}
+
+/** The ticket a factory branch builds, if its name has one you wrote. */
+export const ticketForBranch = (branch: string) => {
+  const number = issueFor(branch)
+  return number === undefined
+    ? undefined
+    : onHost(`Reading issue #${number}`, () => readTicket(number))
 }
 
 /** Comment on a pull request, signed as the factory's own. */
