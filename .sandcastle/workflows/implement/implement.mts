@@ -3,11 +3,14 @@
 import { join } from "node:path"
 import type { Sandbox } from "@ai-hero/sandcastle"
 import { IMPLEMENTER } from "../../shared/config.mts"
-import { TicketFailure, withRetry } from "../../shared/failures.mts"
+import {
+  TicketFailure,
+  blockedNote,
+  withRetry,
+} from "../../shared/failures.mts"
 import { type Ticket, ticketArgs } from "../../shared/tickets.mts"
 
 export const NO_CI_FAILURE = "None: this is the first attempt."
-const MAX_BLOCKED_CHARS = 1500
 
 export const implement = async (
   box: Sandbox,
@@ -28,13 +31,6 @@ export const implement = async (
       signal,
     })
   )
-  // The agent may quote the prompt's example first, so take the last tag.
-  const blocked = [
-    ...result.stdout.matchAll(/<blocked>([\s\S]*?)<\/blocked>/g),
-  ].at(-1)?.[1]
-  if (blocked?.trim()) {
-    throw new TicketFailure(
-      `The implementer stopped: ${blocked.trim().slice(0, MAX_BLOCKED_CHARS)}`
-    )
-  }
+  const blocked = blockedNote(result.stdout)
+  if (blocked) throw new TicketFailure(`The implementer stopped: ${blocked}`)
 }
