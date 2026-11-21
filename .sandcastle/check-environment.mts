@@ -4,8 +4,8 @@
 //
 // Run it after changing `.sandcastle/environment.mts`, the lockfiles or the
 // toolchain, and before leaving the factory alone:
-//   pnpm exec tsx .sandcastle/check-environment.mts          # everything
-//   pnpm exec tsx .sandcastle/check-environment.mts --quick  # skip the suites
+//   pnpm factory:check          # everything
+//   pnpm factory:check --quick  # skip the suites
 
 import { execFileSync } from "node:child_process"
 import * as sandcastle from "@ai-hero/sandcastle"
