@@ -18,6 +18,11 @@ export const IMPLEMENT_ITERATIONS = 10
 export const CI_FIX_ITERATIONS = 5
 export const MAX_CI_FIXES = 2
 
+// Bringing one conflicting pull request up to date, the agent included.
+export const UPDATE_TIMEOUT_MS = 60 * 60_000
+// GitHub works out whether a pull request merges after the first read asks.
+export const MERGEABILITY_RECHECK_MS = 15_000
+
 export const CI_POLL_MS = 60_000
 export const CI_TIMEOUT_MS = 45 * 60_000
 
@@ -38,6 +43,8 @@ export const PLANNER = () =>
 export const IMPLEMENTER = () =>
   sandcastle.claudeCode("claude-opus-5-5", { effort: "medium" })
 export const REVIEWER = () =>
+  sandcastle.claudeCode("claude-opus-5-5", { effort: "high" })
+export const BRANCH_UPDATER = () =>
   sandcastle.claudeCode("claude-opus-5-5", { effort: "high" })
 export const PR_WRITER = () =>
   sandcastle.claudeCode("claude-sonnet-5-5", { effort: "medium" })

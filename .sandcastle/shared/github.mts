@@ -1,8 +1,19 @@
 // Talking to GitHub about tickets: which issues the factory builds, and
 // handing one to a person.
 
-import { BRANCH_PREFIX, HUMAN_LABEL, READY_LABEL } from "./config.mts"
+import { setTimeout as sleep } from "node:timers/promises"
+import {
+  BRANCH_PREFIX,
+  HUMAN_LABEL,
+  MERGEABILITY_RECHECK_MS,
+  READY_LABEL,
+} from "./config.mts"
 import { OWNER, REPO, gh, ghJson, host } from "./host.mts"
+import {
+  type FactoryPullRequest,
+  type GhMergeability,
+  partitionByMergeability,
+} from "./pull-requests.mts"
 import {
   type GhIssue,
   type GhParentIssue,
@@ -19,8 +30,17 @@ const parentOf = (issue: number) => {
   }
 }
 
-export const openFactoryPullRequests = () =>
-  ghJson<{ number: number; title: string; headRefName: string }[]>(
+/**
+ * The open pull requests the factory opened. A fork can name its branch like
+ * the factory's, so only your own, from this repo, count.
+ */
+export const openFactoryPullRequests = (): FactoryPullRequest[] =>
+  ghJson<
+    (FactoryPullRequest & {
+      author: { login: string }
+      isCrossRepository: boolean
+    })[]
+  >(
     "pr",
     "list",
     "--repo",
@@ -30,8 +50,68 @@ export const openFactoryPullRequests = () =>
     "--limit",
     "100",
     "--json",
-    "number,title,headRefName"
-  ).filter((pr) => pr.headRefName.startsWith(BRANCH_PREFIX))
+    "number,title,body,headRefName,author,isCrossRepository"
+  )
+    .filter(
+      (pr) =>
+        pr.headRefName.startsWith(BRANCH_PREFIX) &&
+        pr.author.login === OWNER &&
+        !pr.isCrossRepository
+    )
+    .map(({ number, title, body, headRefName }) => ({
+      number,
+      title,
+      body,
+      headRefName,
+    }))
+
+const readMergeability = (numbers: readonly number[]) =>
+  numbers.map((n) => ghJson<GhMergeability>("api", `repos/${REPO}/pulls/${n}`))
+
+/** The factory's open pull requests that conflict with the base. */
+export const conflictingPullRequests = async (signal: AbortSignal) => {
+  const open = openFactoryPullRequests()
+  let { conflicting, unknown } = partitionByMergeability(
+    readMergeability(open.map((pr) => pr.number))
+  )
+  if (unknown.length > 0) {
+    await sleep(MERGEABILITY_RECHECK_MS, undefined, { signal }).catch(
+      () => undefined
+    )
+    if (signal.aborted) return []
+    const second = partitionByMergeability(readMergeability(unknown))
+    conflicting = [...conflicting, ...second.conflicting]
+    for (const n of second.unknown) {
+      console.warn(
+        `  PR #${n} skipped: GitHub hasn't worked out whether it merges.`
+      )
+    }
+  }
+  return open.filter((pr) => conflicting.includes(pr.number))
+}
+
+/** What the agents read of issue `number`, or nothing if you didn't write it. */
+export const readIssueText = (number: number) => {
+  const issue = ghJson<GhIssue>(
+    "issue",
+    "view",
+    String(number),
+    "--repo",
+    REPO,
+    "--json",
+    "number,title,body,author,comments"
+  )
+  return issue.author.login === OWNER
+    ? ticketText(issue, OWNER, parentOf(number))
+    : undefined
+}
+
+export const commentOnPullRequest = (number: number, body: string) =>
+  host(
+    "gh",
+    ["pr", "comment", String(number), "--repo", REPO, "--body-file", "-"],
+    body
+  )
 
 /**
  * The open, unblocked tickets you wrote that no pull request covers yet.

@@ -28,6 +28,14 @@ export type GhParentIssue = {
 
 export const branchFor = (issue: number) => `${BRANCH_PREFIX}${issue}`
 
+/** The issue a factory branch builds, if its name has one. */
+export const issueFor = (branch: string) => {
+  const digits = branch.startsWith(BRANCH_PREFIX)
+    ? branch.slice(BRANCH_PREFIX.length)
+    : ""
+  return /^[1-9]\d*$/.test(digits) ? Number(digits) : undefined
+}
+
 /** The prompt arguments every agent on a ticket gets. */
 export const ticketArgs = (ticket: Ticket) => ({
   ISSUE_NUMBER: String(ticket.number),

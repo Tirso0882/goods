@@ -76,3 +76,35 @@ export const push = (branch: string) =>
   onHost(`Pushing ${branch}`, () =>
     git("push", "--force-with-lease", "origin", `${branch}:${branch}`)
   )
+
+/** Whether commit `ancestor` is in `descendant`'s history. */
+export const isAncestor = (ancestor: string, descendant: string) => {
+  try {
+    git("merge-base", "--is-ancestor", ancestor, descendant)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Point the local `branch` at its head on GitHub, where a person may have
+ * pushed since. It refuses to drop local commits that never reached GitHub.
+ */
+export const fetchBranch = (branch: string) =>
+  onHost(`Fetching ${branch}`, () => {
+    discardWorktree(branch)
+    const remote = `refs/remotes/origin/${branch}`
+    git("fetch", "--quiet", "origin", `+refs/heads/${branch}:${remote}`)
+    const local = `refs/heads/${branch}`
+    let exists = true
+    try {
+      git("rev-parse", "--verify", "--quiet", local)
+    } catch {
+      exists = false
+    }
+    if (exists && !isAncestor(local, remote)) {
+      throw new Error(`${branch} has local commits that aren't on GitHub.`)
+    }
+    git("branch", "--force", branch, remote)
+  })
