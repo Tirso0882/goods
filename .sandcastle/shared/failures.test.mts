@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { isApiTrouble, isAuthFailure } from "./failures.mts"
+import { blockedNote, isApiTrouble, isAuthFailure } from "./failures.mts"
 
 describe("isApiTrouble", () => {
   for (const message of [
@@ -41,5 +41,22 @@ describe("isAuthFailure", () => {
 
   it("doesn't count API trouble", () => {
     assert.equal(isAuthFailure(new Error("API Error: 529 Overloaded")), false)
+  })
+})
+
+describe("blockedNote", () => {
+  it("takes the last tag, after the prompt's example the agent quoted", () => {
+    const stdout =
+      "Per the prompt: <blocked>The issue asks for X.</blocked>\n" +
+      "...\n<blocked>\n  ADR 0010 forbids the new route.\n</blocked>"
+    assert.equal(blockedNote(stdout), "ADR 0010 forbids the new route.")
+  })
+
+  it("finds none when the agent didn't stop, or left the tag empty", () => {
+    assert.equal(
+      blockedNote("All done. <promise>COMPLETE</promise>"),
+      undefined
+    )
+    assert.equal(blockedNote("<blocked>  </blocked>"), undefined)
   })
 })
