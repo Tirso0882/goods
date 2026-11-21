@@ -5,6 +5,7 @@
 // The repo is public: anyone can comment on a pull request. So the agent
 // reads only what you wrote, the same rule as `ticketText` in tickets.mts.
 
+import type { CiResult } from "./ci.mts"
 import { READY_LABEL } from "./config.mts"
 
 // The factory posts with your token, so GitHub says you wrote its comments
@@ -155,3 +156,65 @@ export const addressFailedComment = (reason: string) =>
     `**Why:** ${reason}`,
     `Commits and replies it already pushed stay. Look at the branch as it is, then add \`${READY_LABEL}\` again to send it back.`,
   ].join("\n\n")
+
+const NO_CI_FAILURE =
+  "None: CI passes on the branch's head, or it has no checks."
+
+/**
+ * Whether the agent has anything to address: your feedback, or CI that fails
+ * on the head it starts from. `ciFailure` is what the prompt's CI FAILURE
+ * section says. It goes to the agent only, never into a comment.
+ */
+export const whatToAddress = (
+  feedback: Feedback,
+  ci: CiResult
+): "nothing actionable" | { ciFailure: string } => {
+  if (!ci.passed) return { ciFailure: ci.log }
+  const empty =
+    feedback.threads.length === 0 &&
+    feedback.comments.length === 0 &&
+    feedback.reviews.length === 0
+  return empty ? "nothing actionable" : { ciFailure: NO_CI_FAILURE }
+}
+
+/**
+ * What the host does once the agent stops, from CI on the head it started
+ * from, its new commits and how many replies and comments it wrote. On red
+ * CI with no commit, what it said is still posted, then the run fails.
+ */
+export const afterAddressing = (
+  ci: CiResult,
+  agent: { commits: number; said: number }
+): "nothing to do" | "publish" | "no fix for CI" => {
+  if (!ci.passed && agent.commits === 0) return "no fix for CI"
+  if (agent.commits === 0 && agent.said === 0) return "nothing to do"
+  return "publish"
+}
+
+// Shorter lines are words a reply may well share with the log.
+const MIN_QUOTE_CHARS = 20
+
+/**
+ * What the agent wrote, without anything that quotes a line of the CI `log`:
+ * it is posted publicly, and the log never is. The check names and job links
+ * the host put in the log may stay.
+ */
+export const withoutLogQuotes = <T extends { body: string }>(
+  said: readonly T[],
+  log: string
+): T[] => {
+  const quotable = log
+    .split("\n")
+    .filter((line) => !line.startsWith("## ") && !line.startsWith("http"))
+    // "<step> | <line>": a quote would be of the line.
+    .map((line) => {
+      const step = line.indexOf(" | ")
+      return (step === -1 ? line : line.slice(step + 3)).trim()
+    })
+    .filter((line) => line.length >= MIN_QUOTE_CHARS)
+  return said.filter(({ body }) => {
+    const quotes = quotable.some((line) => body.includes(line))
+    if (quotes) console.warn("  Dropping a reply that quotes the CI log.")
+    return !quotes
+  })
+}

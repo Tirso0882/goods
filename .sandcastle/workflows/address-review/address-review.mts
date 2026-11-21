@@ -1,13 +1,15 @@
 // The review addresser acts on your review of a factory pull request you sent
 // back by labelling it `ready-for-agent`. The host gathers your unresolved
-// feedback, the agent fixes and answers it in the pull request's sandbox, and
-// the host pushes, posts the replies, removes the label and waits for CI.
+// feedback and CI's failure on the branch's head, the agent fixes and answers
+// it in the pull request's sandbox, and the host pushes, posts the replies,
+// removes the label and waits for CI.
 
 import { join } from "node:path"
 import * as sandcastle from "@ai-hero/sandcastle"
 import type { Sandbox } from "@ai-hero/sandcastle"
 import { sandbox, setUpSandbox } from "../../environment.mts"
 import { FEEDBACK_ANSWER, FEEDBACK_PROMPT } from "../../shared/answers.mts"
+import { checksOn } from "../../shared/ci.mts"
 import {
   ADDRESS_ITERATIONS,
   ADDRESS_TIMEOUT_MS,
@@ -39,7 +41,10 @@ import {
   type Feedback,
   addressFailedComment,
   filterReplies,
+  afterAddressing,
   nothingActionableComment,
+  whatToAddress,
+  withoutLogQuotes,
 } from "../../shared/review-feedback.mts"
 import { runWithExtraction } from "../../shared/run-with-extraction.mts"
 import { SandboxSetupError } from "../../shared/setup.mts"
@@ -57,16 +62,12 @@ const readIssue = (branch: string) => {
   return ticket
 }
 
-const isEmpty = (feedback: Feedback) =>
-  feedback.threads.length === 0 &&
-  feedback.comments.length === 0 &&
-  feedback.reviews.length === 0
-
 const runAddresser = async (
   box: Sandbox,
   pr: FactoryPullRequest,
   ticket: Ticket,
   feedback: Feedback,
+  ciFailure: string,
   signal: AbortSignal
 ) => {
   const { output } = await runWithExtraction(box, {
@@ -82,6 +83,7 @@ const runAddresser = async (
       ISSUE_NUMBER: String(ticket.number),
       ISSUE: ticket.text,
       FEEDBACK: JSON.stringify(feedback, null, 2),
+      CI_FAILURE: ciFailure,
     },
     maxIterations: ADDRESS_ITERATIONS,
     idleTimeoutSeconds: 1800,
@@ -106,9 +108,12 @@ const addressReview = async (
   const { feedback, replyTo } = onHost("Reading the review", () =>
     readFeedback(pr.number)
   )
-  if (isEmpty(feedback)) return "nothing to do"
-
   fetchBranch(branch)
+  // So the agent sees CI's answer for the commit it starts from.
+  const ci = await checksOn(git("rev-parse", branch), signal)
+  const todo = whatToAddress(feedback, ci)
+  if (todo === "nothing actionable") return "nothing to do"
+
   await using box = await sandcastle.createSandbox({
     branch,
     baseBranch: BASE_REF,
@@ -118,7 +123,14 @@ const addressReview = async (
   const worktree = box.worktreePath
   const before = git("-C", worktree, "rev-parse", "HEAD")
 
-  const answer = await runAddresser(box, pr, ticket, feedback, signal)
+  const answer = await runAddresser(
+    box,
+    pr,
+    ticket,
+    feedback,
+    todo.ciFailure,
+    signal
+  )
 
   const head = git("-C", worktree, "rev-parse", "HEAD")
   if (!isAncestor(before, head)) {
@@ -129,11 +141,17 @@ const addressReview = async (
     )
   }
   const commits = Number(git("rev-list", "--count", `${before}..${head}`))
-  const replies = filterReplies(answer.threadReplies, replyTo)
-  const comments = answer.topLevelComments
-  if (commits === 0 && replies.length === 0 && comments.length === 0) {
-    return "nothing to do"
-  }
+  const log = ci.passed ? "" : ci.log
+  const replies = withoutLogQuotes(
+    filterReplies(answer.threadReplies, replyTo),
+    log
+  )
+  const comments = withoutLogQuotes(answer.topLevelComments, log)
+  const next = afterAddressing(ci, {
+    commits,
+    said: replies.length + comments.length,
+  })
+  if (next === "nothing to do") return "nothing to do"
 
   if (commits > 0) push(branch)
   onHost("Posting the replies", () => {
@@ -145,6 +163,11 @@ const addressReview = async (
   onHost("Removing the label", () => removeReadyLabel(pr.number))
   progress.labelRemoved = true
 
+  if (next === "no fix for CI") {
+    throw new TicketFailure(
+      "CI fails on the branch, and the agent committed no fix."
+    )
+  }
   if (commits > 0) await untilCiPasses(box, ticket, signal)
   return { commits, replies: replies.length, comments: comments.length }
 }

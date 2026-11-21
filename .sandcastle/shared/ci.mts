@@ -1,9 +1,9 @@
-// Waiting for CI on a pushed commit, and reading what failed.
+// Waiting for CI on a commit, and reading what failed.
 
 import { setTimeout as sleep } from "node:timers/promises"
 import { CI_POLL_MS, CI_TIMEOUT_MS } from "./config.mts"
 import { TicketFailure } from "./failures.mts"
-import { REPO, gh, ghJson } from "./host.mts"
+import { REPO, gh, ghJson, onHost } from "./host.mts"
 
 type CheckRun = {
   id: number
@@ -20,6 +20,9 @@ const FAILED = new Set([
   "action_required",
   "startup_failure",
 ])
+
+/** CI on a commit, once every check finished. */
+export type CiResult = { passed: true } | { passed: false; log: string }
 
 const MAX_LOG_CHARS_PER_CHECK = 12_000
 const MAX_LOG_CHARS = 40_000
@@ -56,22 +59,22 @@ const failureLog = (failed: CheckRun[]) => {
  * Asks for the commit's check runs rather than `gh pr checks`: right after a
  * push the pull request can still show the previous commit's results.
  */
-export const waitForChecks = async (sha: string, signal: AbortSignal) => {
+export const waitForChecks = async (
+  sha: string,
+  signal: AbortSignal
+): Promise<CiResult> => {
   const deadline = Date.now() + CI_TIMEOUT_MS
   let finishedCount = -1
   for (;;) {
     await sleep(CI_POLL_MS, undefined, { signal })
     if (Date.now() > deadline) {
       throw new TicketFailure(
-        `CI didn't finish within ${CI_TIMEOUT_MS / 60_000} minutes of the push.`
+        `CI didn't finish within ${CI_TIMEOUT_MS / 60_000} minutes.`
       )
     }
     let runs: CheckRun[]
     try {
-      runs = ghJson<{ check_runs: CheckRun[] }>(
-        "api",
-        `repos/${REPO}/commits/${sha}/check-runs?per_page=100`
-      ).check_runs
+      runs = checkRuns(sha)
     } catch (error) {
       console.warn(
         `  Couldn't read the checks: ${String(error).split("\n")[0]}`
@@ -88,9 +91,36 @@ export const waitForChecks = async (sha: string, signal: AbortSignal) => {
       finishedCount = runs.length
       continue
     }
-    const failed = runs.filter((r) => FAILED.has(r.conclusion ?? ""))
-    return failed.length === 0
-      ? { passed: true as const }
-      : { passed: false as const, log: failureLog(failed) }
+    return verdict(runs)
   }
+}
+
+const checkRuns = (sha: string) =>
+  ghJson<{ check_runs: CheckRun[] }>(
+    "api",
+    `repos/${REPO}/commits/${sha}/check-runs?per_page=100`
+  ).check_runs
+
+/** Every run has finished: whether they passed, and the log if not. */
+const verdict = (runs: CheckRun[]): CiResult => {
+  const failed = runs.filter((r) => FAILED.has(r.conclusion ?? ""))
+  return failed.length === 0
+    ? { passed: true }
+    : { passed: false, log: failureLog(failed) }
+}
+
+/**
+ * CI on `sha`, a commit pushed a while ago: a pull request's head. Waits for
+ * checks still running. A commit with no checks counts as passing.
+ */
+export const checksOn = async (
+  sha: string,
+  signal: AbortSignal
+): Promise<CiResult> => {
+  const runs = onHost("Reading the checks", () => checkRuns(sha))
+  if (runs.length === 0) return { passed: true }
+  if (runs.some((r) => r.status !== "completed")) {
+    return waitForChecks(sha, signal)
+  }
+  return verdict(runs)
 }
