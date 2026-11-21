@@ -8,6 +8,7 @@
 //   pnpm factory:check --quick  # skip the suites
 
 import { execFileSync } from "node:child_process"
+import { join } from "node:path"
 import * as sandcastle from "@ai-hero/sandcastle"
 import {
   sandbox,
@@ -15,6 +16,11 @@ import {
   startServices,
   stopServices,
 } from "./environment.mts"
+
+// Run from the repo root, as the factory does (shared/host.mts): Sandcastle
+// reads `.sandcastle/.env` from the working directory, and without it the
+// sandbox here wouldn't get the variables an agent's does.
+process.chdir(join(import.meta.dirname, ".."))
 
 const BRANCH = "sandcastle/environment-check"
 const quick = process.argv.includes("--quick")
