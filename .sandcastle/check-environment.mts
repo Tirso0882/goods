@@ -1,6 +1,7 @@
 // Proves the sandbox environment works, without running an agent: it opens
 // one sandbox on a throwaway branch and runs the installs and the test suites
-// in it, the way an implementer would.
+// in it, the way an implementer would. It also checks that no host secret
+// reaches the sandbox's environment.
 //
 // Run it after changing `.sandcastle/environment.mts`, the lockfiles or the
 // toolchain, and before leaving the factory alone:
