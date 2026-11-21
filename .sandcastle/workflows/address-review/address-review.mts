@@ -180,9 +180,10 @@ export const addressPullRequest = async (
   try {
     const result = await addressReview(pr, slot, signal, progress)
     if (result !== "nothing to do") return { status: "addressed", ...result }
+    // The label first: a comment that fails is better than one posted twice.
     onHost("Saying there was nothing to do", () => {
-      commentOnPullRequest(pr.number, nothingActionableComment())
       removeReadyLabel(pr.number)
+      commentOnPullRequest(pr.number, nothingActionableComment())
     })
     return { status: "nothing to do" }
   } catch (error) {
@@ -191,16 +192,19 @@ export const addressPullRequest = async (
       stop.abort(new Error("The agent can't authenticate."))
     }
     // Not the pull request's fault: it keeps its label for the next run, and
-    // the output stays in this log, never on the pull request.
-    if (
+    // the output stays in this log, never on the pull request. Once the label
+    // is off no run picks it up again, so the pull request hears of it.
+    const interrupted =
       stop.signal.aborted ||
       error instanceof HostError ||
       error instanceof SandboxSetupError ||
       isApiTrouble(error)
-    ) {
+    if (interrupted && !progress.labelRemoved) {
       return { status: "interrupted", reason: String(error).split("\n")[0]! }
     }
-    const reason = publicReason(error, deadline)
+    const reason = interrupted
+      ? "The factory stopped before CI finished on its commits."
+      : publicReason(error, deadline)
     try {
       commentOnPullRequest(pr.number, addressFailedComment(reason))
       if (!progress.labelRemoved) removeReadyLabel(pr.number)
