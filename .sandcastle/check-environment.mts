@@ -45,13 +45,15 @@ const canary = `canary-${randomBytes(12).toString("hex")}`
 process.env[CANARY_NAME] = canary
 
 // What the sandbox may get (`.sandcastle/.env`'s keys) and what it must
-// not: the host's secret-looking variables and every value in the repo's
-// `.env`, which is read here on the host and never copied in.
+// not: the host's secret-looking variables and those in the repo's `.env`,
+// which is read here on the host and never copied in.
 const envContext: EnvContext = {
   declared: new Set(envFile(join(import.meta.dirname, ".env")).map(([k]) => k)),
   hostSecrets: new Map([
     ...secretsIn(process.env),
-    ...envFile(join(import.meta.dirname, "../.env")),
+    ...secretsIn(
+      Object.fromEntries(envFile(join(import.meta.dirname, "../.env")))
+    ),
   ]),
   canary,
 }
