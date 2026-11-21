@@ -8,17 +8,25 @@ import {
   MERGEABILITY_RECHECK_MS,
   READY_LABEL,
 } from "./config.mts"
-import { OWNER, REPO, gh, ghJson, host } from "./host.mts"
+import { OWNER, REPO, gh, ghJson, host, onHost } from "./host.mts"
 import {
   type FactoryPullRequest,
   type GhMergeability,
   partitionByMergeability,
 } from "./pull-requests.mts"
 import {
+  type GhPullRequestComment,
+  type GhReview,
+  type GhReviewThread,
+  fromFactory,
+  ownerFeedback,
+} from "./review-feedback.mts"
+import {
   type GhIssue,
   type GhParentIssue,
   type Ticket,
   branchFor,
+  issueFor,
   ticketText,
 } from "./tickets.mts"
 
@@ -31,10 +39,11 @@ const parentOf = (issue: number) => {
 }
 
 /**
- * The open pull requests the factory opened. A fork can name its branch like
- * the factory's, so only your own, from this repo, count.
+ * The open pull requests the factory opened, only those with `label` if you
+ * name one. A fork can name its branch like the factory's, so only your own,
+ * from this repo, count.
  */
-export const openFactoryPullRequests = (): FactoryPullRequest[] =>
+export const openFactoryPullRequests = (label?: string): FactoryPullRequest[] =>
   ghJson<
     (FactoryPullRequest & {
       author: { login: string }
@@ -49,6 +58,7 @@ export const openFactoryPullRequests = (): FactoryPullRequest[] =>
     "open",
     "--limit",
     "100",
+    ...(label === undefined ? [] : ["--label", label]),
     "--json",
     "number,title,body,headRefName,author,isCrossRepository"
   )
@@ -90,8 +100,8 @@ export const conflictingPullRequests = async (signal: AbortSignal) => {
   return open.filter((pr) => conflicting.includes(pr.number))
 }
 
-/** What the agents read of issue `number`, or nothing if you didn't write it. */
-export const readIssueText = (number: number) => {
+/** Issue `number` as a ticket, or nothing if you didn't write it. */
+export const readTicket = (number: number): Ticket | undefined => {
   const issue = ghJson<GhIssue>(
     "issue",
     "view",
@@ -101,17 +111,118 @@ export const readIssueText = (number: number) => {
     "--json",
     "number,title,body,author,comments"
   )
-  return issue.author.login === OWNER
-    ? ticketText(issue, OWNER, parentOf(number))
-    : undefined
+  if (issue.author.login !== OWNER) return undefined
+  return {
+    number,
+    title: issue.title,
+    branch: branchFor(number),
+    text: ticketText(issue, OWNER, parentOf(number)),
+  }
 }
 
+/** The ticket a factory branch builds, if its name has one you wrote. */
+export const ticketForBranch = (branch: string) => {
+  const number = issueFor(branch)
+  return number === undefined
+    ? undefined
+    : onHost(`Reading issue #${number}`, () => readTicket(number))
+}
+
+/** Comment on a pull request, signed as the factory's own. */
 export const commentOnPullRequest = (number: number, body: string) =>
   host(
     "gh",
     ["pr", "comment", String(number), "--repo", REPO, "--body-file", "-"],
-    body
+    fromFactory(body)
   )
+
+/** Reply in the thread of review comment `databaseId`, as the factory. */
+export const replyToReviewComment = (
+  pullRequest: number,
+  databaseId: number,
+  body: string
+) =>
+  host(
+    "gh",
+    [
+      "api",
+      "--method",
+      "POST",
+      `repos/${REPO}/pulls/${pullRequest}/comments/${databaseId}/replies`,
+      "--input",
+      "-",
+    ],
+    JSON.stringify({ body: fromFactory(body) })
+  )
+
+export const removeReadyLabel = (pullRequest: number) =>
+  gh(
+    "pr",
+    "edit",
+    String(pullRequest),
+    "--repo",
+    REPO,
+    "--remove-label",
+    READY_LABEL
+  )
+
+const REVIEW_THREADS_QUERY = `
+query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100) {
+        nodes {
+          id
+          isResolved
+          isOutdated
+          comments(first: 50) {
+            nodes { id databaseId path line originalLine body author { login } }
+          }
+        }
+      }
+    }
+  }
+}`
+
+/**
+ * Your feedback on pull request `number` (see review-feedback.mts), and the
+ * REST id of each thread comment the agent may answer.
+ */
+export const readFeedback = (number: number) => {
+  const [owner = "", repo = ""] = REPO.split("/")
+  const threads = ghJson<{
+    data: {
+      repository: {
+        pullRequest: { reviewThreads: { nodes: GhReviewThread[] } }
+      }
+    }
+  }>(
+    "api",
+    "graphql",
+    "-F",
+    `owner=${owner}`,
+    "-F",
+    `repo=${repo}`,
+    "-F",
+    `number=${number}`,
+    "-f",
+    `query=${REVIEW_THREADS_QUERY}`
+  ).data.repository.pullRequest.reviewThreads.nodes
+  const { comments } = ghJson<{ comments: GhPullRequestComment[] }>(
+    "pr",
+    "view",
+    String(number),
+    "--repo",
+    REPO,
+    "--json",
+    "comments"
+  )
+  const reviews = ghJson<GhReview[]>(
+    "api",
+    `repos/${REPO}/pulls/${number}/reviews?per_page=100`
+  )
+  return ownerFeedback(OWNER, { threads, comments, reviews })
+}
 
 /**
  * The open, unblocked tickets you wrote that no pull request covers yet.
