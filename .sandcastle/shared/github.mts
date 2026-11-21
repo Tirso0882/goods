@@ -1,66 +1,22 @@
-// The tickets: which issues the factory builds, what the agents read of them,
-// and handing one to a person.
+// Talking to GitHub about tickets: which issues the factory builds, and
+// handing one to a person.
 
-import { BASE_REF, BRANCH_PREFIX, HUMAN_LABEL, READY_LABEL } from "./config.mts"
+import { BRANCH_PREFIX, HUMAN_LABEL, READY_LABEL } from "./config.mts"
 import { OWNER, REPO, gh, ghJson, host } from "./host.mts"
+import {
+  type GhIssue,
+  type GhParentIssue,
+  type Ticket,
+  branchFor,
+  ticketText,
+} from "./tickets.mts"
 
-export type Ticket = {
-  number: number
-  title: string
-  branch: string
-  /** What the agents read: the body, your comments and the parent's body. */
-  text: string
-}
-
-type GhIssue = {
-  number: number
-  title: string
-  body: string
-  author: { login: string }
-  comments: { author: { login: string }; body: string }[]
-}
-
-export const branchFor = (issue: number) => `${BRANCH_PREFIX}${issue}`
-
-/** The prompt arguments every agent on a ticket gets. */
-export const ticketArgs = (ticket: Ticket) => ({
-  ISSUE_NUMBER: String(ticket.number),
-  ISSUE_TITLE: ticket.title,
-  ISSUE: ticket.text,
-  BRANCH: ticket.branch,
-  BASE_REF,
-})
-
-// The repo is public: anyone can comment on an issue, and anyone can open one.
-// Only you can apply the label, but an author can edit the body after you do,
-// so the agents see only issues you wrote, and only your comments. Nothing an
-// agent reads from GitHub comes from anyone else.
-const ticketText = (issue: GhIssue) => {
-  const parts = [`# #${issue.number}: ${issue.title}`, issue.body]
-  const comments = issue.comments.filter((c) => c.author.login === OWNER)
-  if (comments.length > 0) {
-    parts.push(
-      "## Comments from the maintainer",
-      ...comments.map((c) => c.body)
-    )
-  }
+const parentOf = (issue: number) => {
   try {
-    const parent = ghJson<{
-      number: number
-      title: string
-      body: string | null
-      user: { login: string }
-    }>("api", `repos/${REPO}/issues/${issue.number}/parent`)
-    if (parent.user.login === OWNER && parent.body) {
-      parts.push(
-        `## Parent issue #${parent.number}: ${parent.title}`,
-        parent.body
-      )
-    }
+    return ghJson<GhParentIssue>("api", `repos/${REPO}/issues/${issue}/parent`)
   } catch {
-    // It has no parent.
+    return undefined // It has no parent.
   }
-  return parts.join("\n\n")
 }
 
 export const openFactoryPullRequests = () =>
@@ -136,7 +92,7 @@ export const loadTickets = (
       number: issue.number,
       title: issue.title,
       branch: branchFor(issue.number),
-      text: ticketText(issue),
+      text: ticketText(issue, OWNER, parentOf(issue.number)),
     })
   }
   for (const n of onlyIssues) {

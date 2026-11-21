@@ -2,7 +2,7 @@
 // pull request whose CI passes, or with the ticket handed to a person.
 
 import * as sandcastle from "@ai-hero/sandcastle"
-import { SandboxSetupError, sandbox, setUpSandbox } from "./environment.mts"
+import { sandbox, setUpSandbox } from "./environment.mts"
 import {
   BASE_REF,
   CI_FIX_ITERATIONS,
@@ -11,12 +11,14 @@ import {
   TICKET_TIMEOUT_MS,
 } from "./shared/config.mts"
 import { waitForChecks } from "./shared/ci.mts"
+import { SandboxSetupError } from "./shared/setup.mts"
 import {
   TicketFailure,
   isApiTrouble,
   isAuthFailure,
 } from "./shared/failures.mts"
-import { type Ticket, handToHuman } from "./shared/github.mts"
+import { handToHuman } from "./shared/github.mts"
+import type { Ticket } from "./shared/tickets.mts"
 import {
   HostError,
   discardWorktree,

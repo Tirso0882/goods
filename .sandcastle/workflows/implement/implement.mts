@@ -4,7 +4,7 @@ import { join } from "node:path"
 import type { Sandbox } from "@ai-hero/sandcastle"
 import { IMPLEMENTER } from "../../shared/config.mts"
 import { TicketFailure, withRetry } from "../../shared/failures.mts"
-import { type Ticket, ticketArgs } from "../../shared/github.mts"
+import { type Ticket, ticketArgs } from "../../shared/tickets.mts"
 
 export const NO_CI_FAILURE = "None: this is the first attempt."
 const MAX_BLOCKED_CHARS = 1500

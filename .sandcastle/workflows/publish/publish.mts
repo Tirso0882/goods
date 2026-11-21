@@ -6,7 +6,7 @@ import { join } from "node:path"
 import type { Sandbox } from "@ai-hero/sandcastle"
 import { BASE_BRANCH, PR_LABEL, PR_WRITER } from "../../shared/config.mts"
 import { TicketFailure, withRetry } from "../../shared/failures.mts"
-import { type Ticket, ticketArgs } from "../../shared/github.mts"
+import { type Ticket, ticketArgs } from "../../shared/tickets.mts"
 import { REPO, git, host, onHost, push } from "../../shared/host.mts"
 
 const CONVENTIONAL_TITLE =

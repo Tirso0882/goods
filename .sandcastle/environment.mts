@@ -6,7 +6,7 @@
 // the tokens in `.sandcastle/.env`. Never copy `.env` into a worktree.
 //
 // Check it without spending tokens:
-//   pnpm exec tsx .sandcastle/check-environment.mts
+//   pnpm factory:check
 
 import { execFileSync } from "node:child_process"
 import { existsSync, realpathSync } from "node:fs"
@@ -15,6 +15,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Sandbox } from "@ai-hero/sandcastle"
 import { bwrap } from "@ai-hero/sandcastle/sandboxes/bwrap"
+import { type SetupStep, runSetupSteps } from "./shared/setup.mts"
 
 const hostOutput = (command: string, ...args: string[]) =>
   execFileSync(command, args, { encoding: "utf8" }).trim()
@@ -137,17 +138,12 @@ export const sandbox = (slot = 0) => {
 // Setting up a sandbox
 // ---------------------------------------------------------------------------
 
-type SetupStep = { command: string; timeoutSeconds?: number }
-
-const DEFAULT_SETUP_TIMEOUT_SECONDS = 120
-const MAX_SETUP_OUTPUT_LINES = 30
-
 // A worktree starts without node_modules or a virtualenv. Both installs copy
 // from the mounted caches (a hard link can't cross a mount), so each worktree
 // gets about 1.5 GB of its own and nothing an agent edits there reaches the
 // caches. The lockfiles are the contract: an install that would change one
 // fails here.
-export const SETUP_STEPS: SetupStep[] = [
+const SETUP_STEPS: SetupStep[] = [
   {
     command: "pnpm install --frozen-lockfile --prefer-offline",
     timeoutSeconds: 600,
@@ -163,52 +159,6 @@ export const SETUP_STEPS: SetupStep[] = [
   },
 ]
 
-/** A setup step failed: the sandbox isn't fit for an agent. */
-export class SandboxSetupError extends Error {}
-
-const shellQuote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
-
-/**
- * Run the setup steps in the sandbox, side by side, and throw if any fails.
- *
- * Sandcastle 0.14's `createSandbox()` ignores an `onSandboxReady` hook's exit
- * code and its `timeoutMs`, so a failed install would hand the agent a broken
- * worktree. The steps run here instead, each under coreutils' `timeout`
- * because `exec()` takes no deadline. Once a release has the fix (its
- * changeset is reject-failed-ready-hooks), they can go back to being hooks.
- */
-export const setUpSandbox = async (
-  box: Sandbox,
-  steps: readonly SetupStep[] = SETUP_STEPS
-) => {
-  const results = await Promise.all(
-    steps.map(async (step) => {
-      const seconds = step.timeoutSeconds ?? DEFAULT_SETUP_TIMEOUT_SECONDS
-      const result = await box.exec(
-        `timeout --kill-after=30 ${seconds} sh -c ${shellQuote(step.command)}`
-      )
-      return { step, seconds, result }
-    })
-  )
-  const failed = results.filter((r) => r.result.exitCode !== 0)
-  if (failed.length === 0) return
-  const summary = failed
-    .map(({ step, seconds, result }) =>
-      // 124 is timeout's own exit code; 137 is its SIGKILL after the grace.
-      result.exitCode === 124 || result.exitCode === 137
-        ? `\`${step.command}\` timed out after ${seconds}s`
-        : `\`${step.command}\` exited ${result.exitCode}`
-    )
-    .join("; ")
-  const output = failed
-    .map(({ step, result }) => {
-      const tail = `${result.stdout}\n${result.stderr}`
-        .trim()
-        .split("\n")
-        .slice(-MAX_SETUP_OUTPUT_LINES)
-        .join("\n")
-      return `--- ${step.command}\n${tail}`
-    })
-    .join("\n")
-  throw new SandboxSetupError(`Sandbox setup failed: ${summary}.\n${output}`)
-}
+/** Make a fresh sandbox fit for an agent (see shared/setup.mts). */
+export const setUpSandbox = (box: Pick<Sandbox, "exec">) =>
+  runSetupSteps(box, SETUP_STEPS)
