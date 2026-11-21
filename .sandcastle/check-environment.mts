@@ -8,6 +8,8 @@
 //   pnpm factory:check --quick  # skip the suites
 
 import { execFileSync } from "node:child_process"
+import { randomBytes } from "node:crypto"
+import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import * as sandcastle from "@ai-hero/sandcastle"
 import {
@@ -16,6 +18,14 @@ import {
   startServices,
   stopServices,
 } from "./environment.mts"
+import {
+  ENV_DUMP_COMMAND,
+  type EnvContext,
+  classifyEnv,
+  parseEnvDump,
+  parseEnvFile,
+  secretsIn,
+} from "./shared/env-leaks.mts"
 
 // Run from the repo root, as the factory does (shared/host.mts): Sandcastle
 // reads `.sandcastle/.env` from the working directory, and without it the
@@ -24,6 +34,51 @@ process.chdir(join(import.meta.dirname, ".."))
 
 const BRANCH = "sandcastle/environment-check"
 const quick = process.argv.includes("--quick")
+
+const envFile = (path: string) =>
+  existsSync(path) ? parseEnvFile(readFileSync(path, "utf8")) : []
+
+// Set on the host before the sandbox exists and declared nowhere, so it can
+// only reach the sandbox if Sandcastle passes the host's environment through.
+const CANARY_NAME = "FACTORY_CHECK_CANARY"
+const canary = `canary-${randomBytes(12).toString("hex")}`
+process.env[CANARY_NAME] = canary
+
+// What the sandbox may get (`.sandcastle/.env`'s keys) and what it must
+// not: the host's secret-looking variables and every value in the repo's
+// `.env`, which is read here on the host and never copied in.
+const envContext: EnvContext = {
+  declared: new Set(envFile(join(import.meta.dirname, ".env")).map(([k]) => k)),
+  hostSecrets: new Map([
+    ...secretsIn(process.env),
+    ...envFile(join(import.meta.dirname, "../.env")),
+  ]),
+  canary,
+}
+
+/**
+ * Fail for every variable in the sandbox that shouldn't be there. It prints
+ * names and reasons only: the values are the secrets.
+ */
+const checkEnvLeaks = async (box: Pick<sandcastle.Sandbox, "exec">) => {
+  const name = "no host secret or canary reaches the sandbox"
+  const result = await box.exec(ENV_DUMP_COMMAND)
+  const env = result.exitCode === 0 ? parseEnvDump(result.stdout) : undefined
+  if (!env) {
+    console.log(
+      `FAIL  ${name} (couldn't read the sandbox's environment, exit ${result.exitCode})`
+    )
+    return false
+  }
+  const leaks = classifyEnv(env, envContext)
+  if (leaks.length === 0) {
+    console.log(`ok    ${name}`)
+    return true
+  }
+  console.log(`FAIL  ${name}`)
+  for (const leak of leaks) console.log(`      ${leak.name}: ${leak.reason}`)
+  return false
+}
 
 // Each check is a shell command that must exit 0 inside the sandbox.
 const checks: { name: string; command: string; slow?: boolean }[] = [
@@ -91,6 +146,8 @@ try {
     })
     await setUpSandbox(box)
     console.log(`\nSandbox ready at ${box.worktreePath}\n`)
+
+    if (!(await checkEnvLeaks(box))) failed++
 
     for (const check of checks) {
       if (quick && check.slow) continue
