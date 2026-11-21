@@ -1,5 +1,6 @@
 // Which of a sandbox's variables should never have reached it. Ported from
-// Sandcastle's own `verify/envLeaks.ts`.
+// Sandcastle's own `verify/envLeaks.ts`. Pure: no git, gh or file reads
+// here, so the tests can load it (env-leaks.test.mts).
 
 export type EnvLeak = { name: string; reason: string }
 
