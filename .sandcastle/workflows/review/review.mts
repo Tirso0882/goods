@@ -6,7 +6,7 @@ import { join } from "node:path"
 import type { Sandbox } from "@ai-hero/sandcastle"
 import { REVIEWER } from "../../shared/config.mts"
 import { withRetry } from "../../shared/failures.mts"
-import { type Ticket, ticketArgs } from "../../shared/github.mts"
+import { type Ticket, ticketArgs } from "../../shared/tickets.mts"
 
 const MAX_REVIEW_CHARS = 8000
 

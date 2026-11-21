@@ -6,7 +6,8 @@ import { z } from "zod"
 import { sandbox } from "../../environment.mts"
 import { BASE_REF, PLANNER, PLANNER_BRANCH } from "../../shared/config.mts"
 import { withRetry } from "../../shared/failures.mts"
-import { type Ticket, openFactoryPullRequests } from "../../shared/github.mts"
+import { openFactoryPullRequests } from "../../shared/github.mts"
+import type { Ticket } from "../../shared/tickets.mts"
 import { deleteBranch } from "../../shared/host.mts"
 
 const planSchema = z.object({
