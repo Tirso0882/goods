@@ -6,7 +6,10 @@ import {
   filterReplies,
   fromFactory,
   nothingActionableComment,
+  afterAddressing,
   ownerFeedback,
+  whatToAddress,
+  withoutLogQuotes,
 } from "./review-feedback.mts"
 
 const OWNER = "maintainer"
@@ -219,5 +222,103 @@ describe("the comments on a pull request the factory sent back", () => {
         "Commits and replies it already pushed stay. Look at the branch as it is, then add `ready-for-agent` again to send it back.",
       ].join("\n\n")
     )
+  })
+})
+
+describe("whatToAddress", () => {
+  const red = { passed: false as const, log: "## test: failure\n\nnot ok 1" }
+
+  it("runs the agent on red CI though you left no comment, and gives it the log", () => {
+    assert.deepEqual(whatToAddress(noFeedback, red), {
+      ciFailure: "## test: failure\n\nnot ok 1",
+    })
+  })
+
+  it("runs the agent on your feedback when CI passes, and says CI is green", () => {
+    const feedback = {
+      ...noFeedback,
+      comments: [{ body: "Rename this.", createdAt: "2026-11-20T10:00:00Z" }],
+    }
+
+    assert.deepEqual(whatToAddress(feedback, { passed: true }), {
+      ciFailure: "None: CI passes on the branch's head, or it has no checks.",
+    })
+  })
+
+  it("gives the agent the log along with your feedback when CI fails", () => {
+    const feedback = {
+      ...noFeedback,
+      reviews: [{ state: "COMMENTED", body: "Close.", submittedAt: null }],
+    }
+
+    assert.deepEqual(whatToAddress(feedback, red), {
+      ciFailure: "## test: failure\n\nnot ok 1",
+    })
+  })
+
+  it("finds nothing actionable with no feedback and CI passing", () => {
+    assert.equal(
+      whatToAddress(noFeedback, { passed: true }),
+      "nothing actionable"
+    )
+  })
+})
+
+describe("afterAddressing", () => {
+  const red = { passed: false as const, log: "not ok 1" }
+  const green = { passed: true as const }
+
+  it("has nothing to do when CI passes and the agent neither committed nor said anything", () => {
+    assert.equal(
+      afterAddressing(green, { commits: 0, said: 0 }),
+      "nothing to do"
+    )
+  })
+
+  it("publishes the agent's replies, even with no commits, when CI passes", () => {
+    assert.equal(afterAddressing(green, { commits: 0, said: 2 }), "publish")
+  })
+
+  it("publishes a fix for red CI", () => {
+    assert.equal(afterAddressing(red, { commits: 1, said: 0 }), "publish")
+  })
+
+  it("publishes what the agent said but fails when CI was red and it committed nothing", () => {
+    assert.equal(afterAddressing(red, { commits: 0, said: 1 }), "no fix for CI")
+    assert.equal(afterAddressing(red, { commits: 0, said: 0 }), "no fix for CI")
+  })
+})
+
+describe("withoutLogQuotes", () => {
+  const log = [
+    "## test: failure",
+    "",
+    "https://github.com/o/r/actions/runs/1/job/2",
+    "",
+    "Run tests | Error: connect ECONNREFUSED 10.0.0.7:5432 at TCPConnectWrap",
+    "Run tests | ok",
+  ].join("\n")
+
+  it("drops what quotes a line of the CI log, and keeps the rest", () => {
+    const said = [
+      { body: "Fixed the failing test in abc123." },
+      {
+        body: "CI said: Error: connect ECONNREFUSED 10.0.0.7:5432 at TCPConnectWrap",
+      },
+    ]
+
+    assert.deepEqual(withoutLogQuotes(said, log), [
+      { body: "Fixed the failing test in abc123." },
+    ])
+  })
+
+  it("keeps a reply that names the check, links the job or says a short word the log has", () => {
+    const said = [
+      {
+        body: "The test: failure is fixed. See https://github.com/o/r/actions/runs/1/job/2. All ok",
+      },
+    ]
+
+    assert.deepEqual(withoutLogQuotes(said, log), said)
   })
 })

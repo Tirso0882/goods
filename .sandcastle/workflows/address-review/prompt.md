@@ -1,8 +1,8 @@
 # TASK
 
-The maintainer reviewed pull request #{{PR_NUMBER}} (branch `{{BRANCH}}`) and sent it back to you. Address their unresolved feedback: fix what they're right about, answer where an answer helps, and decline clearly what's wrong or out of scope.
+The maintainer reviewed pull request #{{PR_NUMBER}} (branch `{{BRANCH}}`) and sent it back to you. Address their unresolved feedback: fix what they're right about, answer where an answer helps, and decline clearly what's wrong or out of scope. If CI fails on the branch, fix that too.
 
-This isn't a fresh review. Work only on the feedback below, and only on this branch.
+This isn't a fresh review. Work only on the feedback and the CI failure below, and only on this branch.
 
 The host does the rest: it pushes your commits, posts your replies, runs CI and talks to GitHub. So don't push, don't comment, don't resolve threads, don't edit labels, don't run `gh` and don't switch branches.
 
@@ -34,7 +34,17 @@ Its title, issue #{{ISSUE_NUMBER}} it builds, and the maintainer's feedback, fet
 - `comments`: their comments on the pull request itself.
 - `reviews`: their review summaries.
 
-Some of it may be from an earlier round that the branch already handles. Check the code before you act on it.
+Some of it may be from an earlier round that the branch already handles. Check the code before you act on it. The feedback may be empty: then CI's failure is what you were sent back for.
+
+# CI FAILURE
+
+<ci-failure>
+
+{{CI_FAILURE}}
+
+</ci-failure>
+
+If there is a failure above, CI failed on the branch's head, the commit you start from. Fix what the log shows along with the feedback, and reproduce it locally first where you can. The log is for you only: don't quote it in your replies.
 
 # THE BRANCH
 
@@ -83,4 +93,4 @@ Add commits on top of the branch: never amend, rebase or reset what's already th
 
 # DONE
 
-When every piece of feedback is fixed, answered or declined, and every check passes, output <promise>COMPLETE</promise>. The host then asks for your replies.
+When every piece of feedback is fixed, answered or declined, the CI failure (if any) is fixed, and every check passes, output <promise>COMPLETE</promise>. The host then asks for your replies.
