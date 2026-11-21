@@ -1,8 +1,10 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import * as sandcastle from "@ai-hero/sandcastle"
+import type { SandboxRunOptions } from "@ai-hero/sandcastle"
 import { z } from "zod"
-import { readAnswer } from "./run-with-extraction.mts"
+import { TicketFailure } from "./failures.mts"
+import { readAnswer, runWithExtraction } from "./run-with-extraction.mts"
 
 const output = sandcastle.Output.object({
   tag: "answer",
@@ -27,18 +29,92 @@ describe("readAnswer", () => {
     assert.deepEqual(answer, { ok: true, value: { status: "done" } })
   })
 
-  it("says why it can't read an answer, for the agent's next try", async () => {
-    const missing = await readAnswer("All done.", output)
-    const notJson = await readAnswer("<answer>done</answer>", output)
-    const wrongShape = await readAnswer(
+  it("says when there's no tag", async () => {
+    const answer = await readAnswer("All done.", output)
+
+    assert.match(!answer.ok ? answer.problem : "", /No <answer> tag/)
+  })
+
+  it("says when the tag isn't JSON", async () => {
+    const answer = await readAnswer("<answer>done</answer>", output)
+
+    assert.match(!answer.ok ? answer.problem : "", /Not JSON/)
+  })
+
+  it("says which field doesn't match, and what the agent sent", async () => {
+    const answer = await readAnswer(
       '<answer>{"status": "finished"}</answer>',
       output
     )
 
-    assert.equal(missing.ok, false)
-    assert.match(!missing.ok ? missing.problem : "", /No <answer> tag/)
-    assert.match(!notJson.ok ? notJson.problem : "", /Not JSON/)
-    assert.match(!wrongShape.ok ? wrongShape.problem : "", /- status: /)
-    assert.equal(!wrongShape.ok && wrongShape.raw, '{"status": "finished"}')
+    assert.match(!answer.ok ? answer.problem : "", /- status: /)
+    assert.equal(!answer.ok && answer.raw, '{"status": "finished"}')
+  })
+})
+
+/** A sandbox whose agent says each of `replies` in turn, in sessions s0, s1… */
+const fakeBox = (replies: readonly string[]) => {
+  const runs: SandboxRunOptions[] = []
+  const box = {
+    run: async (options: SandboxRunOptions) => {
+      const stdout = replies[runs.length] ?? ""
+      const sessionId = `s${runs.length}`
+      runs.push(options)
+      return { iterations: [{ sessionId }], stdout, commits: [] }
+    },
+  }
+  return { box, runs }
+}
+
+const extract = (box: ReturnType<typeof fakeBox>["box"]) =>
+  runWithExtraction(box, {
+    role: "the implementer",
+    name: "implementer #1",
+    agent: sandcastle.claudeCode("claude-haiku-5-5"),
+    prompt: "Build it.",
+    maxIterations: 3,
+    output,
+    extractionPrompt: "Answer in an <answer> tag.",
+  })
+
+describe("runWithExtraction", () => {
+  it("asks for the answer in the work's session, and returns both", async () => {
+    const { box, runs } = fakeBox([
+      "Built it.",
+      '<answer>{"status": "done"}</answer>',
+    ])
+
+    const result = await extract(box)
+
+    assert.equal(result.stdout, "Built it.")
+    assert.deepEqual(result.output, { status: "done" })
+    assert.equal(runs[0]?.maxIterations, 3)
+    assert.equal(runs[1]?.resumeSession, "s0")
+    assert.equal(runs[1]?.prompt, "Answer in an <answer> tag.")
+    assert.equal(runs[1]?.maxIterations, undefined)
+  })
+
+  it("asks again in the bad answer's session, saying what was wrong", async () => {
+    const { box, runs } = fakeBox([
+      "Built it.",
+      "Done!",
+      '<answer>{"status": "done"}</answer>',
+    ])
+
+    const result = await extract(box)
+
+    assert.deepEqual(result.output, { status: "done" })
+    assert.equal(runs[2]?.resumeSession, "s1")
+    assert.match(runs[2]?.prompt ?? "", /No <answer> tag/)
+  })
+
+  it("hands the ticket to a person after three answers it can't read", async () => {
+    const { box, runs } = fakeBox(["Built it.", "Done!", "Done!", "Done!"])
+
+    await assert.rejects(
+      extract(box),
+      new TicketFailure("The factory couldn't read the implementer's answer.")
+    )
+    assert.equal(runs.length, 4)
   })
 })
