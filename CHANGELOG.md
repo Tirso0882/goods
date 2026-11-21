@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.7.0](https://github.com/Tirso0882/goods/compare/v0.6.0...v0.7.0) (2026-11-21)
+
+
+### Features
+
+* **sandcastle:** address the owner's review on factory pull requests sent back with ready-for-agent ([#197](https://github.com/Tirso0882/goods/issues/197)) ([a1e811b](https://github.com/Tirso0882/goods/commit/a1e811b18aca3de60ba655d7d19ddd0260aa751d))
+* **sandcastle:** bring conflicting factory pull requests up to date with main ([#189](https://github.com/Tirso0882/goods/issues/189)) ([14049c5](https://github.com/Tirso0882/goods/commit/14049c53f5de7c2eaf552d4eeb7b062e5eeaf4e7))
+* **sandcastle:** build ready-for-agent tickets into pull requests ([29f218d](https://github.com/Tirso0882/goods/commit/29f218de98482f12517d63c0381cdb656f38251a))
+* **sandcastle:** fail the environment check when a host secret or a canary reaches the sandbox ([#192](https://github.com/Tirso0882/goods/issues/192)) ([9510659](https://github.com/Tirso0882/goods/commit/9510659ad383f2eb3ca7b54a150d6a37c00ae274))
+* **sandcastle:** read agents' answers as structured output ([#190](https://github.com/Tirso0882/goods/issues/190)) ([e39e020](https://github.com/Tirso0882/goods/commit/e39e02039508369a8bfbd21d1ce105f3a101b012))
+
+
+### Bug Fixes
+
+* **sandcastle:** don't cut an agent's answer short, and take a null test in the review ([#190](https://github.com/Tirso0882/goods/issues/190)) ([5e3b90c](https://github.com/Tirso0882/goods/commit/5e3b90cac83cda64843788744ff2d8a1a2c90eb2))
+* **sandcastle:** match the repo .env's keys by name only when they look like secrets, so a port in the sandbox doesn't fail the check ([#192](https://github.com/Tirso0882/goods/issues/192)) ([5b51618](https://github.com/Tirso0882/goods/commit/5b51618350882fe6a3cc58e60ab5d8ab2e8e1679))
+* **sandcastle:** run the environment check from the repo root, so its sandbox gets .sandcastle/.env as an agent's does ([#192](https://github.com/Tirso0882/goods/issues/192)) ([c821b0e](https://github.com/Tirso0882/goods/commit/c821b0e1c04ddd17b0c43ae181767b42d8dd12ec))
+* **sandcastle:** stop a ticket when its sandbox setup fails ([7680212](https://github.com/Tirso0882/goods/commit/7680212e77cd16fee1ba37c90fd06713bcad9a85))
+
 ## [0.6.0](https://github.com/Tirso0882/goods/compare/v0.5.0...v0.6.0) (2026-11-18)
 
 

@@ -20,13 +20,12 @@ import {
   isApiTrouble,
   isAuthFailure,
 } from "../../shared/failures.mts"
-import { commentOnPullRequest, readIssueText } from "../../shared/github.mts"
+import { commentOnPullRequest, ticketForBranch } from "../../shared/github.mts"
 import {
   HostError,
   fetchBranch,
   git,
   isAncestor,
-  onHost,
   push,
 } from "../../shared/host.mts"
 import {
@@ -35,7 +34,6 @@ import {
 } from "../../shared/pull-requests.mts"
 import { runWithExtraction } from "../../shared/run-with-extraction.mts"
 import { SandboxSetupError } from "../../shared/setup.mts"
-import { issueFor } from "../../shared/tickets.mts"
 
 /** A pull request the factory can't update, for a reason a person should read. */
 class UpdateFailure extends Error {}
@@ -125,17 +123,13 @@ const resolveConflicts = async (
 
 /** The issue the branch builds, if you wrote it: the agent's spec. */
 const readIssue = (branch: string) => {
-  const number = issueFor(branch)
-  const text =
-    number === undefined
-      ? undefined
-      : onHost(`Reading issue #${number}`, () => readIssueText(number))
-  if (number === undefined || text === undefined) {
+  const ticket = ticketForBranch(branch)
+  if (ticket === undefined) {
     throw new UpdateFailure(
       "Its branch names no issue the maintainer wrote, so the agent has no spec to resolve the conflicts against."
     )
   }
-  return { number, text }
+  return ticket
 }
 
 /** Its merge goes out only if it's a finished merge of the base. */

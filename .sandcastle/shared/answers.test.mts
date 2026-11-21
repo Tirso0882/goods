@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   DONE_OR_BLOCKED,
+  FEEDBACK_ANSWER,
   PULL_REQUEST_DRAFT,
   REVIEW_REPORT,
   type ReviewReport,
@@ -178,5 +179,42 @@ describe("the PR writer's draft", () => {
     })
 
     assert.equal(pr.titleIsConventional, false)
+  })
+})
+
+describe("the review addresser's answer", () => {
+  const read = (value: unknown) =>
+    readAnswer(tagged(FEEDBACK_ANSWER.tag, value), FEEDBACK_ANSWER)
+
+  it("reads its thread replies and top-level comments, trimmed", async () => {
+    const answer = await read({
+      threadReplies: [{ commentId: "PRRC_1", body: " Renamed it.\n" }],
+      topLevelComments: [{ body: "Declined the cache: out of scope." }],
+    })
+
+    assert.deepEqual(answer, {
+      ok: true,
+      value: {
+        threadReplies: [{ commentId: "PRRC_1", body: "Renamed it." }],
+        topLevelComments: [{ body: "Declined the cache: out of scope." }],
+      },
+    })
+  })
+
+  it("reads a list it left out as empty", async () => {
+    const answer = await read({ threadReplies: [] })
+
+    assert.deepEqual(answer, {
+      ok: true,
+      value: { threadReplies: [], topLevelComments: [] },
+    })
+  })
+
+  it("doesn't take a blank reply", async () => {
+    const answer = await read({
+      threadReplies: [{ commentId: "PRRC_1", body: " " }],
+    })
+
+    assert.equal(answer.ok, false)
   })
 })

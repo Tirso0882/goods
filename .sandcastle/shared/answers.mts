@@ -136,3 +136,28 @@ export const finishPullRequest = (issue: number, draft: PullRequestDraft) => {
     titleIsConventional: CONVENTIONAL_TITLE.test(title),
   }
 }
+
+const commentBody = z.string().trim().min(1)
+
+/**
+ * What the review addresser posts: its replies to your thread comments, by
+ * their node ids, and comments on the pull request. The host posts them.
+ */
+export const FEEDBACK_ANSWER = sandcastle.Output.object({
+  tag: "answer",
+  schema: z.object({
+    threadReplies: z
+      .array(z.object({ commentId: z.string().min(1), body: commentBody }))
+      .default([]),
+    topLevelComments: z.array(z.object({ body: commentBody })).default([]),
+  }),
+})
+
+export const FEEDBACK_PROMPT = `Answer the host with JSON in an <answer> tag, and nothing else. The host posts it on the pull request, as the factory.
+
+- \`threadReplies\`: your reply to a review comment, by the \`commentId\` it has in the feedback.
+- \`topLevelComments\`: comments on the pull request itself, for feedback that isn't in a thread.
+
+Use empty lists when you have nothing to say.
+
+<answer>{"threadReplies": [{"commentId": "PRRC_kwDOexample", "body": "Renamed to \`shopper\` in 1a2b3c4."}], "topLevelComments": [{"body": "Kept the retry: ADR 0009 routes every model call through the proxy, which already retries."}]}</answer>`
