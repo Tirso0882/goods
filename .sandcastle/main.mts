@@ -24,11 +24,12 @@
 //   workflows/<name>/    one agent each, its code next to its prompt
 //   ticket.mts           one ticket from sandbox to CI result
 //   environment.mts      what a sandbox can see and reach
+//   **/*.test.mts        `pnpm test`; `pnpm typecheck` covers it all too
 //
 // Usage:
-//   pnpm exec tsx .sandcastle/check-environment.mts --quick   # first
-//   pnpm exec tsx .sandcastle/main.mts                        # the backlog
-//   pnpm exec tsx .sandcastle/main.mts --issue 160 --parallel 1
+//   pnpm factory:check --quick               # first
+//   pnpm factory                             # the backlog
+//   pnpm factory --issue 160 --parallel 1
 
 import { parseArgs } from "node:util"
 import { MAX_SLOTS, startServices, stopServices } from "./environment.mts"
