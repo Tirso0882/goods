@@ -1,6 +1,12 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { classifyEnv } from "./env-leaks.mts"
+import {
+  ENV_START,
+  classifyEnv,
+  parseEnvDump,
+  parseEnvFile,
+  secretsIn,
+} from "./env-leaks.mts"
 
 const ctx = {
   declared: new Set(["CLAUDE_CODE_OAUTH_TOKEN"]),
@@ -72,5 +78,60 @@ describe("classifyEnv", () => {
       ),
       []
     )
+  })
+})
+
+describe("parseEnvFile", () => {
+  it("reads keys and values, skipping comments and blank lines and stripping quotes", () => {
+    const text = [
+      "# A comment",
+      "CLAUDE_CODE_OAUTH_TOKEN=abc",
+      "",
+      "# ANTHROPIC_API_KEY=commented-out",
+      'QUOTED="two words"',
+      "EMPTY=",
+    ].join("\n")
+    assert.deepEqual(parseEnvFile(text), [
+      ["CLAUDE_CODE_OAUTH_TOKEN", "abc"],
+      ["QUOTED", "two words"],
+      ["EMPTY", ""],
+    ])
+  })
+})
+
+describe("secretsIn", () => {
+  it("keeps only the variables whose names look like secrets", () => {
+    assert.deepEqual(
+      secretsIn({
+        GH_TOKEN: "a",
+        STRIPE_API_KEY: "b",
+        JWT_SECRET: "c",
+        DB_PASSWORD: "d",
+        MEDUSA_PORT: "9000",
+        HOME: "/home/me",
+      }),
+      new Map([
+        ["GH_TOKEN", "a"],
+        ["STRIPE_API_KEY", "b"],
+        ["JWT_SECRET", "c"],
+        ["DB_PASSWORD", "d"],
+      ])
+    )
+  })
+})
+
+describe("parseEnvDump", () => {
+  it("reads the sandbox's variables, keeping an = or a newline inside a value", () => {
+    assert.deepEqual(
+      parseEnvDump(`${ENV_START}\0HOME=/home/agent\0URL=a=b\nc\0`),
+      [
+        ["HOME", "/home/agent"],
+        ["URL", "a=b\nc"],
+      ]
+    )
+  })
+
+  it("gives nothing for a dump cut down to its tail", () => {
+    assert.equal(parseEnvDump("t\0HOME=/home/agent\0"), undefined)
   })
 })
