@@ -1,5 +1,9 @@
 // The factory: plan → implement → review → pull request → CI, in waves.
 //
+//   Update     Each wave starts by merging origin/main into every open factory
+//              pull request that conflicts with it. The host merges, and an
+//              agent resolves the conflicts if there are any. A pull request
+//              that is only behind merges cleanly and is left alone.
 //   Plan       The host lists the open `ready-for-agent` issues you wrote and
 //              drops any with an open blocker or an open factory pull request.
 //              A planner picks the ones that can be built side by side.
@@ -30,21 +34,32 @@
 //   pnpm factory:check --quick               # first
 //   pnpm factory                             # the backlog
 //   pnpm factory --issue 160 --parallel 1
+//   pnpm factory --update-pr 187             # only merge main into it
 
 import { parseArgs } from "node:util"
 import { MAX_SLOTS, startServices, stopServices } from "./environment.mts"
 import {
   BASE_BRANCH,
+  BASE_REF,
   DEFAULT_PARALLEL,
   HUMAN_LABEL,
   MAX_WAVES,
   READY_LABEL,
 } from "./shared/config.mts"
-import { loadTickets } from "./shared/github.mts"
+import {
+  conflictingPullRequests,
+  loadTickets,
+  openFactoryPullRequests,
+} from "./shared/github.mts"
 import { git } from "./shared/host.mts"
+import type { FactoryPullRequest } from "./shared/pull-requests.mts"
 import { type Outcome, runTicket } from "./ticket.mts"
 import { plan } from "./workflows/plan/plan.mts"
 import { preflight } from "./workflows/preflight/preflight.mts"
+import {
+  type UpdateOutcome,
+  updatePullRequest,
+} from "./workflows/update-branch/update-branch.mts"
 
 // ---------------------------------------------------------------------------
 // Command line
@@ -54,6 +69,7 @@ const { values: cli } = parseArgs({
   options: {
     issue: { type: "string", multiple: true },
     parallel: { type: "string" },
+    "update-pr": { type: "string" },
   },
 })
 
@@ -65,6 +81,20 @@ if (!Number.isInteger(parallel) || parallel < 1 || parallel > MAX_SLOTS) {
 }
 if ([...onlyIssues].some((n) => !Number.isInteger(n) || n < 1)) {
   throw new Error(`--issue takes issue numbers, got ${cli.issue?.join(", ")}.`)
+}
+
+const onlyPullRequest =
+  cli["update-pr"] === undefined ? undefined : Number(cli["update-pr"])
+if (
+  onlyPullRequest !== undefined &&
+  (!Number.isInteger(onlyPullRequest) || onlyPullRequest < 1)
+) {
+  throw new Error(
+    `--update-pr takes a pull request number, got ${cli["update-pr"]}.`
+  )
+}
+if (onlyPullRequest !== undefined && onlyIssues.size > 0) {
+  throw new Error("--update-pr runs on its own: drop --issue.")
 }
 
 // ---------------------------------------------------------------------------
@@ -114,14 +144,55 @@ const createSlotPool = (size: number) => {
 const withSlot = createSlotPool(parallel)
 const done = new Set<number>()
 const outcomes = new Map<number, Outcome>()
+const updates = new Map<number, UpdateOutcome>()
+
+const updatePullRequests = (pullRequests: readonly FactoryPullRequest[]) =>
+  Promise.all(
+    pullRequests.map((pr) =>
+      withSlot(async (slot) => {
+        console.log(
+          `  PR #${pr.number}: merging ${BASE_REF} into ${pr.headRefName}`
+        )
+        updates.set(
+          pr.number,
+          stop.signal.aborted
+            ? { status: "interrupted", reason: "The run stopped first." }
+            : await updatePullRequest(pr, slot, stop)
+        )
+      })
+    )
+  )
+
+// Merge main into one pull request you named, whatever GitHub says of it.
+const updateOnePullRequest = async (number: number) => {
+  git("fetch", "--quiet", "origin", BASE_BRANCH)
+  const pr = openFactoryPullRequests().find((p) => p.number === number)
+  if (pr === undefined) {
+    console.warn(`PR #${number} isn't an open factory pull request.`)
+    return
+  }
+  await updatePullRequests([pr])
+}
 
 await preflight(stop.signal)
 
-startServices()
-try {
+const runWaves = async () => {
   for (let wave = 1; wave <= MAX_WAVES && !stop.signal.aborted; wave++) {
     console.log(`\n=== Wave ${wave}/${MAX_WAVES} ===\n`)
     git("fetch", "--quiet", "origin", BASE_BRANCH)
+
+    // A pull request this run couldn't update waits for the next run: it
+    // has its comment, or the failure is in this log.
+    const conflicting = (await conflictingPullRequests(stop.signal)).filter(
+      (pr) => (updates.get(pr.number)?.status ?? "updated") === "updated"
+    )
+    if (conflicting.length > 0) {
+      console.log(
+        `${conflicting.length} pull request(s) conflict with ${BASE_BRANCH}:`
+      )
+      await updatePullRequests(conflicting)
+    }
+    if (stop.signal.aborted) break
 
     const candidates = loadTickets(done, onlyIssues)
     if (candidates.length === 0) {
@@ -159,11 +230,32 @@ try {
     // Tickets you named run once.
     if (onlyIssues.size > 0) break
   }
+}
+
+startServices()
+try {
+  if (onlyPullRequest === undefined) await runWaves()
+  else await updateOnePullRequest(onlyPullRequest)
 } finally {
   stopServices()
 }
 
 console.log("\n=== Summary ===\n")
+for (const [number, update] of updates) {
+  switch (update.status) {
+    case "updated":
+      console.log(
+        `  ↻ PR #${number}: ${BASE_BRANCH} merged in, ${update.merge}`
+      )
+      break
+    case "failed":
+      console.log(`  ✗ PR #${number}: not updated, commented: ${update.reason}`)
+      break
+    case "interrupted":
+      console.log(`  … PR #${number}: not updated: ${update.reason}`)
+      break
+  }
+}
 for (const [number, outcome] of outcomes) {
   switch (outcome.status) {
     case "ready":
@@ -183,4 +275,4 @@ for (const [number, outcome] of outcomes) {
       break
   }
 }
-if (outcomes.size === 0) console.log("  Nothing ran.")
+if (outcomes.size === 0 && updates.size === 0) console.log("  Nothing ran.")
