@@ -85,25 +85,20 @@ export interface RunWithExtractionOptions<T> extends SandboxRunOptions {
   readonly output: OutputObjectDefinition<T>
   /** Asks for the answer. It must show the `<tag>` the output reads. */
   readonly extractionPrompt: string
-  /** Extra extraction attempts after the first. Default: 2. */
-  readonly maxRetries?: number
 }
+
+/** Extra tries at the answer after the first. */
+const MAX_ANSWER_RETRIES = 2
 
 /**
  * Run the agent on `box`, then ask it for its answer in the same session. An
  * answer that never validates is a `TicketFailure`: a person reads why.
  */
 export const runWithExtraction = async <T,>(
-  box: Sandbox,
+  box: Pick<Sandbox, "run">,
   options: RunWithExtractionOptions<T>
 ): Promise<SandboxRunResult & { output: T }> => {
-  const {
-    role,
-    output,
-    extractionPrompt,
-    maxRetries = 2,
-    ...workOptions
-  } = options
+  const { role, output, extractionPrompt, ...workOptions } = options
   const name = workOptions.name ?? role
   const signal = workOptions.signal ?? new AbortController().signal
   const work = await withRetry(name, signal, () => box.run(workOptions))
@@ -120,8 +115,9 @@ export const runWithExtraction = async <T,>(
         agent: workOptions.agent,
         name: `${name} (answer)`,
         prompt,
+        // No completion signal: the resumed turn ends on its own, and a
+        // closing tag the agent quotes before its answer would cut it short.
         resumeSession,
-        completionSignal: `</${output.tag}>`,
         idleTimeoutSeconds: workOptions.idleTimeoutSeconds,
         logging: workOptions.logging,
         signal,
@@ -130,7 +126,7 @@ export const runWithExtraction = async <T,>(
     const answer = await readAnswer(extraction.stdout, output)
     if (answer.ok) return { ...work, output: answer.value }
     console.warn(`  ${name}: couldn't read its answer. ${answer.problem}`)
-    if (attempt >= maxRetries) {
+    if (attempt >= MAX_ANSWER_RETRIES) {
       throw new TicketFailure(`The factory couldn't read ${role}'s answer.`)
     }
     session = extraction.iterations.at(-1)?.sessionId

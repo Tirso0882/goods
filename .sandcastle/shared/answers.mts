@@ -10,7 +10,7 @@ const MAX_REASON_CHARS = 1500
  * Whether the implementer or the branch updater finished, or stopped. The
  * reason is posted publicly, so it's cut to a comment's length.
  */
-export const STOP_ANSWER = sandcastle.Output.object({
+export const DONE_OR_BLOCKED = sandcastle.Output.object({
   tag: "answer",
   schema: z.discriminatedUnion("status", [
     z.object({ status: z.literal("done") }),
@@ -25,7 +25,7 @@ export const STOP_ANSWER = sandcastle.Output.object({
   ]),
 })
 
-export const STOP_PROMPT = `Answer the host with JSON in an <answer> tag, and nothing else.
+export const DONE_OR_BLOCKED_PROMPT = `Answer the host with JSON in an <answer> tag, and nothing else.
 
 If you built everything the task asks and committed it:
 
@@ -41,7 +41,8 @@ const reviewReport = z.object({
       criterion: z.string().min(1),
       status: z.enum(["met", "not-verifiable", "missing"]),
       /** The test that proves a met criterion. */
-      test: z.string().min(1).optional(),
+      // Models often send null for "no test".
+      test: z.string().min(1).nullish(),
     })
   ),
   /** What the reviewer changed, and why. */
@@ -94,13 +95,17 @@ export const reviewMarkdown = (report: ReviewReport) =>
     bullets(report.notes),
   ].join("\n\n")
 
+const pullRequestDraft = z.object({
+  title: z.string().trim().min(1),
+  body: z.string().trim().min(1),
+})
+
+export type PullRequestDraft = z.infer<typeof pullRequestDraft>
+
 /** The PR writer's pull request. The host fixes it up before opening it. */
 export const PULL_REQUEST_DRAFT = sandcastle.Output.object({
   tag: "pull-request",
-  schema: z.object({
-    title: z.string().trim().min(1),
-    body: z.string().trim().min(1),
-  }),
+  schema: pullRequestDraft,
 })
 
 export const PULL_REQUEST_PROMPT = `Answer the host with the pull request as JSON in a <pull-request> tag, and nothing else: its \`title\` and its Markdown \`body\`, as THE TITLE and THE BODY say.
@@ -119,10 +124,7 @@ const FOOTER =
  * footer. A title that isn't a conventional commit is the host's to warn of:
  * release-please reads the squash commit.
  */
-export const finishPullRequest = (
-  issue: number,
-  draft: { title: string; body: string }
-) => {
+export const finishPullRequest = (issue: number, draft: PullRequestDraft) => {
   const title = draft.title.trim().split("\n")[0] ?? ""
   let body = draft.body.trim()
   if (!new RegExp(`\\b(Closes|Fixes|Resolves) #${issue}\\b`, "i").test(body)) {

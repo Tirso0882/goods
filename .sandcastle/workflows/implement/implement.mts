@@ -2,7 +2,10 @@
 
 import { join } from "node:path"
 import type { Sandbox } from "@ai-hero/sandcastle"
-import { STOP_ANSWER, STOP_PROMPT } from "../../shared/answers.mts"
+import {
+  DONE_OR_BLOCKED,
+  DONE_OR_BLOCKED_PROMPT,
+} from "../../shared/answers.mts"
 import { IMPLEMENTER } from "../../shared/config.mts"
 import { TicketFailure } from "../../shared/failures.mts"
 import { runWithExtraction } from "../../shared/run-with-extraction.mts"
@@ -27,8 +30,8 @@ export const implement = async (
     maxIterations,
     idleTimeoutSeconds: 1800,
     signal,
-    output: STOP_ANSWER,
-    extractionPrompt: STOP_PROMPT,
+    output: DONE_OR_BLOCKED,
+    extractionPrompt: DONE_OR_BLOCKED_PROMPT,
   })
   if (output.status === "blocked") {
     throw new TicketFailure(`The implementer stopped: ${output.reason}`)

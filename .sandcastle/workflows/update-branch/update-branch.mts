@@ -11,7 +11,10 @@ import {
   BRANCH_UPDATER,
   UPDATE_TIMEOUT_MS,
 } from "../../shared/config.mts"
-import { STOP_ANSWER, STOP_PROMPT } from "../../shared/answers.mts"
+import {
+  DONE_OR_BLOCKED,
+  DONE_OR_BLOCKED_PROMPT,
+} from "../../shared/answers.mts"
 import {
   TicketFailure,
   isApiTrouble,
@@ -112,8 +115,8 @@ const resolveConflicts = async (
     maxIterations: 1,
     idleTimeoutSeconds: 1800,
     signal,
-    output: STOP_ANSWER,
-    extractionPrompt: STOP_PROMPT,
+    output: DONE_OR_BLOCKED,
+    extractionPrompt: DONE_OR_BLOCKED_PROMPT,
   })
   if (output.status === "blocked") {
     throw new UpdateFailure(`The agent stopped: ${output.reason}`)
