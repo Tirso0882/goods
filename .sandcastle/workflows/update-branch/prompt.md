@@ -76,11 +76,9 @@ Stage everything and finish the merge with one commit, keeping git's own message
 
 # BLOCKED
 
-If a conflict can't be resolved without inventing behaviour, or the two sides contradict each other or an ADR, don't guess. Abort the merge (`git merge --abort`), commit nothing, explain why in one short paragraph inside `<blocked>` tags, then output `<promise>COMPLETE</promise>`:
+If a conflict can't be resolved without inventing behaviour, or the two sides contradict each other or an ADR, don't guess. Abort the merge (`git merge --abort`), commit nothing, explain why in one short paragraph, then output `<promise>COMPLETE</promise>`. For example: "`apps/backend/src/x.ts` renames the order status on main, and this branch adds a status the rename drops."
 
-<blocked>`apps/backend/src/x.ts` renames the order status on main, and this branch adds a status the rename drops.</blocked>
-
-The host posts your explanation publicly on the pull request, so write it for the maintainer and keep secrets and environment details out of it.
+When you finish, the host asks whether you're done or blocked. If you're blocked, it posts your explanation publicly on the pull request, so write it for the maintainer and keep secrets and environment details out of it.
 
 # DONE
 

@@ -95,11 +95,9 @@ Commit as you go, in Conventional Commits, the way the history above reads:
 
 # BLOCKED
 
-If the issue can't be built as written, because it's ambiguous, contradicts an ADR, or needs something outside this repo, don't guess. Commit nothing more, explain why in one short paragraph inside `<blocked>` tags, then output `<promise>COMPLETE</promise>`:
+If the issue can't be built as written, because it's ambiguous, contradicts an ADR, or needs something outside this repo, don't guess. Commit nothing more, explain why in one short paragraph, then output `<promise>COMPLETE</promise>`.
 
-<blocked>The issue asks for X, but ADR 0010 says Y.</blocked>
-
-The host hands the ticket to a person with your explanation, posted publicly on the issue, so write it for the maintainer and keep secrets and environment details out of it.
+When you finish, the host asks whether you're done or blocked. If you're blocked, it hands the ticket to a person with your explanation, posted publicly on the issue, so write it for the maintainer and keep secrets and environment details out of it.
 
 # DONE
 
