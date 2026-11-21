@@ -10,8 +10,8 @@
 import { execFileSync } from "node:child_process"
 import * as sandcastle from "@ai-hero/sandcastle"
 import {
-  installHooks,
   sandbox,
+  setUpSandbox,
   startServices,
   stopServices,
 } from "./environment.mts"
@@ -82,8 +82,8 @@ try {
     await using box = await sandcastle.createSandbox({
       branch: BRANCH,
       sandbox: sandbox(1),
-      hooks: installHooks,
     })
+    await setUpSandbox(box)
     console.log(`\nSandbox ready at ${box.worktreePath}\n`)
 
     for (const check of checks) {

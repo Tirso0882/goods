@@ -2,7 +2,7 @@
 // pull request whose CI passes, or with the ticket handed to a person.
 
 import * as sandcastle from "@ai-hero/sandcastle"
-import { installHooks, sandbox } from "./environment.mts"
+import { SandboxSetupError, sandbox, setUpSandbox } from "./environment.mts"
 import {
   BASE_REF,
   CI_FIX_ITERATIONS,
@@ -41,8 +41,8 @@ const buildTicket = async (
     branch: ticket.branch,
     baseBranch: BASE_REF,
     sandbox: sandbox(slot),
-    hooks: installHooks,
   })
+  await setUpSandbox(box)
 
   await implement(box, ticket, NO_CI_FAILURE, IMPLEMENT_ITERATIONS, signal)
   if (!isAheadOfBase(ticket.branch)) {
@@ -100,10 +100,12 @@ export const runTicket = async (
     if (isAuthFailure(error)) {
       stop.abort(new Error("The agent can't authenticate."))
     }
-    // Not the ticket's fault: leave it labelled for the next run.
+    // Not the ticket's fault: leave it labelled for the next run. A failed
+    // setup counts too: its output stays in this log, never on the issue.
     if (
       stop.signal.aborted ||
       error instanceof HostError ||
+      error instanceof SandboxSetupError ||
       isApiTrouble(error)
     ) {
       return { status: "interrupted", reason: String(error).split("\n")[0]! }
