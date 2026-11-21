@@ -74,4 +74,4 @@ uv run pytest
 
 # REPORT
 
-End with a short report: each acceptance criterion and its status, what you changed and why, and anything a person should look at. Then output <promise>COMPLETE</promise>.
+When the checks pass, output <promise>COMPLETE</promise>. The host then asks for your report: each acceptance criterion and its status, what you changed and why, and anything a person should look at.

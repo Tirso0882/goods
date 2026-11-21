@@ -2,12 +2,10 @@
 
 import { join } from "node:path"
 import type { Sandbox } from "@ai-hero/sandcastle"
+import { STOP_ANSWER, STOP_PROMPT } from "../../shared/answers.mts"
 import { IMPLEMENTER } from "../../shared/config.mts"
-import {
-  TicketFailure,
-  blockedNote,
-  withRetry,
-} from "../../shared/failures.mts"
+import { TicketFailure } from "../../shared/failures.mts"
+import { runWithExtraction } from "../../shared/run-with-extraction.mts"
 import { type Ticket, ticketArgs } from "../../shared/tickets.mts"
 
 export const NO_CI_FAILURE = "None: this is the first attempt."
@@ -20,17 +18,19 @@ export const implement = async (
   signal: AbortSignal
 ) => {
   const label = `#${ticket.number}`
-  const result = await withRetry(`${label} implementer`, signal, () =>
-    box.run({
-      name: `implementer ${label}`,
-      agent: IMPLEMENTER(),
-      promptFile: join(import.meta.dirname, "prompt.md"),
-      promptArgs: { ...ticketArgs(ticket), CI_FAILURE: ciFailure },
-      maxIterations,
-      idleTimeoutSeconds: 1800,
-      signal,
-    })
-  )
-  const blocked = blockedNote(result.stdout)
-  if (blocked) throw new TicketFailure(`The implementer stopped: ${blocked}`)
+  const { output } = await runWithExtraction(box, {
+    role: "the implementer",
+    name: `implementer ${label}`,
+    agent: IMPLEMENTER(),
+    promptFile: join(import.meta.dirname, "prompt.md"),
+    promptArgs: { ...ticketArgs(ticket), CI_FAILURE: ciFailure },
+    maxIterations,
+    idleTimeoutSeconds: 1800,
+    signal,
+    output: STOP_ANSWER,
+    extractionPrompt: STOP_PROMPT,
+  })
+  if (output.status === "blocked") {
+    throw new TicketFailure(`The implementer stopped: ${output.reason}`)
+  }
 }

@@ -11,11 +11,11 @@ import {
   BRANCH_UPDATER,
   UPDATE_TIMEOUT_MS,
 } from "../../shared/config.mts"
+import { STOP_ANSWER, STOP_PROMPT } from "../../shared/answers.mts"
 import {
-  blockedNote,
+  TicketFailure,
   isApiTrouble,
   isAuthFailure,
-  withRetry,
 } from "../../shared/failures.mts"
 import { commentOnPullRequest, readIssueText } from "../../shared/github.mts"
 import {
@@ -30,6 +30,7 @@ import {
   type FactoryPullRequest,
   updateFailedComment,
 } from "../../shared/pull-requests.mts"
+import { runWithExtraction } from "../../shared/run-with-extraction.mts"
 import { SandboxSetupError } from "../../shared/setup.mts"
 import { issueFor } from "../../shared/tickets.mts"
 
@@ -93,28 +94,30 @@ const resolveConflicts = async (
   signal: AbortSignal
 ) => {
   const label = `PR #${pr.number}`
-  const result = await withRetry(`${label} branch updater`, signal, () =>
-    box.run({
-      name: `branch updater ${label}`,
-      agent: BRANCH_UPDATER(),
-      promptFile: join(import.meta.dirname, "prompt.md"),
-      promptArgs: {
-        PR_NUMBER: String(pr.number),
-        PR_TITLE: pr.title,
-        PR_BODY: pr.body,
-        BRANCH: pr.headRefName,
-        BASE_REF,
-        CONFLICTS: conflicts.map((f) => `- ${f}`).join("\n"),
-        ISSUE_NUMBER: String(issue.number),
-        ISSUE: issue.text,
-      },
-      maxIterations: 1,
-      idleTimeoutSeconds: 1800,
-      signal,
-    })
-  )
-  const blocked = blockedNote(result.stdout)
-  if (blocked) throw new UpdateFailure(`The agent stopped: ${blocked}`)
+  const { output } = await runWithExtraction(box, {
+    role: "the branch updater",
+    name: `branch updater ${label}`,
+    agent: BRANCH_UPDATER(),
+    promptFile: join(import.meta.dirname, "prompt.md"),
+    promptArgs: {
+      PR_NUMBER: String(pr.number),
+      PR_TITLE: pr.title,
+      PR_BODY: pr.body,
+      BRANCH: pr.headRefName,
+      BASE_REF,
+      CONFLICTS: conflicts.map((f) => `- ${f}`).join("\n"),
+      ISSUE_NUMBER: String(issue.number),
+      ISSUE: issue.text,
+    },
+    maxIterations: 1,
+    idleTimeoutSeconds: 1800,
+    signal,
+    output: STOP_ANSWER,
+    extractionPrompt: STOP_PROMPT,
+  })
+  if (output.status === "blocked") {
+    throw new UpdateFailure(`The agent stopped: ${output.reason}`)
+  }
 }
 
 /** The issue the branch builds, if you wrote it: the agent's spec. */
@@ -210,7 +213,10 @@ const updateBranch = async (
 
 /** Why, for the comment: only reasons written here. */
 const publicReason = (error: unknown, deadline: AbortSignal) => {
-  if (error instanceof UpdateFailure) return error.message
+  // A TicketFailure is the agent's answer the factory couldn't read.
+  if (error instanceof UpdateFailure || error instanceof TicketFailure) {
+    return error.message
+  }
   if (deadline.aborted) {
     return `It ran past its ${UPDATE_TIMEOUT_MS / 60_000}-minute limit.`
   }

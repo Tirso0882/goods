@@ -113,7 +113,7 @@ export const runTicket = async (
       return { status: "interrupted", reason: String(error).split("\n")[0]! }
     }
     // The comment is public, so it carries only the reasons written here and
-    // the implementer's own <blocked> note, never raw error output.
+    // the implementer's own blocked reason, never raw error output.
     const reason =
       error instanceof TicketFailure
         ? error.message

@@ -6,19 +6,6 @@ import { MAX_AGENT_ATTEMPTS, RETRY_DELAY_MS } from "./config.mts"
 /** A ticket the factory can't finish, for a reason a person should read. */
 export class TicketFailure extends Error {}
 
-const MAX_BLOCKED_CHARS = 1500
-
-/**
- * The note an agent left in `<blocked>` tags, if it stopped. It may quote the
- * prompt's example first, so the last tag counts.
- */
-export const blockedNote = (stdout: string) => {
-  const note = [...stdout.matchAll(/<blocked>([\s\S]*?)<\/blocked>/g)]
-    .at(-1)?.[1]
-    ?.trim()
-  return note ? note.slice(0, MAX_BLOCKED_CHARS) : undefined
-}
-
 /**
  * Trouble with the model API or the network, not with the ticket. Only the
  * start of the error is read: further down is agent output, and a ticket about

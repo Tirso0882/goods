@@ -62,4 +62,4 @@ One line in Conventional Commits, for the squash commit that release-please read
 
 # OUTPUT
 
-Write the title to `{{PR_TITLE_FILE}}` and the body to `{{PR_BODY_FILE}}`, as plain text and Markdown. These paths are inside git's own directory, so they are never committed. Then output <promise>COMPLETE</promise>.
+Don't write the pull request to a file. When you have the title and the body, output <promise>COMPLETE</promise>. The host then asks you for them, and opens the pull request with them.
