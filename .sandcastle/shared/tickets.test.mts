@@ -4,6 +4,7 @@ import {
   type GhIssue,
   type GhParentIssue,
   branchFor,
+  issueFor,
   ticketArgs,
   ticketText,
 } from "./tickets.mts"
@@ -91,5 +92,23 @@ describe("ticketArgs", () => {
       BRANCH: "sandcastle/issue-42",
       BASE_REF: "origin/main",
     })
+  })
+})
+
+describe("issueFor", () => {
+  it("reads the issue back from its branch", () => {
+    assert.equal(issueFor(branchFor(189)), 189)
+  })
+
+  it("finds none in a branch the factory didn't name", () => {
+    for (const branch of [
+      "main",
+      "sandcastle/issue-",
+      "sandcastle/issue-1e2",
+      "sandcastle/issue-12-fix",
+      "sandcastle/planner",
+    ]) {
+      assert.equal(issueFor(branch), undefined, branch)
+    }
   })
 })
