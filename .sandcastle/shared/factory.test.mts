@@ -2,14 +2,23 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   checkPlan,
+  capParallel,
   checksPrompt,
   defineFactory,
   limitText,
   logFile,
+  pnpm,
   resolveFactory,
+  uv,
 } from "./factory.mts"
+import { fakeHost } from "./fake-host.mts"
 
-const host = { repoRoot: "/work/goods" }
+const host = fakeHost({ repoRoot: "/work/goods" })
+
+const pnpmHost = fakeHost({
+  outputs: { "pnpm store path": "/home/dev/.local/share/pnpm/store/v10" },
+  files: ["/home/dev/.cache/node/corepack"],
+})
 
 describe("resolveFactory", () => {
   it("gives an empty config today's names", () => {
@@ -237,5 +246,281 @@ describe("checkPlan", () => {
       "the repo's .env is not in the worktree",
       "no host secret or canary reaches the sandbox",
     ])
+  })
+})
+
+describe("the pnpm() toolchain", () => {
+  const { sandbox, probes } = resolveFactory({ toolchains: [pnpm()] }, pnpmHost)
+
+  it("mounts the store writable and corepack's cache read-only", () => {
+    assert.deepEqual(sandbox.mounts, [
+      {
+        hostPath: "/home/dev/.local/share/pnpm/store",
+        sandboxPath: "/home/dev/.local/share/pnpm/store",
+      },
+      {
+        hostPath: "/home/dev/.cache/node/corepack",
+        sandboxPath: "/home/dev/.cache/node/corepack",
+        readonly: true,
+      },
+    ])
+  })
+
+  it("points pnpm and corepack at the mounts", () => {
+    assert.deepEqual(sandbox.env(1), {
+      npm_config_store_dir: "/home/dev/.local/share/pnpm/store",
+      COREPACK_HOME: "/home/dev/.cache/node/corepack",
+    })
+  })
+
+  it("installs from the lockfile", () => {
+    assert.deepEqual(sandbox.setup, [
+      {
+        command: "pnpm install --frozen-lockfile --prefer-offline",
+        timeoutSeconds: 600,
+      },
+    ])
+  })
+
+  it("probes that pnpm runs and uses the mounted store", () => {
+    assert.deepEqual(
+      probes.map((p) => p.command),
+      [
+        "pnpm --version",
+        'test "$(dirname "$(pnpm store path)")" = "$npm_config_store_dir"',
+      ]
+    )
+  })
+
+  it("uses COREPACK_HOME when the host sets it", () => {
+    const { sandbox } = resolveFactory(
+      { toolchains: [pnpm()] },
+      fakeHost({
+        outputs: { "pnpm store path": "/store/v10" },
+        files: ["/opt/corepack"],
+        env: { COREPACK_HOME: "/opt/corepack" },
+      })
+    )
+    assert.equal(sandbox.env(0)["COREPACK_HOME"], "/opt/corepack")
+  })
+
+  it("leaves corepack out when the host has no corepack cache", () => {
+    const { sandbox } = resolveFactory(
+      { toolchains: [pnpm()] },
+      fakeHost({ outputs: { "pnpm store path": "/store/v10" } })
+    )
+    assert.deepEqual(sandbox.mounts, [
+      { hostPath: "/store", sandboxPath: "/store" },
+    ])
+    assert.deepEqual(sandbox.env(0), { npm_config_store_dir: "/store" })
+  })
+})
+
+describe("the uv() toolchain", () => {
+  const { sandbox, probes } = resolveFactory(
+    { toolchains: [uv()] },
+    fakeHost({
+      outputs: {
+        "uv cache dir": "/home/dev/.cache/uv",
+        "uv python dir": "/home/dev/.local/share/uv/python",
+      },
+    })
+  )
+
+  it("mounts uv's cache and its Pythons writable", () => {
+    assert.deepEqual(sandbox.mounts, [
+      { hostPath: "/home/dev/.cache/uv", sandboxPath: "/home/dev/.cache/uv" },
+      {
+        hostPath: "/home/dev/.local/share/uv/python",
+        sandboxPath: "/home/dev/.local/share/uv/python",
+      },
+    ])
+  })
+
+  it("points uv at the mounts", () => {
+    assert.deepEqual(sandbox.env(1), {
+      UV_CACHE_DIR: "/home/dev/.cache/uv",
+      UV_PYTHON_INSTALL_DIR: "/home/dev/.local/share/uv/python",
+    })
+  })
+
+  it("syncs from the lockfile", () => {
+    assert.deepEqual(sandbox.setup, [
+      { command: "uv sync --locked", timeoutSeconds: 600 },
+    ])
+  })
+
+  it("probes that uv uses the mounted cache", () => {
+    assert.deepEqual(
+      probes.map((p) => p.command),
+      ['test "$(uv cache dir)" = "$UV_CACHE_DIR"']
+    )
+  })
+})
+
+describe("the sandbox a config declares", () => {
+  const bothHost = fakeHost({
+    outputs: {
+      "pnpm store path": "/store/v10",
+      "uv cache dir": "/uv-cache",
+      "uv python dir": "/uv-python",
+    },
+  })
+  const factory = resolveFactory(
+    {
+      toolchains: [pnpm(), uv()],
+      mounts: [
+        { hostPath: "/data/fixtures", readonly: true },
+        { hostPath: "/opt/tool", sandboxPath: "/tool" },
+      ],
+      env: (slot) => ({ REDIS_URL: `redis://localhost:6379/${slot}` }),
+      setup: [{ command: 'chmod 700 "$HOME"' }],
+      probes: [{ name: "deps", command: "test -d node_modules" }],
+      maxSlots: 15,
+    },
+    bothHost
+  )
+
+  it("runs the toolchains' setup first, in order, then the project's", () => {
+    assert.deepEqual(
+      factory.sandbox.setup.map((step) => step.command),
+      [
+        "pnpm install --frozen-lockfile --prefer-offline",
+        "uv sync --locked",
+        'chmod 700 "$HOME"',
+      ]
+    )
+  })
+
+  it("mounts the toolchains' paths, then the project's", () => {
+    assert.deepEqual(factory.sandbox.mounts, [
+      { hostPath: "/store", sandboxPath: "/store" },
+      { hostPath: "/uv-cache", sandboxPath: "/uv-cache" },
+      { hostPath: "/uv-python", sandboxPath: "/uv-python" },
+      {
+        hostPath: "/data/fixtures",
+        sandboxPath: "/data/fixtures",
+        readonly: true,
+      },
+      { hostPath: "/opt/tool", sandboxPath: "/tool" },
+    ])
+  })
+
+  it("lists the toolchains' probes before the project's", () => {
+    assert.deepEqual(
+      factory.probes.map((p) => p.name),
+      [
+        "pnpm runs from the mounted corepack cache",
+        "pnpm uses the mounted store",
+        "uv uses the mounted cache",
+        "deps",
+      ]
+    )
+  })
+
+  it("gives each slot the project's variables for it beside the caches'", () => {
+    assert.deepEqual(factory.sandbox.env(3), {
+      npm_config_store_dir: "/store",
+      UV_CACHE_DIR: "/uv-cache",
+      UV_PYTHON_INSTALL_DIR: "/uv-python",
+      REDIS_URL: "redis://localhost:6379/3",
+    })
+    assert.equal(
+      factory.sandbox.env(0)["REDIS_URL"],
+      "redis://localhost:6379/0"
+    )
+  })
+
+  it("refuses a slot past maxSlots, or one that isn't a slot", () => {
+    for (const slot of [16, -1, 1.5]) {
+      assert.throws(
+        () => factory.sandbox.env(slot),
+        /Sandbox slot must be 0 to 15/
+      )
+    }
+  })
+
+  it("gives a config with no sandbox declarations an empty sandbox", () => {
+    const { sandbox } = resolveFactory({}, host)
+    assert.deepEqual(sandbox.mounts, [])
+    assert.deepEqual(sandbox.setup, [])
+    assert.deepEqual(sandbox.env(7), {})
+  })
+})
+
+describe("the slot cap", () => {
+  it("caps the configured parallel limit at maxSlots", () => {
+    const factory = resolveFactory(
+      { limits: { parallel: 20 }, maxSlots: 15 },
+      host
+    )
+    assert.equal(factory.limits.parallel, 15)
+    assert.equal(factory.maxSlots, 15)
+  })
+
+  it("keeps a parallel limit under maxSlots", () => {
+    const factory = resolveFactory(
+      { limits: { parallel: 3 }, maxSlots: 15 },
+      host
+    )
+    assert.equal(factory.limits.parallel, 3)
+  })
+
+  it("caps a parallel count asked for on the command line", () => {
+    const factory = resolveFactory({ maxSlots: 15 }, host)
+    assert.equal(capParallel(factory, 40), 15)
+    assert.equal(capParallel(factory, 2), 2)
+  })
+
+  it("has no cap when the project sets no maxSlots", () => {
+    const factory = resolveFactory({ limits: { parallel: 40 } }, host)
+    assert.equal(factory.limits.parallel, 40)
+    assert.equal(factory.maxSlots, undefined)
+    assert.equal(capParallel(factory, 100), 100)
+    assert.deepEqual(factory.sandbox.env(100), {})
+  })
+
+  it("refuses a maxSlots that isn't a positive whole number", () => {
+    assert.throws(
+      () => resolveFactory({ maxSlots: 0 }, host),
+      /maxSlots must be a positive whole number/
+    )
+  })
+})
+
+describe("services", () => {
+  it("resolves the compose file inside .factory", () => {
+    const { services } = resolveFactory({ services: "compose.yaml" }, host)
+    assert.deepEqual(services, {
+      composeFile: "/work/goods/.factory/compose.yaml",
+    })
+  })
+
+  it("has none when the project declares none", () => {
+    assert.equal(resolveFactory({}, host).services, undefined)
+  })
+})
+
+describe("the private home", () => {
+  it("refuses a mount of the real home or a directory above it", () => {
+    for (const hostPath of ["/home/dev", "/home/dev/", "/home", "/"]) {
+      assert.throws(
+        () => resolveFactory({ mounts: [{ hostPath }] }, host),
+        /would show the sandbox your home directory/
+      )
+    }
+  })
+
+  it("allows a mount inside the home", () => {
+    const { sandbox } = resolveFactory(
+      { mounts: [{ hostPath: "/home/dev/.cache/tool" }] },
+      host
+    )
+    assert.equal(sandbox.mounts[0]?.hostPath, "/home/dev/.cache/tool")
+  })
+
+  it("refuses a variable that would move the sandbox's home", () => {
+    const factory = resolveFactory({ env: () => ({ HOME: "/home/dev" }) }, host)
+    assert.throws(() => factory.sandbox.env(1), /env can't set HOME/)
   })
 })
