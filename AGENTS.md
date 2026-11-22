@@ -12,6 +12,28 @@ Triage uses the five default canonical labels. See `docs/agents/triage-labels.md
 
 Domain documentation uses a single-context layout. See `docs/agents/domain.md`.
 
+## Working in goods
+
+### Where things are
+
+- `GLOSSARY.md`: the domain language. Name things with its terms, in code, tests and commit messages, and avoid the synonyms it lists under _Avoid_.
+- `docs/adr/`: the decisions. Read the ADRs for the area you touch. A change that contradicts one needs a new ADR, decided by a person.
+- `docs/design.md`: the support agent's design, for anything in `apps/agent`, `packages/agent-core`, `evals` or the support routes.
+- `docs/runbooks/` and `docs/architecture/`: how the store runs locally.
+- `.factory/CODING_STANDARDS.md`: how code here is written. The factory's reviewer holds every branch to it.
+
+### Tests
+
+Tests live next to the code they cover: `packages/agent-core/tests/`, `apps/agent/tests/`, `apps/backend/integration-tests/http/` and the `__tests__` folders. The backend's tests need Postgres and Redis.
+
+Run the narrowest check that covers a change while you work, such as `pnpm turbo test --filter=@dtc/backend` or `uv run pytest packages/agent-core`, and every check CI runs (`.github/workflows/ci.yml`) before the last commit.
+
+Also run `pnpm build` if you change build configuration, `apps/storefront/next.config.js`, `apps/backend/medusa-config.ts` or a package's exports. CI's `backup` job and `infra/postgres/test.sh` need Docker: leave them to CI when you have none.
+
+### Commits
+
+Conventional Commits: `type(scope): subject`. The type is `feat`, `fix`, `test`, `refactor`, `docs`, `ci` or `chore`. The scope is the area: `backend`, `storefront`, `agent`, `agent-core`, `evals`, `contracts`, `compose`, `seed`, `scripts`, `sandcastle`, or the docs folder for `docs`. The subject is plain words, lowercase, with no full stop. One logical change per commit, split by type. release-please reads the squash commit of each pull request.
+
 <!-- BEGIN:turborepo-agent-rules -->
 
 # This is NOT the Turborepo you know
