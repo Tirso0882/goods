@@ -511,6 +511,20 @@ describe("the private home", () => {
     }
   })
 
+  it("refuses a mount of the home's credentials", () => {
+    for (const hostPath of [
+      "/home/dev/.ssh",
+      "/home/dev/.config/gh",
+      "/home/dev/.claude",
+      "/home/dev/.config",
+    ]) {
+      assert.throws(
+        () => resolveFactory({ mounts: [{ hostPath }] }, host),
+        /would show the sandbox your credentials/
+      )
+    }
+  })
+
   it("allows a mount inside the home", () => {
     const { sandbox } = resolveFactory(
       { mounts: [{ hostPath: "/home/dev/.cache/tool" }] },
@@ -522,5 +536,19 @@ describe("the private home", () => {
   it("refuses a variable that would move the sandbox's home", () => {
     const factory = resolveFactory({ env: () => ({ HOME: "/home/dev" }) }, host)
     assert.throws(() => factory.sandbox.env(1), /env can't set HOME/)
+  })
+
+  it("refuses a variable that would repoint a toolchain's cache", () => {
+    const factory = resolveFactory(
+      {
+        toolchains: [pnpm()],
+        env: () => ({ npm_config_store_dir: "/elsewhere" }),
+      },
+      pnpmHost
+    )
+    assert.throws(
+      () => factory.sandbox.env(1),
+      /env can't set npm_config_store_dir: the pnpm toolchain sets it/
+    )
   })
 })

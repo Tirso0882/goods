@@ -3,12 +3,19 @@
 
 import type { Host } from "./factory.mts"
 
+type FakeHost = {
+  repoRoot?: string
+  files?: readonly string[]
+  outputs?: Readonly<Record<string, string>>
+  env?: Readonly<Record<string, string>>
+}
+
 export const fakeHost = ({
   repoRoot = "/repo",
-  files = [] as readonly string[],
-  outputs = {} as Readonly<Record<string, string>>,
-  env = {} as Readonly<Record<string, string>>,
-} = {}): Host => ({
+  files = [],
+  outputs = {},
+  env = {},
+}: FakeHost = {}): Host => ({
   repoRoot,
   home: "/home/dev",
   env,
