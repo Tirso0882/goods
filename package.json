@@ -15,13 +15,15 @@
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "check:migrations": "node scripts/check-migrations.mjs",
+    "verify": "bash scripts/verify.sh",
     "backend:seed": "turbo seed --filter=@dtc/backend",
     "reset": "bash scripts/reset-local-data.sh",
     "day": "bash scripts/day.sh",
     "backend:dev": "turbo dev --filter=@dtc/backend",
     "storefront:dev": "turbo dev --filter=@dtc/storefront",
     "factory": "pnpm --filter @dtc/sandcastle factory",
-    "factory:check": "pnpm --filter @dtc/sandcastle check-environment"
+    "factory:check": "pnpm --filter @dtc/sandcastle check-environment",
+    "prepare": "husky"
   },
   "pnpm": {
     "overrides": {
@@ -44,6 +46,7 @@
   "devDependencies": {
     "@medusajs/eslint-plugin": "2.22.2",
     "eslint": "^9.39.4",
+    "husky": "^9.1.7",
     "jiti": "^2.7.0",
     "prettier": "^3.2.5",
     "react": "18.3.1",
