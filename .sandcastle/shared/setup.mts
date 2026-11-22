@@ -11,7 +11,8 @@ const MAX_SETUP_OUTPUT_LINES = 30
 /** A setup step failed: the sandbox isn't fit for an agent. */
 export class SandboxSetupError extends Error {}
 
-const shellQuote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
+/** `text` as one word for `sh`. */
+export const shellQuote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
 
 /**
  * Run the setup steps in the sandbox, side by side, and throw if any fails.

@@ -2,8 +2,6 @@
 
 Write the pull request for branch `{{BRANCH}}`, which builds issue #{{ISSUE_NUMBER}}: {{ISSUE_TITLE}}. The host pushes the branch and opens the pull request with what you write. Its reader is the maintainer, who reviews and merges it.
 
-Use the `pr` skill: invoke it, and write the body with its template and guidance.
-
 Don't change the code, commit, push, or run `gh`.
 
 # THE ISSUE
@@ -42,7 +40,9 @@ Evidence comes from runs, not from claims. Run the tests that cover the change a
 
 # THE BODY
 
-Follow the `pr` skill's template: **Summary**, **Evidence**, **Merge Danger**. Then add two sections at the end:
+{{PULL_REQUEST_GUIDE}}
+
+Then add two sections at the end:
 
 ```markdown
 ## Not verified

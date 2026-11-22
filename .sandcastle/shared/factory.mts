@@ -5,7 +5,7 @@
 // (factory.test.mts).
 
 import { dirname, join, relative, resolve } from "node:path"
-import type { SetupStep } from "./setup.mts"
+import { type SetupStep, shellQuote } from "./setup.mts"
 
 export type Effort = "low" | "medium" | "high" | "xhigh" | "max"
 
@@ -98,7 +98,7 @@ export type ResolvedMount = {
 /** Variables a sandbox gets, by name. */
 export type Env = Record<string, string>
 
-/** What a toolchain adds to every sandbox. */
+/** What a toolchain or a listed skill adds to every sandbox. */
 export type Contribution = {
   mounts: readonly ResolvedMount[]
   env: Env
@@ -142,6 +142,10 @@ export type FactoryConfig = {
   /** How many parallel slots the project can keep apart, such as one per
    *  Redis database. `limits.parallel` is capped at it. No cap when unset. */
   maxSlots?: number
+  /** Skills from `~/.claude/skills`, by name, that the agents may use. Each
+   *  is mounted read-only and linked into the sandbox's home. The PR writer
+   *  uses `pr` when it's listed, and the factory's own template when not. */
+  skills?: readonly string[]
 }
 
 /** Facts about the machine and checkout the factory runs on. */
@@ -154,6 +158,8 @@ export type Host = {
   env: Readonly<Record<string, string | undefined>>
   /** Whether a path exists. */
   exists: (path: string) => boolean
+  /** Where a path really is, symlinks followed. */
+  realPath: (path: string) => string
   /** What a command prints, trimmed. It throws if the command fails. */
   output: (command: readonly [string, ...string[]]) => string
 }
@@ -163,7 +169,7 @@ export type ResolvedSandbox = {
   mounts: readonly ResolvedMount[]
   /** The variables of the sandbox in `slot`. */
   env: (slot: number) => Env
-  /** In order: the toolchains' steps, then the project's. */
+  /** In order: the toolchains' steps, the skill links, then the project's. */
   setup: readonly SetupStep[]
 }
 
@@ -183,6 +189,9 @@ export type ResolvedFactory = {
   services?: { composeFile: string }
   /** The highest slot a sandbox may take, if the project limits it. */
   maxSlots?: number
+  /** How the PR writer shapes the body: the `pr` skill when the project
+   *  lists it, the factory's own template when not. */
+  pullRequestGuide: string
   /** Where each agent's log goes. */
   logDir: string
 }
@@ -399,30 +408,112 @@ const checkSlot = (slot: number, maxSlots: number | undefined) => {
   )
 }
 
-/** The sandbox: the toolchains' contributions, then the project's own. */
+// ---------------------------------------------------------------------------
+// Skills
+// ---------------------------------------------------------------------------
+
+/** What a listed skill adds to every sandbox. Skills live in the real home,
+ *  which the sandbox can't see, so the skill's real directory is mounted
+ *  read-only and a setup step links it into the sandbox's own
+ *  `~/.claude/skills`, where Claude Code looks for skills. */
+const skillContribution = (name: string, host: Host): Contribution => {
+  if (!/^[\w.-]+$/u.test(name) || name === "." || name === "..") {
+    throw new Error(`skills: "${name}" isn't a skill's directory name.`)
+  }
+  const link = join(host.home, ".claude/skills", name)
+  const file = join(link, "SKILL.md")
+  if (!host.exists(file)) {
+    throw new Error(`skills: the ${name} skill is missing: no ${file}.`)
+  }
+  const real = host.realPath(link)
+  // A skill may live in ~/.claude/skills, but its real directory can't show
+  // the sandbox the home or a credential, as a project's mount can't.
+  const skillsDir = join(host.home, ".claude/skills")
+  const inSkillsDir = contains(skillsDir, real) && resolve(real) !== skillsDir
+  const exposes =
+    contains(real, host.home) ||
+    CREDENTIALS.map((c) => join(host.home, c)).some(
+      (credential) => contains(real, credential) || contains(credential, real)
+    )
+  if (exposes && !inSkillsDir) {
+    throw new Error(
+      `skills: the ${name} skill is at ${real}, which would show the sandbox your home or credentials.`
+    )
+  }
+  const linked = `$HOME/.claude/skills/${name}`
+  return {
+    mounts: [atOwnPath(real, true)],
+    env: {},
+    setup: [
+      {
+        command: `mkdir -p "$HOME/.claude/skills" && ln -sfn ${shellQuote(real)} "${linked}"`,
+      },
+    ],
+    probes: [
+      {
+        name: `the ${name} skill is linked into the sandbox's home`,
+        command: `test -f "${linked}/SKILL.md"`,
+      },
+    ],
+  }
+}
+
+const PR_SKILL_GUIDE =
+  "Use the `pr` skill: invoke it, and write the body with its template and guidance: **Summary**, **Evidence**, **Merge Danger**."
+
+// For a project that doesn't list the `pr` skill.
+const BUILT_IN_PR_GUIDE = `Write the body with this template:
+
+\`\`\`markdown
+## Summary
+
+<the smallest view that makes the change clear: pseudocode, a call tree, a file tree, a diff sketch or a Mermaid diagram, next to a line or two of text>
+
+## Evidence
+
+- **Before:** <the failing test run or output>
+  **After:** <the passing test run or output>
+
+## Merge Danger
+
+**Door:** <one-way or two-way>
+
+<optional: why>
+
+**Blast Radius:** <one word>
+
+<optional: what the merge could break>
+\`\`\`
+
+- **Summary**: skip preambles, keep prose brief, and show only the calls, files and states the reader needs.
+- **Evidence**: a test that fails before the change and passes after it is the best evidence; show it as pseudocode if that's clearer.
+- **Merge Danger**: a two-way door is cheap to roll back; destructive or hard-to-reverse changes are one-way doors. The blast radius is what the change could affect: consumers, data, layout, other apps.`
+
+/** What a toolchain or a listed skill adds, and where it came from. */
+type Source = { name: string; contribution: Contribution }
+
+/** The sandbox: the toolchains' and skills' contributions, then the
+ *  project's own. */
 const resolveSandbox = (
   config: FactoryConfig,
   host: Host,
-  toolchains: readonly { name: string; contribution: Contribution }[]
+  sources: readonly Source[]
 ): ResolvedSandbox => {
   // Which toolchain sets each variable. A project's `env` can't repoint
   // them, nor move the sandbox's private home.
   const owners = new Map([
     ["HOME", "the factory"],
-    ...toolchains.flatMap(({ name, contribution }) =>
-      Object.keys(contribution.env).map((key): [string, string] => [
-        key,
-        `the ${name} toolchain`,
-      ])
+    ...sources.flatMap(({ name, contribution }) =>
+      Object.keys(contribution.env).map((key): [string, string] => [key, name])
     ),
   ])
   const toolchainEnv: Env = Object.assign(
     {},
-    ...toolchains.map((t) => t.contribution.env)
+    ...sources.map((t) => t.contribution.env)
   )
   return {
     mounts: [
-      ...toolchains.flatMap((t) => t.contribution.mounts),
+      ...sources.flatMap((t) => t.contribution.mounts),
       ...(config.mounts ?? []).map((m) => projectMount(m, host.home)),
     ],
     env: (slot) => {
@@ -435,7 +526,7 @@ const resolveSandbox = (
       return { ...toolchainEnv, ...projectEnv }
     },
     setup: [
-      ...toolchains.flatMap((t) => t.contribution.setup),
+      ...sources.flatMap((t) => t.contribution.setup),
       ...(config.setup ?? []),
     ],
   }
@@ -464,10 +555,17 @@ export const resolveFactory = (
       `maxSlots must be a positive whole number, got ${maxSlots}.`
     )
   }
-  const toolchains = (config.toolchains ?? []).map((t) => ({
-    name: t.name,
-    contribution: t.contribute(host),
-  }))
+  // The toolchains, then the skills.
+  const sources: Source[] = [
+    ...(config.toolchains ?? []).map((t) => ({
+      name: `the ${t.name} toolchain`,
+      contribution: t.contribute(host),
+    })),
+    ...[...new Set(config.skills)].map((name) => ({
+      name: `the ${name} skill`,
+      contribution: skillContribution(name, host),
+    })),
+  ]
   return {
     names: { ...names, baseRef: `origin/${names.baseBranch}` },
     models,
@@ -476,10 +574,10 @@ export const resolveFactory = (
     retries,
     checks: validateChecks("checks", config.checks ?? []),
     probes: validateChecks("probes", [
-      ...toolchains.flatMap((t) => t.contribution.probes),
+      ...sources.flatMap((t) => t.contribution.probes),
       ...(config.probes ?? []),
     ]),
-    sandbox: resolveSandbox(config, host, toolchains),
+    sandbox: resolveSandbox(config, host, sources),
     ...(config.services === undefined
       ? {}
       : {
@@ -488,6 +586,9 @@ export const resolveFactory = (
           },
         }),
     ...(maxSlots === undefined ? {} : { maxSlots }),
+    pullRequestGuide: config.skills?.includes("pr")
+      ? PR_SKILL_GUIDE
+      : BUILT_IN_PR_GUIDE,
     logDir: join(host.repoRoot, ".factory", "logs"),
   }
 }

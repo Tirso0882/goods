@@ -29,7 +29,11 @@ export const publish = async (
     name,
     agent: agentFor(factory, "prWriter"),
     promptFile: join(import.meta.dirname, "prompt.md"),
-    promptArgs: { ...ticketArgs(factory.names, ticket), REVIEW: review },
+    promptArgs: {
+      ...ticketArgs(factory.names, ticket),
+      REVIEW: review,
+      PULL_REQUEST_GUIDE: factory.pullRequestGuide,
+    },
     maxIterations: 1,
     idleTimeoutSeconds: 1800,
     logging: logFile(factory.logDir, ticket.branch, name),

@@ -13,6 +13,7 @@
 //   setup     setup steps after the toolchains' installs
 //   services  the compose file of test services, in this folder
 //   maxSlots  how many parallel sandboxes the services can keep apart
+//   skills    skills from ~/.claude/skills the agents may use
 //
 // The factory's security checks (private home, no repo .env, no leaked host
 // secret) always run after these, whatever this file says.
@@ -84,7 +85,9 @@ export default defineFactory({
     // from a task, so pointing SWC at another cache would not reach it.
     { command: 'chmod 700 "$HOME"' },
   ],
-  // The toolchains add their own probes before these.
+  // The PR writer drafts the body with it.
+  skills: ["pr"],
+  // The toolchains and skills add their own probes before these.
   probes: [
     // .nvmrc pins the major version only.
     {
@@ -100,10 +103,6 @@ export default defineFactory({
       name: "the virtualenv runs the pinned Python",
       command:
         'test "$(uv run --locked python -c "import platform; print(platform.python_version())")" = "$(cat .python-version)"',
-    },
-    {
-      name: "the /pr skill is linked into the sandbox's home",
-      command: 'test -f "$HOME/.claude/skills/pr/SKILL.md"',
     },
     {
       name: "Postgres answers",

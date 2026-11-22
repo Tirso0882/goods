@@ -11,27 +11,10 @@
 //   pnpm factory:check
 
 import { execFileSync } from "node:child_process"
-import { existsSync, realpathSync } from "node:fs"
-import { homedir } from "node:os"
-import { join } from "node:path"
 import type { Sandbox } from "@ai-hero/sandcastle"
 import { bwrap } from "@ai-hero/sandcastle/sandboxes/bwrap"
 import type { ResolvedFactory } from "./shared/factory.mts"
 import { runSetupSteps } from "./shared/setup.mts"
-
-// ---------------------------------------------------------------------------
-// Skills
-// ---------------------------------------------------------------------------
-
-// The PR writer drafts the pull request body with your `/pr` skill. It lives
-// in your home directory, which the sandbox can't see, so its real directory
-// is mounted read-only and a setup step links it into the sandbox's own
-// `~/.claude/skills`, where Claude Code looks for skills.
-const prSkillLink = join(homedir(), ".claude/skills/pr")
-if (!existsSync(join(prSkillLink, "SKILL.md"))) {
-  throw new Error(`The /pr skill is missing: no ${prSkillLink}/SKILL.md.`)
-}
-const prSkill = realpathSync(prSkillLink)
 
 // ---------------------------------------------------------------------------
 // Services
@@ -68,22 +51,13 @@ export const stopServices = (factory: ResolvedFactory) =>
  */
 export const sandbox = (factory: ResolvedFactory, slot = 0) =>
   bwrap({
-    mounts: [
-      ...factory.sandbox.mounts,
-      { hostPath: prSkill, sandboxPath: prSkill, readonly: true },
-    ],
+    mounts: factory.sandbox.mounts,
     env: factory.sandbox.env(slot),
   })
 
-/** Make a fresh sandbox fit for an agent: the project's setup steps, then
- *  the skill link (see shared/setup.mts). */
+/** Make a fresh sandbox fit for an agent: the toolchains' installs, the
+ *  skill links and the project's setup steps (see shared/setup.mts). */
 export const setUpSandbox = (
   factory: ResolvedFactory,
   box: Pick<Sandbox, "exec">
-) =>
-  runSetupSteps(box, [
-    ...factory.sandbox.setup,
-    {
-      command: `mkdir -p "$HOME/.claude/skills" && ln -sfn '${prSkill}' "$HOME/.claude/skills/pr"`,
-    },
-  ])
+) => runSetupSteps(box, factory.sandbox.setup)
