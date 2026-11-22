@@ -60,7 +60,7 @@ On Linux, add `--add-host=host.docker.internal:host-gateway` to each `docker run
 | Medusa worker | backend, default `medusa start` | 9000, internal only | `GET /health` returns `OK` and `select 1` succeeds | same as server | same secrets as server. `MEDUSA_WORKER_MODE=worker`, `DISABLE_MEDUSA_ADMIN=true` |
 | Migrate (one-off) | backend, `./node_modules/.bin/medusa db:migrate` | none | exit code 0 | none | `DATABASE_URL`, `REDIS_URL`, plus the CORS and JWT/cookie values the config reads |
 | Seed (one-off) | backend, `./node_modules/.bin/medusa exec ./src/scripts/seed-jewelry.js` | none | exit code 0 | none | as migrate, plus `STRIPE_API_KEY` to enable Stripe in the region |
-| Storefront | storefront, `node apps/storefront/server.js` | 8000, published | `GET /api/health` returns `OK` | none (`.next/cache` is disposable) | `MEDUSA_PUBLISHABLE_KEY` (public by design), `MEDUSA_BACKEND_URL`, `PUBLIC_MEDUSA_BACKEND_URL`, `PUBLIC_BASE_URL`, `PUBLIC_STRIPE_KEY` (public) |
+| Storefront | storefront, `node --require ./apps/storefront/client-ip.cjs apps/storefront/server.js` | 8000, published | `GET /api/health` returns `OK` | none (`.next/cache` is disposable) | `MEDUSA_PUBLISHABLE_KEY` (public by design), `MEDUSA_BACKEND_URL`, `PUBLIC_MEDUSA_BACKEND_URL`, `PUBLIC_BASE_URL`, `PUBLIC_STRIPE_KEY` (public) |
 | Agent | agent, `python -m agent_service` | 8080, internal only | `GET /health/ready` returns 200 (the agent database answers `select 1`, and the model proxy's readiness answers 200) | none | `AGENT_DATABASE_URL` (the `agent` role's password is in it), `AGENT_PROXY_KEY` (its virtual key on the proxy, nothing more), `AGENT_MODEL=proxy`, `AGENT_PROXY_URL` |
 | Model proxy | `ghcr.io/berriai/litellm:v1.110.1`, `--config /etc/litellm/config.yaml` (`infra/litellm/config.yaml`) | 4000, internal only | `GET /health/readiness` returns 200 (its database answers) | none: its state is in the `litellm` database | `DATABASE_URL` (the `litellm` role's password is in it), `LITELLM_MASTER_KEY`, `LITELLM_SALT_KEY` (recovery material, never rotated casually), `LITELLM_LOCAL_MODEL` |
 | Model proxy key setup (one-off) | the proxy's image, `python3 infra/litellm/setup_keys.py` | none | exit code 0 | none | `LITELLM_MASTER_KEY`, `AGENT_PROXY_KEY` |
@@ -108,6 +108,11 @@ Compose runs that query in its `publishable-key` one-off after each migrate and 
 | `PUBLIC_MEDUSA_BACKEND_URL` | runtime | Backend as seen from the browser (search, option picker), served by `/api/store-config`. Must be reachable from the user's machine |
 | `PUBLIC_BASE_URL` | runtime | The storefront's public URL, for absolute URLs and metadata |
 | `PUBLIC_STRIPE_KEY` | runtime | Stripe publishable key, handed to the checkout page by the server |
+| `REDIS_URL` | runtime | Redis for the chat's rate limit by IP |
+| `TURNSTILE_SITE_KEY` | runtime | Cloudflare Turnstile's public site key, handed to the chat widget by `/api/chat` |
+| `TURNSTILE_SECRET_KEY` | runtime | Turnstile's secret, for checking a support case's first message. Compose uses Cloudflare's test keys |
+| `CHAT_TRUSTED_PROXIES` | runtime, default `0` | How many proxies of ours stand in front, for the chat's client IP (`src/lib/chat/client-ip.ts`) |
+| `CHAT_MESSAGE_LIMIT`, `CHAT_MESSAGE_WINDOW_SECONDS`, `CHAT_NEW_CASE_LIMIT`, `CHAT_NEW_CASE_WINDOW_SECONDS` | runtime, default 20, 300, 5, 3600 | The chat's rate limit by IP |
 | `NEXT_PUBLIC_DEFAULT_REGION` | build arg, default `pl` | Region when the URL has no country. A store setting, the same everywhere |
 
 Only the server reads the environment. The browser bundle holds no URL or key: it asks `/api/store-config` once for the backend URL and publishable key, and the checkout page receives the Stripe key from the server. Changing any runtime value needs a container restart, not a new image. Check what a running storefront serves with `curl -s <storefront>/api/store-config`.

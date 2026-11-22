@@ -29,6 +29,7 @@
     "@stripe/stripe-js": "^8.2.0",
     "clsx": "^2.1.1",
     "instantsearch.js": "4.121.0",
+    "ioredis": "5.11.1",
     "lodash": "^4.17.21",
     "next": "15.5.29",
     "pg": "^8.23.1",

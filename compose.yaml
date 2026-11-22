@@ -219,6 +219,18 @@ services:
       AGENT_URL: http://agent:8080
       AGENT_STOREFRONT_SECRET: ${AGENT_STOREFRONT_SECRET:?set AGENT_STOREFRONT_SECRET in .env}
       CHAT_COOKIE_SECRET: ${CHAT_COOKIE_SECRET:?set CHAT_COOKIE_SECRET in .env}
+      # The chat's protection: the rate limit by IP in Redis, and Turnstile on
+      # each support case's first message. Cloudflare's test keys unless .env
+      # sets others. Nothing stands between the browser and this container, so
+      # no proxy is trusted.
+      REDIS_URL: redis://redis:6379
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-1x00000000000000000000AA}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-1x0000000000000000000000000000000AA}
+      CHAT_TRUSTED_PROXIES: "0"
+      CHAT_MESSAGE_LIMIT: ${CHAT_MESSAGE_LIMIT:-}
+      CHAT_MESSAGE_WINDOW_SECONDS: ${CHAT_MESSAGE_WINDOW_SECONDS:-}
+      CHAT_NEW_CASE_LIMIT: ${CHAT_NEW_CASE_LIMIT:-}
+      CHAT_NEW_CASE_WINDOW_SECONDS: ${CHAT_NEW_CASE_WINDOW_SECONDS:-}
     command:
       - sh
       - -ec
@@ -227,7 +239,7 @@ services:
           MEDUSA_PUBLISHABLE_KEY=$$(cat /run/goods/publishable-key)
           export MEDUSA_PUBLISHABLE_KEY
         fi
-        exec node apps/storefront/server.js
+        exec node --require ./apps/storefront/client-ip.cjs apps/storefront/server.js
     ports:
       - 127.0.0.1:${STOREFRONT_PORT:-8000}:8000
     volumes:
@@ -236,6 +248,8 @@ services:
       publishable-key:
         condition: service_completed_successfully
       medusa-server:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 

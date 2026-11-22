@@ -116,11 +116,12 @@ docker compose exec -e PGPASSWORD="$(grep ^AGENT_DB_PASSWORD= .env | cut -d= -f2
 
 The storefront's `/api/chat` route is the chat's only public door. It calls the agent on this network with `AGENT_STOREFRONT_SECRET` and keeps the support case's ID in the `goods_support_case` cookie, signed with `CHAT_COOKIE_SECRET` (ADR 0020). The agent answers with the local model through the [model proxy](#model-proxy). With `AGENT_MODEL=scripted` on the agent instead, every reply is the same scripted text (`AGENT_SCRIPTED_REPLY` overrides it) and no proxy is needed.
 
-Check one turn and the history, with a cookie jar in place of a browser:
+Check one turn and the history, with a cookie jar in place of a browser. The first message of a case needs a Turnstile token ([below](#turnstile-and-the-rate-limit)); Cloudflare's test keys pass the dummy token:
 
 ```bash
 curl -s -c /tmp/chat -b /tmp/chat -H 'content-type: application/json' \
-  -d '{"message":"Where is my order?"}' http://localhost:8000/api/chat   # {"reply":{...},"correlation_id":"..."}
+  -d '{"message":"Where is my order?","turnstile_token":"XXXX.DUMMY.TOKEN.XXXX"}' \
+  http://localhost:8000/api/chat                                        # {"reply":{...},"correlation_id":"..."}
 curl -s -b /tmp/chat http://localhost:8000/api/chat                     # {"messages":[shopper, agent]}
 docker compose exec postgres psql -U postgres -d agent \
   -c "select role, correlation_id, left(content, 30) from messages order by seq"
@@ -146,6 +147,36 @@ Check each by hand in the browser, with the chat open:
 A failed turn whose message reached the agent keeps it in the case, unanswered. A retry answers that message without storing it again, and a retry of a message that was answered after all returns the stored reply.
 
 `required variable AGENT_STOREFRONT_SECRET is missing a value` (or `CHAT_COOKIE_SECRET`) means `.env` predates the chat: add both as in First run.
+
+#### Turnstile and the rate limit
+
+The chat route refuses a message before it calls the agent when:
+
+| Refusal | Status and `error` | When |
+| --- | --- | --- |
+| Turnstile | 403 `turnstile_required` or `turnstile_failed` | The message would open a support case, and it has no Turnstile token or one Cloudflare rejects. Checked once per case, on its first message: later messages in the case need no token. |
+| Rate limit | 429 `rate_limited` | The IP has sent `CHAT_MESSAGE_LIMIT` messages (20) in the last `CHAT_MESSAGE_WINDOW_SECONDS` (300), or opened `CHAT_NEW_CASE_LIMIT` cases (5) in the last `CHAT_NEW_CASE_WINDOW_SECONDS` (3600). Every message counts, refused ones too. |
+| No check possible | 503 `chat_unavailable` | Redis or Cloudflare can't be reached, or a setting is wrong (`docker compose logs storefront` says which). |
+
+The widget shows the check above the message box until the case is open, and for each refusal a message that says what to do, with "Try again".
+
+- **Keys:** the stack runs on Cloudflare's test keys, which always pass, unless `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` are set in `.env`. Never commit a real key.
+- **Client IP:** the route trusts only `X-Forwarded-For`, read from the right. The storefront's server appends the address its own socket saw to every request (`apps/storefront/client-ip.cjs`), so whatever a client writes there is ignored. In this stack every request from the host comes from the same Docker address, so the limits count all of them as one IP. Behind a proxy of ours, set `CHAT_TRUSTED_PROXIES` to how many there are.
+- **Counters:** in this stack's Redis, under `goods:chat:rate:`. To let yourself back in after a lockout:
+
+  ```bash
+  docker compose exec redis sh -c "redis-cli --scan --pattern 'goods:chat:rate:*' | xargs -r redis-cli del"
+  ```
+
+#### Smoke test
+
+`scripts/smoke-test.sh --compose` checks the store and the chat route from outside the stack. Run it from the repo root once the stack is up and seeded:
+
+```bash
+scripts/smoke-test.sh --compose http://localhost:8000    # use your STOREFRONT_PORT
+```
+
+Besides the store checks in the [deploy runbook](deploy-and-rollback.md#smoke-test), it checks that a first message without a Turnstile token is refused (403), that one message gets a reply and a second one in the same case needs no token, that both are still there when the history is loaded again, as after a reload, and that message 21 from one IP is refused (429). It clears the chat's rate-limit counters before and after, so a second run straight after passes too. If `.env` sets `CHAT_MESSAGE_LIMIT`, pass the same value as `SMOKE_CHAT_MESSAGE_LIMIT`. Ends with `The store works`, or `::error::` lines for each failed check.
 
 ### Health
 
