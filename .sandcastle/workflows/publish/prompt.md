@@ -58,7 +58,7 @@ Closes #{{ISSUE_NUMBER}}
 
 # THE TITLE
 
-One line in Conventional Commits, for the squash commit: `type(scope): subject`. Same types and scopes as the commits above, plain words, lowercase, no full stop, no issue number (GitHub adds the pull request's).
+One line in Conventional Commits: `type(scope): subject`. Same types and scopes as the commits above, plain words, lowercase, no full stop, no issue number (GitHub adds the pull request's).
 
 # OUTPUT
 

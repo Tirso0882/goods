@@ -21,7 +21,7 @@ const ROLES = [
   "preflight",
 ] as const
 
-const WORKFLOWS = [
+export const WORKFLOWS = [
   "plan",
   "implement",
   "review",
@@ -32,6 +32,9 @@ const WORKFLOWS = [
 
 /** A step of the run with its own prompt. */
 export type Workflow = (typeof WORKFLOWS)[number]
+
+const isWorkflow = (name: string): name is Workflow =>
+  WORKFLOWS.some((workflow) => workflow === name)
 
 /** An agent the factory runs, each with its own model and effort. */
 export type Role = (typeof ROLES)[number]
@@ -623,13 +626,13 @@ const instructionsText = (text: string | undefined) =>
       ].join("\n")
     : ""
 
-const code = (text: string) => `\`${text}\``
+const inlineCode = (text: string) => `\`${text}\``
 
 /** How the reviewer reads the lockfiles it leaves out of the diff. */
 const reviewLockfiles = (lockfiles: readonly Lockfile[], baseRef: string) =>
   lockfiles.length === 0
     ? ""
-    : `The lockfiles are left out: check them with \`git diff ${baseRef}...HEAD -- ${lockfiles.map((l) => l.path).join(" ")}\` if a dependency changed.`
+    : `The lockfiles are left out: check them with ${inlineCode(`git diff ${baseRef}...HEAD -- ${lockfiles.map((l) => l.path).join(" ")}`)} if a dependency changed.`
 
 /** How the branch updater resolves a conflicting lockfile. */
 const mergeLockfiles = (lockfiles: readonly Lockfile[], baseRef: string) =>
@@ -640,12 +643,14 @@ const mergeLockfiles = (lockfiles: readonly Lockfile[], baseRef: string) =>
         "",
         ...lockfiles.map(
           (l) =>
-            `- ${code(l.path)}: resolve ${code(l.manifest)}, then run ${code(l.regenerate)}`
+            `- ${inlineCode(l.path)}: resolve ${inlineCode(l.manifest)}, then run ${inlineCode(l.regenerate)}`
         ),
         "",
         "The sandbox was installed from the branch before the merge. If a lockfile changed, install from it again before the checks:",
         "",
-        ...lockfiles.map((l) => `- ${code(l.path)}: ${code(l.install)}`),
+        ...lockfiles.map(
+          (l) => `- ${inlineCode(l.path)}: ${inlineCode(l.install)}`
+        ),
       ].join("\n")
 
 const resolvePrompts = (
@@ -658,32 +663,32 @@ const resolvePrompts = (
 ): ResolvedPrompts => {
   const instructions = config.instructions ?? {}
   for (const key of Object.keys(instructions)) {
-    if (!(WORKFLOWS as readonly string[]).includes(key)) {
+    if (!isWorkflow(key)) {
       throw new Error(`instructions: the factory has no "${key}" workflow.`)
     }
   }
-  const forWorkflow = (workflow: Workflow) => ({
+  const instructionsArg = (workflow: Workflow) => ({
     INSTRUCTIONS: instructionsText(instructions[workflow]),
   })
   const CHECKS = checksPrompt({ checks })
   return {
-    plan: forWorkflow("plan"),
-    implement: { ...forWorkflow("implement"), CHECKS },
+    plan: instructionsArg("plan"),
+    implement: { ...instructionsArg("implement"), CHECKS },
     review: {
-      ...forWorkflow("review"),
+      ...instructionsArg("review"),
       CHECKS,
       CODING_STANDARDS: readStandards(config.standards, host),
       LOCKFILES: reviewLockfiles(lockfiles, baseRef),
       LOCKFILE_EXCLUDES: lockfiles.map((l) => `':!${l.path}'`).join(" "),
     },
-    addressReview: { ...forWorkflow("addressReview"), CHECKS },
+    addressReview: { ...instructionsArg("addressReview"), CHECKS },
     updateBranch: {
-      ...forWorkflow("updateBranch"),
+      ...instructionsArg("updateBranch"),
       CHECKS,
       LOCKFILES: mergeLockfiles(lockfiles, baseRef),
     },
     publish: {
-      ...forWorkflow("publish"),
+      ...instructionsArg("publish"),
       PULL_REQUEST_GUIDE: pullRequestGuide,
     },
   }
