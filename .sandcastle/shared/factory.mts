@@ -155,7 +155,7 @@ export type Host = {
   /** Whether a path exists. */
   exists: (path: string) => boolean
   /** What a command prints, trimmed. It throws if the command fails. */
-  output: (command: readonly string[]) => string
+  output: (command: readonly [string, ...string[]]) => string
 }
 
 /** What every sandbox gets. */
@@ -338,7 +338,7 @@ const checkWhole = (section: string, values: Record<string, number>) => {
   for (const [key, value] of Object.entries(values)) {
     if (!Number.isInteger(value) || value < 1) {
       throw new Error(
-        `${section ? `${section}.` : ""}${key} must be a positive whole number, got ${value}.`
+        `${section}.${key} must be a positive whole number, got ${value}.`
       )
     }
   }
@@ -360,8 +360,86 @@ const contains = (path: string, inner: string) => {
   return rel === "" || !rel.startsWith("..")
 }
 
-// The sandbox's private home and the env-leak checks are the factory's: a
-// project's mounts and variables can't undo them.
+// What `factory check` proves the sandbox can't see (see SECURITY_STEPS).
+const CREDENTIALS = [".ssh", ".config/gh", ".claude"]
+
+// The sandbox's private home is the factory's: a project's mounts can't
+// show it the real home or the credentials in it.
+const projectMount = (mount: Mount, home: string): ResolvedMount => {
+  if (contains(mount.hostPath, home)) {
+    throw new Error(
+      `mounts: ${mount.hostPath} would show the sandbox your home directory.`
+    )
+  }
+  for (const credential of CREDENTIALS.map((c) => join(home, c))) {
+    if (
+      contains(mount.hostPath, credential) ||
+      contains(credential, mount.hostPath)
+    ) {
+      throw new Error(
+        `mounts: ${mount.hostPath} would show the sandbox your credentials.`
+      )
+    }
+  }
+  return { ...mount, sandboxPath: mount.sandboxPath ?? mount.hostPath }
+}
+
+const checkSlot = (slot: number, maxSlots: number | undefined) => {
+  if (
+    Number.isInteger(slot) &&
+    slot >= 0 &&
+    (maxSlots === undefined || slot <= maxSlots)
+  ) {
+    return
+  }
+  throw new Error(
+    maxSlots === undefined
+      ? `Sandbox slot must be a whole number from 0, got ${slot}.`
+      : `Sandbox slot must be 0 to ${maxSlots}, got ${slot}.`
+  )
+}
+
+/** The sandbox: the toolchains' contributions, then the project's own. */
+const resolveSandbox = (
+  config: FactoryConfig,
+  host: Host,
+  toolchains: readonly { name: string; contribution: Contribution }[]
+): ResolvedSandbox => {
+  // Which toolchain sets each variable. A project's `env` can't repoint
+  // them, nor move the sandbox's private home.
+  const owners = new Map([
+    ["HOME", "the factory"],
+    ...toolchains.flatMap(({ name, contribution }) =>
+      Object.keys(contribution.env).map((key): [string, string] => [
+        key,
+        `the ${name} toolchain`,
+      ])
+    ),
+  ])
+  const toolchainEnv: Env = Object.assign(
+    {},
+    ...toolchains.map((t) => t.contribution.env)
+  )
+  return {
+    mounts: [
+      ...toolchains.flatMap((t) => t.contribution.mounts),
+      ...(config.mounts ?? []).map((m) => projectMount(m, host.home)),
+    ],
+    env: (slot) => {
+      checkSlot(slot, config.maxSlots)
+      const projectEnv = config.env?.(slot) ?? {}
+      for (const key of Object.keys(projectEnv)) {
+        const owner = owners.get(key)
+        if (owner) throw new Error(`env can't set ${key}: ${owner} sets it.`)
+      }
+      return { ...toolchainEnv, ...projectEnv }
+    },
+    setup: [
+      ...toolchains.flatMap((t) => t.contribution.setup),
+      ...(config.setup ?? []),
+    ],
+  }
+}
 
 /** The settings a run uses: `config`, defaults filled in, for `host`. */
 export const resolveFactory = (
@@ -381,44 +459,15 @@ export const resolveFactory = (
   checkPositive("timeouts", timeouts)
   checkWhole("retries", { agentAttempts: retries.agentAttempts })
   checkPositive("retries", { delayMs: retries.delayMs })
-  const contributions = (config.toolchains ?? []).map((t) => t.contribute(host))
-  const toolchainEnv: Env = Object.assign(
-    {},
-    ...contributions.map((c) => c.env)
-  )
-  if (maxSlots !== undefined) checkWhole("", { maxSlots })
-  const sandbox: ResolvedSandbox = {
-    mounts: [
-      ...contributions.flatMap((c) => c.mounts),
-      ...(config.mounts ?? []).map((m) => {
-        if (contains(m.hostPath, host.home)) {
-          throw new Error(
-            `mounts: ${m.hostPath} would show the sandbox your home directory.`
-          )
-        }
-        return { ...m, sandboxPath: m.sandboxPath ?? m.hostPath }
-      }),
-    ],
-    env: (slot) => {
-      if (
-        !Number.isInteger(slot) ||
-        slot < 0 ||
-        (maxSlots !== undefined && slot > maxSlots)
-      ) {
-        throw new Error(
-          maxSlots === undefined
-            ? `Sandbox slot must be a whole number from 0, got ${slot}.`
-            : `Sandbox slot must be 0 to ${maxSlots}, got ${slot}.`
-        )
-      }
-      const projectEnv = config.env?.(slot) ?? {}
-      if ("HOME" in projectEnv) {
-        throw new Error("env can't set HOME: the sandbox's home is private.")
-      }
-      return { ...toolchainEnv, ...projectEnv }
-    },
-    setup: [...contributions.flatMap((c) => c.setup), ...(config.setup ?? [])],
+  if (maxSlots !== undefined && (!Number.isInteger(maxSlots) || maxSlots < 1)) {
+    throw new Error(
+      `maxSlots must be a positive whole number, got ${maxSlots}.`
+    )
   }
+  const toolchains = (config.toolchains ?? []).map((t) => ({
+    name: t.name,
+    contribution: t.contribute(host),
+  }))
   return {
     names: { ...names, baseRef: `origin/${names.baseBranch}` },
     models,
@@ -427,10 +476,10 @@ export const resolveFactory = (
     retries,
     checks: validateChecks("checks", config.checks ?? []),
     probes: validateChecks("probes", [
-      ...contributions.flatMap((c) => c.probes),
+      ...toolchains.flatMap((t) => t.contribution.probes),
       ...(config.probes ?? []),
     ]),
-    sandbox,
+    sandbox: resolveSandbox(config, host, toolchains),
     ...(config.services === undefined
       ? {}
       : {

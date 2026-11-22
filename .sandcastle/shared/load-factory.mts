@@ -15,7 +15,7 @@ const realHost = (): Host => ({
   env: process.env,
   exists: existsSync,
   output: ([command, ...args]) =>
-    execFileSync(command!, args, { encoding: "utf8" }).trim(),
+    execFileSync(command, args, { encoding: "utf8" }).trim(),
 })
 
 /** This repo's settings, resolved for this host. */

@@ -87,7 +87,7 @@ const { values: cli } = parseArgs({
 const onlyIssues = new Set((cli.issue ?? []).map(Number))
 // `limits.parallel` is already capped at the project's `maxSlots`.
 const asked = Number(cli.parallel ?? limits.parallel)
-if (!Number.isInteger(asked) || asked < 1) {
+if (cli.parallel !== undefined && (!Number.isInteger(asked) || asked < 1)) {
   throw new Error(
     `--parallel takes a positive whole number, got ${cli.parallel}.`
   )
