@@ -646,16 +646,133 @@ describe("the pull request template", () => {
   const prHost = fakeHost({ files: ["/home/dev/.claude/skills/pr/SKILL.md"] })
 
   it("sends the PR writer to the pr skill when it's listed", () => {
-    const { pullRequestGuide } = resolveFactory({ skills: ["pr"] }, prHost)
+    const { PULL_REQUEST_GUIDE: pullRequestGuide } = resolveFactory(
+      { skills: ["pr"] },
+      prHost
+    ).prompts.publish
     assert.match(pullRequestGuide, /Use the `pr` skill/)
     assert.doesNotMatch(pullRequestGuide, /## Summary/)
   })
 
   it("gives the PR writer the built-in template when pr isn't listed", () => {
-    const { pullRequestGuide } = resolveFactory({}, fakeHost())
+    const { PULL_REQUEST_GUIDE: pullRequestGuide } = resolveFactory(
+      {},
+      fakeHost()
+    ).prompts.publish
     assert.doesNotMatch(pullRequestGuide, /`pr` skill/)
     for (const section of ["## Summary", "## Evidence", "## Merge Danger"]) {
       assert.ok(pullRequestGuide.includes(section), section)
     }
+  })
+})
+
+describe("the prompts' project text", () => {
+  it("gives the reviewer the project's standards file from .factory", () => {
+    const { prompts } = resolveFactory(
+      { standards: "CODING_STANDARDS.md" },
+      fakeHost({
+        contents: {
+          "/repo/.factory/CODING_STANDARDS.md": "# Standards\n\nNo `any`.",
+        },
+      })
+    )
+    assert.equal(prompts.review.CODING_STANDARDS, "# Standards\n\nNo `any`.")
+  })
+  it("tells the reviewer to follow the code around it when no standards are set", () => {
+    const { prompts } = resolveFactory({}, host)
+    assert.match(prompts.review.CODING_STANDARDS, /no coding standards file/)
+  })
+
+  it("refuses a standards file that isn't there", () => {
+    assert.throws(
+      () => resolveFactory({ standards: "STANDARDS.md" }, host),
+      /standards: can't read \/work\/goods\/.factory\/STANDARDS.md/
+    )
+  })
+  it("appends a workflow's instructions to that workflow's prompt only", () => {
+    const { prompts } = resolveFactory(
+      { instructions: { implement: "Run `make e2e` for changes under web/." } },
+      host
+    )
+    assert.match(
+      prompts.implement.INSTRUCTIONS,
+      /Run `make e2e` for changes under web\/\./
+    )
+    for (const workflow of [
+      "plan",
+      "review",
+      "addressReview",
+      "updateBranch",
+      "publish",
+    ] as const) {
+      assert.equal(prompts[workflow].INSTRUCTIONS, "")
+    }
+  })
+
+  it("refuses instructions for a workflow the factory doesn't have", () => {
+    assert.throws(
+      () =>
+        resolveFactory(
+          defineFactory({
+            // @ts-expect-error: no such workflow
+            instructions: { implementer: "Be careful." },
+          }),
+          host
+        ),
+      /instructions: the factory has no "implementer" workflow/
+    )
+  })
+  describe("lockfiles", () => {
+    const { prompts } = resolveFactory(
+      { toolchains: [pnpm(), uv()] },
+      fakeHost({
+        outputs: {
+          "pnpm store path": "/home/dev/.local/share/pnpm/store/v10",
+          "uv cache dir": "/home/dev/.cache/uv",
+          "uv python dir": "/home/dev/.local/share/uv/python",
+        },
+      })
+    )
+
+    it("leaves the toolchains' lockfiles out of the reviewer's diff", () => {
+      assert.equal(
+        prompts.review.LOCKFILE_EXCLUDES,
+        "':!pnpm-lock.yaml' ':!uv.lock'"
+      )
+      assert.match(
+        prompts.review.LOCKFILES,
+        /git diff origin\/main\.\.\.HEAD -- pnpm-lock\.yaml uv\.lock/
+      )
+    })
+
+    it("tells the branch updater how each toolchain regenerates its lockfile", () => {
+      const text = prompts.updateBranch.LOCKFILES
+      assert.match(text, /git checkout --theirs <lockfile>/)
+      assert.match(
+        text,
+        /`pnpm-lock\.yaml`.*`package\.json`.*`pnpm install --prefer-offline`/
+      )
+      assert.match(text, /`uv\.lock`.*`pyproject\.toml`.*`uv lock`/)
+      assert.match(text, /`pnpm install --frozen-lockfile --prefer-offline`/)
+      assert.match(text, /`uv sync --locked`/)
+    })
+
+    it("says nothing of lockfiles when no toolchain has one", () => {
+      const bare = resolveFactory({}, host).prompts
+      assert.equal(bare.review.LOCKFILE_EXCLUDES, "")
+      assert.equal(bare.review.LOCKFILES, "")
+      assert.equal(bare.updateBranch.LOCKFILES, "")
+    })
+  })
+  it("lists the checks in every prompt whose agent runs them", () => {
+    const { prompts } = resolveFactory(
+      { checks: [{ name: "tests", command: "make test" }] },
+      host
+    )
+    const listed = "```bash\nmake test  # tests\n```"
+    assert.equal(prompts.implement.CHECKS, listed)
+    assert.equal(prompts.review.CHECKS, listed)
+    assert.equal(prompts.addressReview.CHECKS, listed)
+    assert.equal(prompts.updateBranch.CHECKS, listed)
   })
 })
