@@ -552,3 +552,110 @@ describe("the private home", () => {
     )
   })
 })
+
+describe("skills", () => {
+  const skillHost = fakeHost({
+    files: ["/home/dev/.claude/skills/pr/SKILL.md"],
+    links: { "/home/dev/.claude/skills/pr": "/home/dev/.agents/skills/pr" },
+  })
+
+  it("mounts each listed skill's real directory read-only", () => {
+    const { sandbox } = resolveFactory({ skills: ["pr"] }, skillHost)
+    assert.deepEqual(sandbox.mounts, [
+      {
+        hostPath: "/home/dev/.agents/skills/pr",
+        sandboxPath: "/home/dev/.agents/skills/pr",
+        readonly: true,
+      },
+    ])
+  })
+
+  it("links each listed skill into the sandbox's home", () => {
+    const { sandbox } = resolveFactory({ skills: ["pr"] }, skillHost)
+    assert.deepEqual(sandbox.setup, [
+      {
+        command: `mkdir -p "$HOME/.claude/skills" && ln -sfn '/home/dev/.agents/skills/pr' "$HOME/.claude/skills/pr"`,
+      },
+    ])
+  })
+
+  it("probes that each listed skill is linked", () => {
+    const { probes } = resolveFactory({ skills: ["pr"] }, skillHost)
+    assert.deepEqual(probes, [
+      {
+        name: "the pr skill is linked into the sandbox's home",
+        command: 'test -f "$HOME/.claude/skills/pr/SKILL.md"',
+      },
+    ])
+  })
+
+  it("mounts and links a skill listed twice once", () => {
+    const { sandbox } = resolveFactory({ skills: ["pr", "pr"] }, skillHost)
+    assert.equal(sandbox.mounts.length, 1)
+    assert.equal(sandbox.setup.length, 1)
+  })
+
+  it("mounts a skill that lives in ~/.claude/skills itself", () => {
+    const { sandbox } = resolveFactory(
+      { skills: ["pr"] },
+      fakeHost({ files: ["/home/dev/.claude/skills/pr/SKILL.md"] })
+    )
+    assert.equal(sandbox.mounts[0]?.hostPath, "/home/dev/.claude/skills/pr")
+  })
+
+  it("refuses a skill whose link would show the home or credentials", () => {
+    for (const target of ["/home/dev", "/home/dev/.claude", "/home/dev/.ssh"]) {
+      const linkedHost = fakeHost({
+        files: ["/home/dev/.claude/skills/pr/SKILL.md"],
+        links: { "/home/dev/.claude/skills/pr": target },
+      })
+      assert.throws(
+        () => resolveFactory({ skills: ["pr"] }, linkedHost),
+        /would show the sandbox your home or credentials/,
+        target
+      )
+    }
+  })
+
+  it("refuses a listed skill the host doesn't have, naming it and its path", () => {
+    assert.throws(
+      () => resolveFactory({ skills: ["pr", "tdd"] }, skillHost),
+      /the tdd skill is missing: no \/home\/dev\/\.claude\/skills\/tdd\/SKILL\.md/
+    )
+  })
+
+  it("refuses a skill name that would leave the skills directory", () => {
+    for (const name of ["../.ssh", "a/b", "..", ""]) {
+      assert.throws(
+        () => resolveFactory({ skills: [name] }, skillHost),
+        /isn't a skill's directory name/
+      )
+    }
+  })
+
+  it("needs no skill when the config lists none", () => {
+    const { sandbox, probes } = resolveFactory({}, fakeHost())
+    assert.deepEqual(
+      { mounts: sandbox.mounts, setup: sandbox.setup, probes },
+      { mounts: [], setup: [], probes: [] }
+    )
+  })
+})
+
+describe("the pull request template", () => {
+  const prHost = fakeHost({ files: ["/home/dev/.claude/skills/pr/SKILL.md"] })
+
+  it("sends the PR writer to the pr skill when it's listed", () => {
+    const { pullRequestGuide } = resolveFactory({ skills: ["pr"] }, prHost)
+    assert.match(pullRequestGuide, /Use the `pr` skill/)
+    assert.doesNotMatch(pullRequestGuide, /## Summary/)
+  })
+
+  it("gives the PR writer the built-in template when pr isn't listed", () => {
+    const { pullRequestGuide } = resolveFactory({}, fakeHost())
+    assert.doesNotMatch(pullRequestGuide, /`pr` skill/)
+    for (const section of ["## Summary", "## Evidence", "## Merge Danger"]) {
+      assert.ok(pullRequestGuide.includes(section), section)
+    }
+  })
+})
