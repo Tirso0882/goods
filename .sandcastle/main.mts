@@ -14,8 +14,9 @@
 //   Implement  Each issue gets a bwrap sandbox on `factory/issue-<n>`,
 //              branched from origin/main. The implementer builds it and the
 //              reviewer checks it against the coding standards and the issue.
-//   Publish    A writer drafts the pull request body with the /pr skill. The
-//              host pushes the branch and opens the pull request.
+//   Publish    A writer drafts the pull request body, with the `pr` skill if
+//              the config lists it, and the host pushes the branch and opens
+//              the pull request.
 //   CI         The host waits for the checks on the pushed commit. On a failure
 //              the implementer gets the failing log, up to `limits.maxCiFixes`
 //              times.
