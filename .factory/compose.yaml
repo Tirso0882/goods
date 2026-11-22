@@ -3,7 +3,8 @@
 #
 # The ports are bound to localhost and differ from the store's, so this stack
 # never collides with `compose.yaml` or a database you run yourself.
-# `.sandcastle/environment.mts` starts and stops it, and holds the same ports.
+# The factory starts and stops it (`services` in factory.config.mts), and
+# factory.config.mts holds the same ports.
 #
 # Same images as compose.yaml. Dependabot only bumps them there, so copy each
 # new tag and digest here in the same pull request.

@@ -18,7 +18,7 @@ export const preflight = async (
     await sandcastle.run({
       name: "preflight",
       agent: agentFor(factory, "preflight"),
-      sandbox: sandbox(0),
+      sandbox: sandbox(factory, 0),
       branchStrategy: {
         type: "branch",
         branch: names.preflightBranch,

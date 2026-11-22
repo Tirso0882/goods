@@ -124,9 +124,9 @@ const addressReview = async (
   await using box = await sandcastle.createSandbox({
     branch,
     baseBranch: factory.names.baseRef,
-    sandbox: sandbox(slot),
+    sandbox: sandbox(factory, slot),
   })
-  await setUpSandbox(box)
+  await setUpSandbox(factory, box)
   const worktree = box.worktreePath
   const before = git("-C", worktree, "rev-parse", "HEAD")
 

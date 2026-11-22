@@ -8,11 +8,20 @@
 //   retries   attempts and delay when the model API has trouble
 //   checks    quality gates: the agents run them, and so does factory:check
 //   probes    environment health: only factory:check runs them
+//   toolchains  presets that mount their caches, install and probe
+//   env       the sandbox's variables, per parallel slot
+//   setup     setup steps after the toolchains' installs
+//   services  the compose file of test services, in this folder
+//   maxSlots  how many parallel sandboxes the services can keep apart
 //
 // The factory's security checks (private home, no repo .env, no leaked host
 // secret) always run after these, whatever this file says.
 
-import { defineFactory } from "../.sandcastle/shared/factory.mts"
+import { defineFactory, pnpm, uv } from "../.sandcastle/shared/factory.mts"
+
+// The ports compose.yaml publishes on localhost.
+const POSTGRES_PORT = "55432"
+const REDIS_PORT = "56379"
 
 export default defineFactory({
   limits: {
@@ -44,20 +53,43 @@ export default defineFactory({
     { name: "Python types", command: "uv run mypy", slow: true },
     { name: "Python tests", command: "uv run --locked pytest", slow: true },
   ],
+  toolchains: [pnpm(), uv()],
+  // The throwaway Postgres and Redis the backend's tests run against.
+  services: "compose.yaml",
+  // Redis has databases 0 to 15. Database 0 is for a run with no parallel
+  // peer (the planner, preflight); each parallel slot gets its own, because
+  // the store's Redis modules use fixed queue names, so two test runs in one
+  // database would take each other's jobs. Postgres needs no slot: the
+  // backend's test runner creates a database with a random name per suite.
+  maxSlots: 15,
+  // The variables CI's `test` and `agent` jobs set (.github/workflows/ci.yml),
+  // pointed at the throwaway services.
+  env: (slot) => ({
+    DB_HOST: "localhost",
+    DB_PORT: POSTGRES_PORT,
+    DB_USERNAME: "postgres",
+    DB_PASSWORD: "postgres",
+    REDIS_URL: `redis://localhost:${REDIS_PORT}/${slot}`,
+    AGENT_TEST_DATABASE_URL: `postgresql://postgres:postgres@localhost:${POSTGRES_PORT}/postgres`,
+    // next.config.js refuses to load without it. Not a real key.
+    NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: "pk_ci_placeholder",
+    NEXT_TELEMETRY_DISABLED: "1",
+    TURBO_TELEMETRY_DISABLED: "1",
+    MEDUSA_DISABLE_TELEMETRY: "true",
+  }),
+  setup: [
+    // SWC, which compiles the backend's tests, unpacks its native binary
+    // into ~/.cache and refuses a home that anyone but the owner can write.
+    // The sandbox's home starts group-writable. Turbo strips most variables
+    // from a task, so pointing SWC at another cache would not reach it.
+    { command: 'chmod 700 "$HOME"' },
+  ],
+  // The toolchains add their own probes before these.
   probes: [
     // .nvmrc pins the major version only.
     {
       name: "node matches .nvmrc",
       command: 'case "$(node -v)" in "v$(cat .nvmrc)".*) ;; *) exit 1 ;; esac',
-    },
-    {
-      name: "pnpm runs from the mounted corepack cache",
-      command: "pnpm --version",
-    },
-    {
-      name: "pnpm uses the mounted store",
-      command:
-        'test "$(dirname "$(pnpm store path)")" = "$npm_config_store_dir"',
     },
     {
       name: "node_modules is installed in every app",

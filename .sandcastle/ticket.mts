@@ -32,9 +32,9 @@ const buildTicket = async (
   await using box = await sandcastle.createSandbox({
     branch: ticket.branch,
     baseBranch: factory.names.baseRef,
-    sandbox: sandbox(slot),
+    sandbox: sandbox(factory, slot),
   })
-  await setUpSandbox(box)
+  await setUpSandbox(factory, box)
 
   await implement(
     factory,
