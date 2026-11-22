@@ -85,7 +85,7 @@ ruff (`E, W, F, I, B, UP, SIM, RUF, S, PT, TID`) and mypy `--strict` are the aut
 
 ## Commits and pull requests
 
-- Conventional Commits: `type(scope): subject (#issue)`. The types are `feat`, `fix`, `test`, `refactor`, `docs`, `ci`, `chore`, and the scope is the area (`backend`, `storefront`, `agent`, `agent-core`, `evals`, `contracts`, `compose`, `seed`, `scripts`, or the docs folder).
+- Conventional Commits: `type(scope): subject (#issue)`. The types are `feat`, `fix`, `test`, `refactor`, `docs`, `ci`, `chore`, and the scope is the area (`backend`, `storefront`, `agent`, `agent-core`, `evals`, `contracts`, `compose`, `seed`, `scripts`, `sandcastle`, or the docs folder).
 - The subject is plain words in lowercase, with no full stop, and says what changes for the reader.
 - One logical change per commit, split by type: behaviour, its standalone tests, and docs in separate commits.
 - The PR body has Summary, Evidence and Merge Danger sections, from the `pr` skill or the factory's built-in template. It lists every acceptance criterion that wasn't verified, and closes its issue.

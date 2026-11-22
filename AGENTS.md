@@ -32,7 +32,7 @@ Also run `pnpm build` if you change build configuration, `apps/storefront/next.c
 
 ### Commits
 
-Conventional Commits: `type(scope): subject`. The type is `feat`, `fix`, `test`, `refactor`, `docs`, `ci` or `chore`. The scope is the area: `backend`, `storefront`, `agent`, `agent-core`, `evals`, `contracts`, `compose`, `seed`, `scripts`, `sandcastle`, or the docs folder for `docs`. The subject is plain words, lowercase, with no full stop. One logical change per commit, split by type. release-please reads the squash commit of each pull request.
+Conventional Commits: `type(scope): subject`. The type is `feat`, `fix`, `test`, `refactor`, `docs`, `ci` or `chore`. The scope is the area: `backend`, `storefront`, `agent`, `agent-core`, `evals`, `contracts`, `compose`, `seed`, `scripts`, `sandcastle`, or the docs folder for `docs`. The subject is plain words, lowercase, with no full stop. One logical change per commit, split by type. Pull requests are merged with Rebase and merge, so each commit reaches the changelog (see `docs/runbooks/deploy-and-rollback.md`).
 
 <!-- BEGIN:turborepo-agent-rules -->
 
