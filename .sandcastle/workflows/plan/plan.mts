@@ -31,7 +31,7 @@ export const plan = async (
       sandcastle.run({
         name: "planner",
         agent: agentFor(factory, "planner"),
-        sandbox: sandbox(0),
+        sandbox: sandbox(factory, 0),
         branchStrategy: {
           type: "branch",
           branch: names.plannerBranch,

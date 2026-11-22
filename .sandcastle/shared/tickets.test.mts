@@ -9,8 +9,9 @@ import {
   ticketText,
 } from "./tickets.mts"
 import { resolveFactory } from "./factory.mts"
+import { fakeHost } from "./fake-host.mts"
 
-const { names } = resolveFactory({}, { repoRoot: "/repo" })
+const { names } = resolveFactory({}, fakeHost())
 
 const OWNER = "maintainer"
 
@@ -120,7 +121,7 @@ describe("branch names from the config", () => {
   it("names and reads branches with the prefix the config sets", () => {
     const custom = resolveFactory(
       { names: { branchPrefix: "bot/ticket-" } },
-      { repoRoot: "/repo" }
+      fakeHost()
     ).names
     assert.equal(branchFor(custom, 7), "bot/ticket-7")
     assert.equal(issueFor(custom, "bot/ticket-7"), 7)

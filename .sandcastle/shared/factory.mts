@@ -4,7 +4,8 @@
 // environment here, so the tests fake the host as plain data
 // (factory.test.mts).
 
-import { join } from "node:path"
+import { dirname, join, relative, resolve } from "node:path"
+import type { SetupStep } from "./setup.mts"
 
 export type Effort = "low" | "medium" | "high" | "xhigh" | "max"
 
@@ -79,6 +80,38 @@ export type Check = {
   slow?: boolean
 }
 
+/** A host path the sandbox can see. It appears at its own path unless
+ *  `sandboxPath` says otherwise. */
+export type Mount = {
+  hostPath: string
+  sandboxPath?: string
+  readonly?: boolean
+}
+
+/** A mount with both paths settled. */
+export type ResolvedMount = {
+  hostPath: string
+  sandboxPath: string
+  readonly?: boolean
+}
+
+/** Variables a sandbox gets, by name. */
+export type Env = Record<string, string>
+
+/** What a toolchain adds to every sandbox. */
+export type Contribution = {
+  mounts: readonly ResolvedMount[]
+  env: Env
+  setup: readonly SetupStep[]
+  probes: readonly Check[]
+}
+
+/** A preset for one toolchain, such as `pnpm()` or `uv()`. */
+export type Toolchain = {
+  name: string
+  contribute: (host: Host) => Contribution
+}
+
 /** What a project may set. Every field is optional. */
 export type FactoryConfig = {
   names?: Partial<Names>
@@ -92,12 +125,46 @@ export type FactoryConfig = {
   /** Environment health, such as dependencies installed or services
    *  answering. Only `factory check` runs them. */
   probes?: readonly Check[]
+  /** Toolchain presets. Each brings its cache mounts and variables, a
+   *  locked install and probes. */
+  toolchains?: readonly Toolchain[]
+  /** Host paths to mount beyond what the toolchains mount. */
+  mounts?: readonly Mount[]
+  /** Variables for the sandbox in `slot`: 0 for a run with no parallel peer,
+   *  1 to the parallel limit for the others. */
+  env?: (slot: number) => Env
+  /** Setup steps beyond the toolchains' installs. They run after them. */
+  setup?: readonly SetupStep[]
+  /** A compose file in `.factory/` with the services the sandboxes use. The
+   *  factory starts it before a run, waits until it's ready, and removes it
+   *  with its data afterwards. */
+  services?: string
+  /** How many parallel slots the project can keep apart, such as one per
+   *  Redis database. `limits.parallel` is capped at it. No cap when unset. */
+  maxSlots?: number
 }
 
 /** Facts about the machine and checkout the factory runs on. */
 export type Host = {
   /** The repo's root directory on the host. */
   repoRoot: string
+  /** The user's real home directory. */
+  home: string
+  /** The host's environment variables. */
+  env: Readonly<Record<string, string | undefined>>
+  /** Whether a path exists. */
+  exists: (path: string) => boolean
+  /** What a command prints, trimmed. It throws if the command fails. */
+  output: (command: readonly [string, ...string[]]) => string
+}
+
+/** What every sandbox gets. */
+export type ResolvedSandbox = {
+  mounts: readonly ResolvedMount[]
+  /** The variables of the sandbox in `slot`. */
+  env: (slot: number) => Env
+  /** In order: the toolchains' steps, then the project's. */
+  setup: readonly SetupStep[]
 }
 
 export type ResolvedNames = Names & { baseRef: string }
@@ -111,9 +178,101 @@ export type ResolvedFactory = {
   retries: Retries
   checks: readonly Check[]
   probes: readonly Check[]
+  sandbox: ResolvedSandbox
+  /** The compose file to start before a run, if the project has services. */
+  services?: { composeFile: string }
+  /** The highest slot a sandbox may take, if the project limits it. */
+  maxSlots?: number
   /** Where each agent's log goes. */
   logDir: string
 }
+
+// ---------------------------------------------------------------------------
+// Toolchain presets
+// ---------------------------------------------------------------------------
+
+const atOwnPath = (hostPath: string, readonly?: true): ResolvedMount =>
+  readonly
+    ? { hostPath, sandboxPath: hostPath, readonly }
+    : { hostPath, sandboxPath: hostPath }
+
+// Both installs copy from the mounted caches (a hard link can't cross a
+// mount), so nothing an agent edits in its worktree reaches them. The
+// lockfiles are the contract: an install that would change one fails.
+const INSTALL_TIMEOUT_SECONDS = 600
+
+/**
+ * pnpm, run through corepack. The store is mounted writable, because an agent
+ * that adds a dependency has to fetch it, and pnpm locks it, so parallel
+ * sandboxes can share it. Corepack's cache is mounted read-only: without it,
+ * every sandbox would download pnpm again before it could install anything.
+ */
+export const pnpm = (): Toolchain => ({
+  name: "pnpm",
+  contribute: (host) => {
+    // `pnpm store path` ends in the store's version (…/store/v10); pnpm
+    // wants the directory above it.
+    const store = dirname(host.output(["pnpm", "store", "path"]))
+    const corepack =
+      host.env["COREPACK_HOME"] ?? join(host.home, ".cache/node/corepack")
+    const hasCorepack = host.exists(corepack)
+    return {
+      mounts: [
+        atOwnPath(store),
+        ...(hasCorepack ? [atOwnPath(corepack, true)] : []),
+      ],
+      env: {
+        npm_config_store_dir: store,
+        ...(hasCorepack ? { COREPACK_HOME: corepack } : {}),
+      },
+      setup: [
+        {
+          command: "pnpm install --frozen-lockfile --prefer-offline",
+          timeoutSeconds: INSTALL_TIMEOUT_SECONDS,
+        },
+      ],
+      probes: [
+        {
+          name: "pnpm runs from the mounted corepack cache",
+          command: "pnpm --version",
+        },
+        {
+          name: "pnpm uses the mounted store",
+          command:
+            'test "$(dirname "$(pnpm store path)")" = "$npm_config_store_dir"',
+        },
+      ],
+    }
+  },
+})
+
+/**
+ * uv. Its cache and the Pythons it installs are mounted writable, for the
+ * same reason as pnpm's store; uv locks its cache too.
+ */
+export const uv = (): Toolchain => ({
+  name: "uv",
+  contribute: (host) => {
+    const cache = host.output(["uv", "cache", "dir"])
+    const pythons = host.output(["uv", "python", "dir"])
+    return {
+      mounts: [atOwnPath(cache), atOwnPath(pythons)],
+      env: { UV_CACHE_DIR: cache, UV_PYTHON_INSTALL_DIR: pythons },
+      setup: [
+        {
+          command: "uv sync --locked",
+          timeoutSeconds: INSTALL_TIMEOUT_SECONDS,
+        },
+      ],
+      probes: [
+        {
+          name: "uv uses the mounted cache",
+          command: 'test "$(uv cache dir)" = "$UV_CACHE_DIR"',
+        },
+      ],
+    }
+  },
+})
 
 /** Types a project's config. It returns the config unchanged. */
 export const defineFactory = (config: FactoryConfig) => config
@@ -195,6 +354,93 @@ const checkPositive = (section: string, values: Record<string, number>) => {
   }
 }
 
+/** Whether `path` is `inner` or a directory above it. */
+const contains = (path: string, inner: string) => {
+  const rel = relative(resolve(path), resolve(inner))
+  return rel === "" || !rel.startsWith("..")
+}
+
+// What `factory check` proves the sandbox can't see (see SECURITY_STEPS).
+const CREDENTIALS = [".ssh", ".config/gh", ".claude"]
+
+// The sandbox's private home is the factory's: a project's mounts can't
+// show it the real home or the credentials in it.
+const projectMount = (mount: Mount, home: string): ResolvedMount => {
+  if (contains(mount.hostPath, home)) {
+    throw new Error(
+      `mounts: ${mount.hostPath} would show the sandbox your home directory.`
+    )
+  }
+  for (const credential of CREDENTIALS.map((c) => join(home, c))) {
+    if (
+      contains(mount.hostPath, credential) ||
+      contains(credential, mount.hostPath)
+    ) {
+      throw new Error(
+        `mounts: ${mount.hostPath} would show the sandbox your credentials.`
+      )
+    }
+  }
+  return { ...mount, sandboxPath: mount.sandboxPath ?? mount.hostPath }
+}
+
+const checkSlot = (slot: number, maxSlots: number | undefined) => {
+  if (
+    Number.isInteger(slot) &&
+    slot >= 0 &&
+    (maxSlots === undefined || slot <= maxSlots)
+  ) {
+    return
+  }
+  throw new Error(
+    maxSlots === undefined
+      ? `Sandbox slot must be a whole number from 0, got ${slot}.`
+      : `Sandbox slot must be 0 to ${maxSlots}, got ${slot}.`
+  )
+}
+
+/** The sandbox: the toolchains' contributions, then the project's own. */
+const resolveSandbox = (
+  config: FactoryConfig,
+  host: Host,
+  toolchains: readonly { name: string; contribution: Contribution }[]
+): ResolvedSandbox => {
+  // Which toolchain sets each variable. A project's `env` can't repoint
+  // them, nor move the sandbox's private home.
+  const owners = new Map([
+    ["HOME", "the factory"],
+    ...toolchains.flatMap(({ name, contribution }) =>
+      Object.keys(contribution.env).map((key): [string, string] => [
+        key,
+        `the ${name} toolchain`,
+      ])
+    ),
+  ])
+  const toolchainEnv: Env = Object.assign(
+    {},
+    ...toolchains.map((t) => t.contribution.env)
+  )
+  return {
+    mounts: [
+      ...toolchains.flatMap((t) => t.contribution.mounts),
+      ...(config.mounts ?? []).map((m) => projectMount(m, host.home)),
+    ],
+    env: (slot) => {
+      checkSlot(slot, config.maxSlots)
+      const projectEnv = config.env?.(slot) ?? {}
+      for (const key of Object.keys(projectEnv)) {
+        const owner = owners.get(key)
+        if (owner) throw new Error(`env can't set ${key}: ${owner} sets it.`)
+      }
+      return { ...toolchainEnv, ...projectEnv }
+    },
+    setup: [
+      ...toolchains.flatMap((t) => t.contribution.setup),
+      ...(config.setup ?? []),
+    ],
+  }
+}
+
 /** The settings a run uses: `config`, defaults filled in, for `host`. */
 export const resolveFactory = (
   config: FactoryConfig,
@@ -206,23 +452,54 @@ export const resolveFactory = (
     models[role] = { ...DEFAULT_MODELS[role], ...config.models?.[role] }
   }
   const limits = { ...DEFAULT_LIMITS, ...config.limits }
+  const { maxSlots } = config
   const timeouts = { ...DEFAULT_TIMEOUTS, ...config.timeouts }
   const retries = { ...DEFAULT_RETRIES, ...config.retries }
   checkWhole("limits", limits)
   checkPositive("timeouts", timeouts)
   checkWhole("retries", { agentAttempts: retries.agentAttempts })
   checkPositive("retries", { delayMs: retries.delayMs })
+  if (maxSlots !== undefined && (!Number.isInteger(maxSlots) || maxSlots < 1)) {
+    throw new Error(
+      `maxSlots must be a positive whole number, got ${maxSlots}.`
+    )
+  }
+  const toolchains = (config.toolchains ?? []).map((t) => ({
+    name: t.name,
+    contribution: t.contribute(host),
+  }))
   return {
     names: { ...names, baseRef: `origin/${names.baseBranch}` },
     models,
-    limits,
+    limits: { ...limits, parallel: capParallel({ maxSlots }, limits.parallel) },
     timeouts,
     retries,
     checks: validateChecks("checks", config.checks ?? []),
-    probes: validateChecks("probes", config.probes ?? []),
+    probes: validateChecks("probes", [
+      ...toolchains.flatMap((t) => t.contribution.probes),
+      ...(config.probes ?? []),
+    ]),
+    sandbox: resolveSandbox(config, host, toolchains),
+    ...(config.services === undefined
+      ? {}
+      : {
+          services: {
+            composeFile: join(host.repoRoot, ".factory", config.services),
+          },
+        }),
+    ...(maxSlots === undefined ? {} : { maxSlots }),
     logDir: join(host.repoRoot, ".factory", "logs"),
   }
 }
+
+/** `parallel` slots, capped at the project's `maxSlots` if it has one. */
+export const capParallel = (
+  factory: Pick<ResolvedFactory, "maxSlots">,
+  parallel: number
+) =>
+  factory.maxSlots === undefined
+    ? parallel
+    : Math.min(parallel, factory.maxSlots)
 
 /** The configured checks as the agents' prompts list them. */
 export const checksPrompt = (factory: Pick<ResolvedFactory, "checks">) =>

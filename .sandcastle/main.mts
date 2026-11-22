@@ -28,12 +28,13 @@
 // checkout you start it from can be on any branch, with uncommitted work.
 //
 // Where things are:
-//   .factory/factory.config.mts   goods' settings: limits, labels, models
+//   .factory/factory.config.mts   goods' settings: limits, labels, models,
+//                        toolchains, services, its sandbox's variables
 //   shared/factory.mts   the settings' defaults, resolved for a run
 //   shared/              host commands, tickets, CI, retries
 //   workflows/<name>/    one agent each, its code next to its prompt
 //   ticket.mts           one ticket from sandbox to CI result
-//   environment.mts      what a sandbox can see and reach
+//   environment.mts      the sandbox built from the config's declarations
 //   **/*.test.mts        `pnpm test`; `pnpm typecheck` covers it all too
 //
 // Usage:
@@ -44,7 +45,8 @@
 //   pnpm factory --address-pr 187            # only address your review of it
 
 import { parseArgs } from "node:util"
-import { MAX_SLOTS, startServices, stopServices } from "./environment.mts"
+import { startServices, stopServices } from "./environment.mts"
+import { capParallel } from "./shared/factory.mts"
 import { loadFactory } from "./shared/load-factory.mts"
 import {
   conflictingPullRequests,
@@ -83,13 +85,17 @@ const { values: cli } = parseArgs({
 })
 
 const onlyIssues = new Set((cli.issue ?? []).map(Number))
-const parallel = Number(cli.parallel ?? limits.parallel)
-
-if (!Number.isInteger(parallel) || parallel < 1 || parallel > MAX_SLOTS) {
+// `limits.parallel` is already capped at the project's `maxSlots`.
+const asked = Number(cli.parallel ?? limits.parallel)
+if (cli.parallel !== undefined && (!Number.isInteger(asked) || asked < 1)) {
   throw new Error(
-    cli.parallel === undefined
-      ? `limits.parallel in .factory/factory.config.mts must be at most ${MAX_SLOTS}, got ${parallel}.`
-      : `--parallel must be 1 to ${MAX_SLOTS}, got ${cli.parallel}.`
+    `--parallel takes a positive whole number, got ${cli.parallel}.`
+  )
+}
+const parallel = capParallel(factory, asked)
+if (parallel < asked) {
+  console.warn(
+    `--parallel ${asked} is more than the project's maxSlots: running ${parallel} at once.`
   )
 }
 if ([...onlyIssues].some((n) => !Number.isInteger(n) || n < 1)) {
@@ -136,8 +142,8 @@ process.on("SIGINT", () => {
 })
 
 // At most `size` tasks run at once, and each holds a numbered slot, 1 to
-// `size`, while it runs. The slot picks the sandbox's Redis database, so
-// parallel test runs never share one (see environment.mts).
+// `size`, while it runs. The project's `env(slot)` keeps parallel sandboxes
+// apart, such as goods' Redis databases (.factory/factory.config.mts).
 const createSlotPool = (size: number) => {
   const free = Array.from({ length: size }, (_, i) => i + 1)
   const waiting: ((slot: number) => void)[] = []
@@ -296,11 +302,11 @@ const runOne = async () => {
   }
 }
 
-startServices()
+startServices(factory)
 try {
   await runOne()
 } finally {
-  stopServices()
+  stopServices(factory)
 }
 
 console.log("\n=== Summary ===\n")

@@ -178,7 +178,7 @@ const updateBranch = async (
   await using box = await sandcastle.createSandbox({
     branch,
     baseBranch: baseRef,
-    sandbox: sandbox(slot),
+    sandbox: sandbox(factory, slot),
   })
   const worktree = box.worktreePath
   const before = git("-C", worktree, "rev-parse", "HEAD")
@@ -198,7 +198,7 @@ const updateBranch = async (
     // The installs can't read a lockfile with conflict markers in it, so the
     // sandbox is set up on the branch as it was, then the merge runs again.
     git("-C", worktree, "merge", "--abort")
-    await setUpSandbox(box)
+    await setUpSandbox(factory, box)
     const again = mergeBaseRef(baseRef, worktree)
     if (again.length === 0) {
       throw new HostError("The merge conflicted, then didn't after the setup.")

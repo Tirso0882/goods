@@ -5,8 +5,9 @@ import {
   updateFailedComment,
 } from "./pull-requests.mts"
 import { resolveFactory } from "./factory.mts"
+import { fakeHost } from "./fake-host.mts"
 
-const { names } = resolveFactory({}, { repoRoot: "/repo" })
+const { names } = resolveFactory({}, fakeHost())
 
 const answer = (
   number: number,

@@ -3,7 +3,7 @@
 // then runs the config's probes and checks (.factory/factory.config.mts) and
 // the factory's security checks, which always run (shared/factory.mts).
 //
-// Run it after changing `.sandcastle/environment.mts`, the lockfiles or the
+// Run it after changing `.factory/factory.config.mts`, the lockfiles or the
 // toolchain, and before leaving the factory alone:
 //   pnpm factory:check          # everything
 //   pnpm factory:check --quick  # skip what's marked slow
@@ -91,14 +91,14 @@ const checkEnvLeaks = async (
 let failed = 0
 
 try {
-  startServices()
+  startServices(factory)
 
   {
     await using box = await sandcastle.createSandbox({
       branch: BRANCH,
-      sandbox: sandbox(1),
+      sandbox: sandbox(factory, 1),
     })
-    await setUpSandbox(box)
+    await setUpSandbox(factory, box)
     console.log(`\nSandbox ready at ${box.worktreePath}\n`)
 
     for (const check of plan) {
@@ -128,7 +128,7 @@ try {
   } catch {
     // It was never created.
   }
-  stopServices()
+  stopServices(factory)
 }
 
 console.log(
