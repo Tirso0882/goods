@@ -556,7 +556,7 @@ Latency p50 and p95 are reported with them. Every report carries the required me
 
 The reply is plain text, and tool arguments are validated against strict schemas. Evidence is a deterministic check, not something the model reports: every order fact in a reply must appear in a `get_order` result from the same case. The checks are independent of language: tool calls, arguments, order numbers, tracking numbers, and the status through a label map.
 
-Eval cases call the agent core in-process, so the chat route's limits never apply to them. They name orders by seed key and read the order number, email and postcode from a manifest the seed writes, because order numbers change when the database is reset. Reports live in `evals/reports/<date>-<short SHA>/`, as raw JSONL and a Markdown summary, both committed.
+Eval cases call the agent core in-process, so the chat route's limits never apply to them. They name orders by seed key and read the order number, email and postcode from a manifest the seed writes, because order numbers change when the database is reset. Reports live in `evals/reports/<date>-<short SHA>/`, as raw JSONL and a Markdown summary, both committed. Cases live in `evals/cases/`. Claude can read cases and reports but can't write them, so it can't make a case pass by changing the case or the score (the `protect-paths` hook in `.claude/hooks/`).
 
 ## Build order and later experiments
 
