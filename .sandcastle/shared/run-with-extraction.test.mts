@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 import * as sandcastle from "@ai-hero/sandcastle"
 import type { SandboxRunOptions } from "@ai-hero/sandcastle"
 import { z } from "zod"
+import { resolveFactory } from "./factory.mts"
 import { TicketFailure } from "./failures.mts"
 import { readAnswer, runWithExtraction } from "./run-with-extraction.mts"
 
@@ -75,6 +76,7 @@ const extract = (box: ReturnType<typeof fakeBox>["box"]) =>
     maxIterations: 3,
     output,
     extractionPrompt: "Answer in an <answer> tag.",
+    retries: resolveFactory({}, { repoRoot: "/repo" }).retries,
   })
 
 describe("runWithExtraction", () => {

@@ -3,25 +3,31 @@
 
 import * as sandcastle from "@ai-hero/sandcastle"
 import { sandbox } from "../../environment.mts"
-import { BASE_REF, PREFLIGHT, PREFLIGHT_BRANCH } from "../../shared/config.mts"
+import { agentFor } from "../../shared/agents.mts"
+import { type ResolvedFactory, logFile } from "../../shared/factory.mts"
 import { isAuthFailure } from "../../shared/failures.mts"
 import { deleteBranch } from "../../shared/host.mts"
 
-export const preflight = async (signal: AbortSignal) => {
-  deleteBranch(PREFLIGHT_BRANCH)
+export const preflight = async (
+  factory: ResolvedFactory,
+  signal: AbortSignal
+) => {
+  const { names } = factory
+  deleteBranch(names.preflightBranch)
   try {
     await sandcastle.run({
       name: "preflight",
-      agent: PREFLIGHT(),
+      agent: agentFor(factory, "preflight"),
       sandbox: sandbox(0),
       branchStrategy: {
         type: "branch",
-        branch: PREFLIGHT_BRANCH,
-        baseBranch: BASE_REF,
+        branch: names.preflightBranch,
+        baseBranch: names.baseRef,
       },
       prompt: "Reply with the single word OK and do nothing else.",
       maxIterations: 1,
       completionSignal: "OK",
+      logging: logFile(factory.logDir, names.preflightBranch, "preflight"),
       signal,
     })
   } catch (error) {
@@ -32,6 +38,6 @@ export const preflight = async (signal: AbortSignal) => {
       { cause: error }
     )
   } finally {
-    deleteBranch(PREFLIGHT_BRANCH)
+    deleteBranch(names.preflightBranch)
   }
 }

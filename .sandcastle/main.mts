@@ -17,7 +17,8 @@
 //   Publish    A writer drafts the pull request body with the /pr skill. The
 //              host pushes the branch and opens the pull request.
 //   CI         The host waits for the checks on the pushed commit. On a failure
-//              the implementer gets the failing log, up to MAX_CI_FIXES times.
+//              the implementer gets the failing log, up to `limits.maxCiFixes`
+//              times.
 //
 // Nothing merges by itself: you merge the pull requests, and a later run picks
 // up what they unblock. A ticket the factory can't finish is relabelled
@@ -27,7 +28,8 @@
 // checkout you start it from can be on any branch, with uncommitted work.
 //
 // Where things are:
-//   shared/config.mts    every knob: limits, labels, branches, models
+//   .factory/factory.config.mts   goods' settings: limits, labels, models
+//   shared/factory.mts   the settings' defaults, resolved for a run
 //   shared/              host commands, tickets, CI, retries
 //   workflows/<name>/    one agent each, its code next to its prompt
 //   ticket.mts           one ticket from sandbox to CI result
@@ -43,14 +45,7 @@
 
 import { parseArgs } from "node:util"
 import { MAX_SLOTS, startServices, stopServices } from "./environment.mts"
-import {
-  BASE_BRANCH,
-  BASE_REF,
-  DEFAULT_PARALLEL,
-  HUMAN_LABEL,
-  MAX_WAVES,
-  READY_LABEL,
-} from "./shared/config.mts"
+import { loadFactory } from "./shared/load-factory.mts"
 import {
   conflictingPullRequests,
   loadTickets,
@@ -70,6 +65,10 @@ import {
   updatePullRequest,
 } from "./workflows/update-branch/update-branch.mts"
 
+const factory = loadFactory()
+const { names, limits } = factory
+const { baseBranch, baseRef, readyLabel, humanLabel } = names
+
 // ---------------------------------------------------------------------------
 // Command line
 // ---------------------------------------------------------------------------
@@ -84,10 +83,14 @@ const { values: cli } = parseArgs({
 })
 
 const onlyIssues = new Set((cli.issue ?? []).map(Number))
-const parallel = Number(cli.parallel ?? DEFAULT_PARALLEL)
+const parallel = Number(cli.parallel ?? limits.parallel)
 
 if (!Number.isInteger(parallel) || parallel < 1 || parallel > MAX_SLOTS) {
-  throw new Error(`--parallel must be 1 to ${MAX_SLOTS}, got ${cli.parallel}.`)
+  throw new Error(
+    cli.parallel === undefined
+      ? `limits.parallel in .factory/factory.config.mts must be at most ${MAX_SLOTS}, got ${parallel}.`
+      : `--parallel must be 1 to ${MAX_SLOTS}, got ${cli.parallel}.`
+  )
 }
 if ([...onlyIssues].some((n) => !Number.isInteger(n) || n < 1)) {
   throw new Error(`--issue takes issue numbers, got ${cli.issue?.join(", ")}.`)
@@ -172,13 +175,13 @@ const updatePullRequests = (pullRequests: readonly FactoryPullRequest[]) =>
     pullRequests.map((pr) =>
       withSlot(async (slot) => {
         console.log(
-          `  PR #${pr.number}: merging ${BASE_REF} into ${pr.headRefName}`
+          `  PR #${pr.number}: merging ${baseRef} into ${pr.headRefName}`
         )
         updates.set(
           pr.number,
           stop.signal.aborted
             ? { status: "interrupted", reason: "The run stopped first." }
-            : await updatePullRequest(pr, slot, stop)
+            : await updatePullRequest(factory, pr, slot, stop)
         )
       })
     )
@@ -193,7 +196,7 @@ const addressPullRequests = (pullRequests: readonly FactoryPullRequest[]) =>
           pr.number,
           stop.signal.aborted
             ? { status: "interrupted", reason: "The run stopped first." }
-            : await addressPullRequest(pr, slot, stop)
+            : await addressPullRequest(factory, pr, slot, stop)
         )
       })
     )
@@ -201,36 +204,38 @@ const addressPullRequests = (pullRequests: readonly FactoryPullRequest[]) =>
 
 // One pull request you named, whatever GitHub says of it or its labels.
 const onePullRequest = (number: number) => {
-  git("fetch", "--quiet", "origin", BASE_BRANCH)
-  const pr = openFactoryPullRequests().find((p) => p.number === number)
+  git("fetch", "--quiet", "origin", baseBranch)
+  const pr = openFactoryPullRequests(names).find((p) => p.number === number)
   if (pr === undefined) {
     console.warn(`PR #${number} isn't an open factory pull request.`)
   }
   return pr
 }
 
-await preflight(stop.signal)
+await preflight(factory, stop.signal)
 
 const runWaves = async () => {
-  for (let wave = 1; wave <= MAX_WAVES && !stop.signal.aborted; wave++) {
-    console.log(`\n=== Wave ${wave}/${MAX_WAVES} ===\n`)
-    git("fetch", "--quiet", "origin", BASE_BRANCH)
+  for (let wave = 1; wave <= limits.maxWaves && !stop.signal.aborted; wave++) {
+    console.log(`\n=== Wave ${wave}/${limits.maxWaves} ===\n`)
+    git("fetch", "--quiet", "origin", baseBranch)
 
     // A pull request this run couldn't update waits for the next run: it
     // has its comment, or the failure is in this log.
-    const conflicting = (await conflictingPullRequests(stop.signal)).filter(
+    const conflicting = (
+      await conflictingPullRequests(factory, stop.signal)
+    ).filter(
       (pr) => (updates.get(pr.number)?.status ?? "updated") === "updated"
     )
     if (conflicting.length > 0) {
       console.log(
-        `${conflicting.length} pull request(s) conflict with ${BASE_BRANCH}:`
+        `${conflicting.length} pull request(s) conflict with ${baseBranch}:`
       )
       await updatePullRequests(conflicting)
     }
     if (stop.signal.aborted) break
 
     // A pull request is addressed once a run, and not while it conflicts.
-    const sentBack = openFactoryPullRequests(READY_LABEL).filter(
+    const sentBack = openFactoryPullRequests(names, readyLabel).filter(
       (pr) =>
         !reviewOutcomes.has(pr.number) &&
         (updates.get(pr.number)?.status ?? "updated") === "updated"
@@ -241,7 +246,7 @@ const runWaves = async () => {
     }
     if (stop.signal.aborted) break
 
-    const candidates = loadTickets(done, onlyIssues)
+    const candidates = loadTickets(names, done, onlyIssues)
     if (candidates.length === 0) {
       console.log("No open, unblocked tickets. Exiting.")
       break
@@ -251,7 +256,7 @@ const runWaves = async () => {
     const tickets =
       candidates.length <= 1 || onlyIssues.size > 0
         ? candidates
-        : await plan(candidates, stop.signal)
+        : await plan(factory, candidates, stop.signal)
     if (tickets.length === 0) {
       console.log("The planner chose no tickets. Exiting.")
       break
@@ -268,7 +273,7 @@ const runWaves = async () => {
             ticket.number,
             stop.signal.aborted
               ? { status: "interrupted", reason: "The run stopped first." }
-              : await runTicket(ticket, slot, stop)
+              : await runTicket(factory, ticket, slot, stop)
           )
         })
       )
@@ -302,9 +307,7 @@ console.log("\n=== Summary ===\n")
 for (const [number, update] of updates) {
   switch (update.status) {
     case "updated":
-      console.log(
-        `  ↻ PR #${number}: ${BASE_BRANCH} merged in, ${update.merge}`
-      )
+      console.log(`  ↻ PR #${number}: ${baseBranch} merged in, ${update.merge}`)
       break
     case "failed":
       console.log(`  ✗ PR #${number}: not updated, commented: ${update.reason}`)
@@ -331,7 +334,7 @@ for (const [number, address] of reviewOutcomes) {
       break
     case "interrupted":
       console.log(
-        `  … PR #${number}: interrupted, still ${READY_LABEL}: ${address.reason}`
+        `  … PR #${number}: interrupted, still ${readyLabel}: ${address.reason}`
       )
       break
   }
@@ -344,13 +347,11 @@ for (const [number, outcome] of outcomes) {
       )
       break
     case "handed-off":
-      console.log(
-        `  → #${number}: relabelled ${HUMAN_LABEL}: ${outcome.reason}`
-      )
+      console.log(`  → #${number}: relabelled ${humanLabel}: ${outcome.reason}`)
       break
     case "interrupted":
       console.log(
-        `  … #${number}: interrupted, still ${READY_LABEL}: ${outcome.reason}`
+        `  … #${number}: interrupted, still ${readyLabel}: ${outcome.reason}`
       )
       break
   }

@@ -10,12 +10,12 @@ import type { Sandbox } from "@ai-hero/sandcastle"
 import { sandbox, setUpSandbox } from "../../environment.mts"
 import { FEEDBACK_ANSWER, FEEDBACK_PROMPT } from "../../shared/answers.mts"
 import { checksOn } from "../../shared/ci.mts"
+import { agentFor } from "../../shared/agents.mts"
 import {
-  ADDRESS_ITERATIONS,
-  ADDRESS_TIMEOUT_MS,
-  BASE_REF,
-  REVIEW_ADDRESSER,
-} from "../../shared/config.mts"
+  type ResolvedFactory,
+  limitText,
+  logFile,
+} from "../../shared/factory.mts"
 import {
   TicketFailure,
   isApiTrouble,
@@ -52,8 +52,8 @@ import type { Ticket } from "../../shared/tickets.mts"
 import { untilCiPasses } from "../implement/implement.mts"
 
 /** The issue the branch builds, if you wrote it: what the review is about. */
-const readIssue = (branch: string) => {
-  const ticket = ticketForBranch(branch)
+const readIssue = (factory: ResolvedFactory, branch: string) => {
+  const ticket = ticketForBranch(factory.names, branch)
   if (ticket === undefined) {
     throw new TicketFailure(
       "Its branch names no issue the maintainer wrote, so the agent has no spec to weigh the review against."
@@ -63,6 +63,7 @@ const readIssue = (branch: string) => {
 }
 
 const runAddresser = async (
+  factory: ResolvedFactory,
   box: Sandbox,
   pr: FactoryPullRequest,
   ticket: Ticket,
@@ -70,23 +71,26 @@ const runAddresser = async (
   ciFailure: string,
   signal: AbortSignal
 ) => {
+  const name = `review addresser PR #${pr.number}`
   const { output } = await runWithExtraction(box, {
     role: "the review addresser",
-    name: `review addresser PR #${pr.number}`,
-    agent: REVIEW_ADDRESSER(),
+    name,
+    agent: agentFor(factory, "reviewAddresser"),
     promptFile: join(import.meta.dirname, "prompt.md"),
     promptArgs: {
       PR_NUMBER: String(pr.number),
       PR_TITLE: pr.title,
       BRANCH: pr.headRefName,
-      BASE_REF,
+      BASE_REF: factory.names.baseRef,
       ISSUE_NUMBER: String(ticket.number),
       ISSUE: ticket.text,
       FEEDBACK: JSON.stringify(feedback, null, 2),
       CI_FAILURE: ciFailure,
     },
-    maxIterations: ADDRESS_ITERATIONS,
+    maxIterations: factory.limits.addressIterations,
     idleTimeoutSeconds: 1800,
+    logging: logFile(factory.logDir, pr.headRefName, name),
+    retries: factory.retries,
     signal,
     output: FEEDBACK_ANSWER,
     extractionPrompt: FEEDBACK_PROMPT,
@@ -98,25 +102,26 @@ const runAddresser = async (
 type Addressed = { commits: number; replies: number; comments: number }
 
 const addressReview = async (
+  factory: ResolvedFactory,
   pr: FactoryPullRequest,
   slot: number,
   signal: AbortSignal,
   progress: { labelRemoved: boolean }
 ): Promise<Addressed | "nothing to do"> => {
   const branch = pr.headRefName
-  const ticket = readIssue(branch)
+  const ticket = readIssue(factory, branch)
   const { feedback, replyTo } = onHost("Reading the review", () =>
     readFeedback(pr.number)
   )
   fetchBranch(branch)
   // So the agent sees CI's answer for the commit it starts from.
-  const ci = await checksOn(git("rev-parse", branch), signal)
+  const ci = await checksOn(factory.timeouts, git("rev-parse", branch), signal)
   const todo = whatToAddress(feedback, ci)
   if (todo === "nothing actionable") return "nothing to do"
 
   await using box = await sandcastle.createSandbox({
     branch,
-    baseBranch: BASE_REF,
+    baseBranch: factory.names.baseRef,
     sandbox: sandbox(slot),
   })
   await setUpSandbox(box)
@@ -124,6 +129,7 @@ const addressReview = async (
   const before = git("-C", worktree, "rev-parse", "HEAD")
 
   const answer = await runAddresser(
+    factory,
     box,
     pr,
     ticket,
@@ -160,7 +166,7 @@ const addressReview = async (
     }
     for (const c of comments) commentOnPullRequest(pr.number, c.body)
   })
-  onHost("Removing the label", () => removeReadyLabel(pr.number))
+  onHost("Removing the label", () => removeReadyLabel(factory.names, pr.number))
   progress.labelRemoved = true
 
   if (next === "no fix for CI") {
@@ -168,15 +174,19 @@ const addressReview = async (
       "CI fails on the branch, and the agent committed no fix."
     )
   }
-  if (commits > 0) await untilCiPasses(box, ticket, signal)
+  if (commits > 0) await untilCiPasses(factory, box, ticket, signal)
   return { commits, replies: replies.length, comments: comments.length }
 }
 
 /** Why, for the comment: only reasons written here. */
-const publicReason = (error: unknown, deadline: AbortSignal) => {
+const publicReason = (
+  factory: ResolvedFactory,
+  error: unknown,
+  deadline: AbortSignal
+) => {
   if (error instanceof TicketFailure) return error.message
   if (deadline.aborted) {
-    return `It ran past its ${ADDRESS_TIMEOUT_MS / 3_600_000}-hour limit.`
+    return `It ran past its ${limitText(factory.timeouts.addressMs)} limit.`
   }
   return "The factory hit an unexpected error. Its log on the factory host has the details."
 }
@@ -193,20 +203,21 @@ export type AddressOutcome =
  * it's done or failed; an interrupted one keeps it for the next run.
  */
 export const addressPullRequest = async (
+  factory: ResolvedFactory,
   pr: FactoryPullRequest,
   slot: number,
   stop: AbortController
 ): Promise<AddressOutcome> => {
-  const deadline = AbortSignal.timeout(ADDRESS_TIMEOUT_MS)
+  const deadline = AbortSignal.timeout(factory.timeouts.addressMs)
   const signal = AbortSignal.any([stop.signal, deadline])
   const progress = { labelRemoved: false }
   try {
-    const result = await addressReview(pr, slot, signal, progress)
+    const result = await addressReview(factory, pr, slot, signal, progress)
     if (result !== "nothing to do") return { status: "addressed", ...result }
     // The label first: a comment that fails is better than one posted twice.
     onHost("Saying there was nothing to do", () => {
-      removeReadyLabel(pr.number)
-      commentOnPullRequest(pr.number, nothingActionableComment())
+      removeReadyLabel(factory.names, pr.number)
+      commentOnPullRequest(pr.number, nothingActionableComment(factory.names))
     })
     return { status: "nothing to do" }
   } catch (error) {
@@ -227,10 +238,13 @@ export const addressPullRequest = async (
     }
     const reason = interrupted
       ? "The factory stopped before CI finished on its commits."
-      : publicReason(error, deadline)
+      : publicReason(factory, error, deadline)
     try {
-      commentOnPullRequest(pr.number, addressFailedComment(reason))
-      if (!progress.labelRemoved) removeReadyLabel(pr.number)
+      commentOnPullRequest(
+        pr.number,
+        addressFailedComment(factory.names, reason)
+      )
+      if (!progress.labelRemoved) removeReadyLabel(factory.names, pr.number)
     } catch (commentError) {
       console.error(`  Couldn't comment on PR #${pr.number}:`, commentError)
     }

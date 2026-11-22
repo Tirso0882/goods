@@ -1,7 +1,7 @@
 // Keeping the factory's pull requests mergeable. Pure: no git or gh here, so
 // the tests can load it (pull-requests.test.mts).
 
-import { BASE_BRANCH } from "./config.mts"
+import type { ResolvedNames } from "./factory.mts"
 
 /** An open pull request the factory opened, on its own branch in this repo. */
 export type FactoryPullRequest = {
@@ -40,16 +40,17 @@ export const partitionByMergeability = (answers: readonly GhMergeability[]) => {
  * output.
  */
 export const updateFailedComment = (
+  names: ResolvedNames,
   reason: string,
   conflicts: readonly string[]
 ) =>
   [
-    `The Sandcastle factory couldn't bring this pull request up to date with \`${BASE_BRANCH}\`. The branch is unchanged.`,
+    `The Sandcastle factory couldn't bring this pull request up to date with \`${names.baseBranch}\`. The branch is unchanged.`,
     `**Why:** ${reason}`,
     ...(conflicts.length > 0
       ? [
           `**Conflicted files:**\n\n${conflicts.map((f) => `- \`${f}\``).join("\n")}`,
         ]
       : []),
-    `Merge \`${BASE_BRANCH}\` into the branch by hand, or wait: the next factory run tries again.`,
+    `Merge \`${names.baseBranch}\` into the branch by hand, or wait: the next factory run tries again.`,
   ].join("\n\n")

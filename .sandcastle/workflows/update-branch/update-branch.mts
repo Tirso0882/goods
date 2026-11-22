@@ -6,11 +6,13 @@ import { join } from "node:path"
 import * as sandcastle from "@ai-hero/sandcastle"
 import type { Sandbox } from "@ai-hero/sandcastle"
 import { sandbox, setUpSandbox } from "../../environment.mts"
+import { agentFor } from "../../shared/agents.mts"
 import {
-  BASE_REF,
-  BRANCH_UPDATER,
-  UPDATE_TIMEOUT_MS,
-} from "../../shared/config.mts"
+  type ResolvedFactory,
+  type ResolvedNames,
+  limitText,
+  logFile,
+} from "../../shared/factory.mts"
 import {
   DONE_OR_BLOCKED,
   DONE_OR_BLOCKED_PROMPT,
@@ -44,15 +46,15 @@ const conflictedFiles = (worktree: string) =>
     .filter(Boolean)
 
 /** Merge the base into the worktree's branch; the files that conflict. */
-const mergeBaseRef = (worktree: string) => {
+const mergeBaseRef = (baseRef: string, worktree: string) => {
   try {
-    git("-C", worktree, "merge", BASE_REF, "--no-edit")
+    git("-C", worktree, "merge", baseRef, "--no-edit")
     return []
   } catch (error) {
     const conflicts = conflictedFiles(worktree)
     if (conflicts.length > 0) return conflicts
     throw new HostError(
-      `Merging ${BASE_REF} failed without a conflict: ${String(error).split("\n")[0]}`,
+      `Merging ${baseRef} failed without a conflict: ${String(error).split("\n")[0]}`,
       { cause: error }
     )
   }
@@ -88,6 +90,7 @@ const hasConflictMarkers = (worktree: string, files: readonly string[]) => {
 }
 
 const resolveConflicts = async (
+  factory: ResolvedFactory,
   box: Sandbox,
   pr: FactoryPullRequest,
   issue: { number: number; text: string },
@@ -95,23 +98,26 @@ const resolveConflicts = async (
   signal: AbortSignal
 ) => {
   const label = `PR #${pr.number}`
+  const name = `branch updater ${label}`
   const { output } = await runWithExtraction(box, {
     role: "the branch updater",
-    name: `branch updater ${label}`,
-    agent: BRANCH_UPDATER(),
+    name,
+    agent: agentFor(factory, "branchUpdater"),
     promptFile: join(import.meta.dirname, "prompt.md"),
     promptArgs: {
       PR_NUMBER: String(pr.number),
       PR_TITLE: pr.title,
       PR_BODY: pr.body,
       BRANCH: pr.headRefName,
-      BASE_REF,
+      BASE_REF: factory.names.baseRef,
       CONFLICTS: conflicts.map((f) => `- ${f}`).join("\n"),
       ISSUE_NUMBER: String(issue.number),
       ISSUE: issue.text,
     },
     maxIterations: 1,
     idleTimeoutSeconds: 1800,
+    logging: logFile(factory.logDir, pr.headRefName, name),
+    retries: factory.retries,
     signal,
     output: DONE_OR_BLOCKED,
     extractionPrompt: DONE_OR_BLOCKED_PROMPT,
@@ -122,8 +128,8 @@ const resolveConflicts = async (
 }
 
 /** The issue the branch builds, if you wrote it: the agent's spec. */
-const readIssue = (branch: string) => {
-  const ticket = ticketForBranch(branch)
+const readIssue = (names: ResolvedNames, branch: string) => {
+  const ticket = ticketForBranch(names, branch)
   if (ticket === undefined) {
     throw new UpdateFailure(
       "Its branch names no issue the maintainer wrote, so the agent has no spec to resolve the conflicts against."
@@ -134,6 +140,7 @@ const readIssue = (branch: string) => {
 
 /** Its merge goes out only if it's a finished merge of the base. */
 const checkMerge = (
+  baseRef: string,
   worktree: string,
   before: string,
   conflicts: readonly string[]
@@ -145,8 +152,8 @@ const checkMerge = (
   if (conflictedFiles(worktree).length > 0) {
     throw new UpdateFailure("The agent left files unresolved.")
   }
-  if (!isAncestor(BASE_REF, head)) {
-    throw new UpdateFailure(`The agent's commit doesn't merge \`${BASE_REF}\`.`)
+  if (!isAncestor(baseRef, head)) {
+    throw new UpdateFailure(`The agent's commit doesn't merge \`${baseRef}\`.`)
   }
   if (hasConflictMarkers(worktree, conflicts)) {
     throw new UpdateFailure("The agent's commit still has conflict markers.")
@@ -157,22 +164,24 @@ const checkMerge = (
 type HowMerged = "clean" | "resolved" | "already up to date"
 
 const updateBranch = async (
+  factory: ResolvedFactory,
   pr: FactoryPullRequest,
   slot: number,
   signal: AbortSignal,
   progress: { conflicts: readonly string[] }
 ): Promise<HowMerged> => {
   const branch = pr.headRefName
+  const { baseRef } = factory.names
   fetchBranch(branch)
   await using box = await sandcastle.createSandbox({
     branch,
-    baseBranch: BASE_REF,
+    baseBranch: baseRef,
     sandbox: sandbox(slot),
   })
   const worktree = box.worktreePath
   const before = git("-C", worktree, "rev-parse", "HEAD")
   try {
-    const conflicts = mergeBaseRef(worktree)
+    const conflicts = mergeBaseRef(baseRef, worktree)
     if (conflicts.length === 0) {
       if (git("-C", worktree, "rev-parse", "HEAD") === before) {
         return "already up to date"
@@ -182,19 +191,19 @@ const updateBranch = async (
     }
     progress.conflicts = conflicts
 
-    const issue = readIssue(branch)
+    const issue = readIssue(factory.names, branch)
 
     // The installs can't read a lockfile with conflict markers in it, so the
     // sandbox is set up on the branch as it was, then the merge runs again.
     git("-C", worktree, "merge", "--abort")
     await setUpSandbox(box)
-    const again = mergeBaseRef(worktree)
+    const again = mergeBaseRef(baseRef, worktree)
     if (again.length === 0) {
       throw new HostError("The merge conflicted, then didn't after the setup.")
     }
     progress.conflicts = again
-    await resolveConflicts(box, pr, issue, again, signal)
-    checkMerge(worktree, before, again)
+    await resolveConflicts(factory, box, pr, issue, again, signal)
+    checkMerge(baseRef, worktree, before, again)
     push(branch)
     return "resolved"
   } catch (error) {
@@ -209,13 +218,17 @@ const updateBranch = async (
 }
 
 /** Why, for the comment: only reasons written here. */
-const publicReason = (error: unknown, deadline: AbortSignal) => {
+const publicReason = (
+  factory: ResolvedFactory,
+  error: unknown,
+  deadline: AbortSignal
+) => {
   // A TicketFailure is the agent's answer the factory couldn't read.
   if (error instanceof UpdateFailure || error instanceof TicketFailure) {
     return error.message
   }
   if (deadline.aborted) {
-    return `It ran past its ${UPDATE_TIMEOUT_MS / 60_000}-minute limit.`
+    return `It ran past its ${limitText(factory.timeouts.updateMs)} limit.`
   }
   return "The factory hit an unexpected error. Its log on the factory host has the details."
 }
@@ -231,15 +244,16 @@ export type UpdateOutcome =
  * stops it. A pull request it can't update gets a comment saying why.
  */
 export const updatePullRequest = async (
+  factory: ResolvedFactory,
   pr: FactoryPullRequest,
   slot: number,
   stop: AbortController
 ): Promise<UpdateOutcome> => {
-  const deadline = AbortSignal.timeout(UPDATE_TIMEOUT_MS)
+  const deadline = AbortSignal.timeout(factory.timeouts.updateMs)
   const signal = AbortSignal.any([stop.signal, deadline])
   const progress: { conflicts: readonly string[] } = { conflicts: [] }
   try {
-    const merge = await updateBranch(pr, slot, signal, progress)
+    const merge = await updateBranch(factory, pr, slot, signal, progress)
     return { status: "updated", merge }
   } catch (error) {
     console.error(`  ✗ PR #${pr.number} (${pr.headRefName}):`, error)
@@ -257,11 +271,11 @@ export const updatePullRequest = async (
     ) {
       return { status: "interrupted", reason: String(error).split("\n")[0]! }
     }
-    const reason = publicReason(error, deadline)
+    const reason = publicReason(factory, error, deadline)
     try {
       commentOnPullRequest(
         pr.number,
-        updateFailedComment(reason, progress.conflicts)
+        updateFailedComment(factory.names, reason, progress.conflicts)
       )
     } catch (commentError) {
       console.error(`  Couldn't comment on PR #${pr.number}:`, commentError)

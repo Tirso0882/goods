@@ -1,7 +1,7 @@
 // A ticket and what the agents read of it. Pure: no git or gh here, so the
 // tests can load it (tickets.test.mts).
 
-import { BASE_REF, BRANCH_PREFIX } from "./config.mts"
+import type { ResolvedNames } from "./factory.mts"
 
 export type Ticket = {
   number: number
@@ -26,23 +26,24 @@ export type GhParentIssue = {
   user: { login: string }
 }
 
-export const branchFor = (issue: number) => `${BRANCH_PREFIX}${issue}`
+export const branchFor = (names: ResolvedNames, issue: number) =>
+  `${names.branchPrefix}${issue}`
 
 /** The issue a factory branch builds, if its name has one. */
-export const issueFor = (branch: string) => {
-  const digits = branch.startsWith(BRANCH_PREFIX)
-    ? branch.slice(BRANCH_PREFIX.length)
+export const issueFor = (names: ResolvedNames, branch: string) => {
+  const digits = branch.startsWith(names.branchPrefix)
+    ? branch.slice(names.branchPrefix.length)
     : ""
   return /^[1-9]\d*$/.test(digits) ? Number(digits) : undefined
 }
 
 /** The prompt arguments every agent on a ticket gets. */
-export const ticketArgs = (ticket: Ticket) => ({
+export const ticketArgs = (names: ResolvedNames, ticket: Ticket) => ({
   ISSUE_NUMBER: String(ticket.number),
   ISSUE_TITLE: ticket.title,
   ISSUE: ticket.text,
   BRANCH: ticket.branch,
-  BASE_REF,
+  BASE_REF: names.baseRef,
 })
 
 // The repo is public: anyone can comment on an issue, and anyone can open one.
