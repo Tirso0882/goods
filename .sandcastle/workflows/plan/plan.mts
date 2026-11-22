@@ -39,6 +39,8 @@ export const plan = async (
         },
         promptFile: join(import.meta.dirname, "prompt.md"),
         promptArgs: {
+          ...factory.prompts.plan,
+          BASE_REF: names.baseRef,
           ISSUES: tickets.map((t) => t.text).join("\n\n---\n\n"),
           IN_FLIGHT:
             inFlight.length === 0

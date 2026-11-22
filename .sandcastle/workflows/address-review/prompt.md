@@ -58,7 +58,7 @@ Its diff against `{{BASE_REF}}`:
 
 # HOW TO WORK
 
-Read `AGENTS.md`, `GLOSSARY.md` and the ADRs in `docs/adr/` for the areas the feedback touches, before you change anything.
+Read `AGENTS.md` or `CLAUDE.md`, and the glossary and ADRs it points to for the areas the feedback touches, before you change anything.
 
 For each piece of feedback:
 
@@ -71,7 +71,7 @@ Your replies are posted publicly on the pull request, as the factory. Write them
 
 # CHECKS
 
-These are CI's checks. The sandbox has a throwaway Postgres and Redis and the variables CI sets, so all of them run here. If you change code, run every one before your last commit and make sure each passes:
+These are the project's checks. The sandbox is set up to run all of them. If you change code, run every one before your last commit and make sure each passes:
 
 {{CHECKS}}
 
@@ -84,3 +84,5 @@ Add commits on top of the branch: never amend, rebase or reset what's already th
 # DONE
 
 When every piece of feedback is fixed, answered or declined, the CI failure (if any) is fixed, and every check passes, output <promise>COMPLETE</promise>. The host then asks for your replies.
+
+{{INSTRUCTIONS}}

@@ -70,11 +70,11 @@ const CRITERION_STATUS: Record<
 
 export const REVIEW_PROMPT = `Answer the host with your report as JSON in a <review> tag, and nothing else. The PR writer writes the pull request from it.
 
-- \`criteria\`: every acceptance criterion of the issue, as the issue words it, with its \`status\`: "met", "not-verifiable" (it needs Docker, the Compose stack, a browser or a model) or "missing". For a met criterion, \`test\` names the test that proves it.
+- \`criteria\`: every acceptance criterion of the issue, as the issue words it, with its \`status\`: "met", "not-verifiable" (it needs Docker, a browser, a model or a service the project doesn't start for the sandbox) or "missing". For a met criterion, \`test\` names the test that proves it.
 - \`changes\`: what you changed on the branch, and why, one line each.
 - \`notes\`: anything a person should look at, one line each.
 
-<review>{"criteria": [{"criterion": "A turn stores both messages", "status": "met", "test": "test_a_turn_stores_both_messages"}, {"criterion": "Checked by hand in the Compose stack", "status": "not-verifiable"}], "changes": ["Renamed user to shopper in the route, per the glossary."], "notes": []}</review>`
+<review>{"criteria": [{"criterion": "An order stores its total", "status": "met", "test": "test_an_order_stores_its_total"}, {"criterion": "Checked by hand in the running app", "status": "not-verifiable"}], "changes": ["Renamed data to invoice in the route, per the glossary."], "notes": []}</review>`
 
 const bullets = (lines: readonly string[]) =>
   lines.length === 0 ? "- None." : lines.map((line) => `- ${line}`).join("\n")
@@ -122,7 +122,7 @@ const FOOTER =
  * The pull request the host opens for issue `issue`: the writer's title on one
  * line, and its body with a closing line for the issue and the factory's
  * footer. A title that isn't a conventional commit is the host's to warn of:
- * release-please reads the squash commit.
+ * release tooling may read it.
  */
 export const finishPullRequest = (issue: number, draft: PullRequestDraft) => {
   const title = draft.title.trim().split("\n")[0] ?? ""
@@ -160,4 +160,4 @@ export const FEEDBACK_PROMPT = `Answer the host with JSON in an <answer> tag, an
 
 Use empty lists when you have nothing to say.
 
-<answer>{"threadReplies": [{"commentId": "PRRC_kwDOexample", "body": "Renamed to \`shopper\` in 1a2b3c4."}], "topLevelComments": [{"body": "Kept the retry: ADR 0009 routes every model call through the proxy, which already retries."}]}</answer>`
+<answer>{"threadReplies": [{"commentId": "PRRC_kwDOexample", "body": "Renamed to \`invoice\` in 1a2b3c4."}], "topLevelComments": [{"body": "Kept the retry: ADR 0004 says every call to the payment service retries once."}]}</answer>`
