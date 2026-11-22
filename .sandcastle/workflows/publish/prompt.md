@@ -53,13 +53,15 @@ Closes #{{ISSUE_NUMBER}}
 ```
 
 - Take the **Not verified** list from the `Not verified:` lines in the commit bodies and from the reviewer's report. Leave the section out only if every criterion was verified.
-- Use the domain language of `GLOSSARY.md`.
+- Use the repo's domain language: the glossary `AGENTS.md` or `CLAUDE.md` points to, if there is one.
 - Keep it short. The maintainer reads the diff too.
 
 # THE TITLE
 
-One line in Conventional Commits, for the squash commit that release-please reads: `type(scope): subject`. Same types and scopes as the commits above, plain words, lowercase, no full stop, no issue number (GitHub adds the pull request's).
+One line in Conventional Commits, for the squash commit: `type(scope): subject`. Same types and scopes as the commits above, plain words, lowercase, no full stop, no issue number (GitHub adds the pull request's).
 
 # OUTPUT
 
 Don't write the pull request to a file. When you have the title and the body, output <promise>COMPLETE</promise>. The host then asks you for them, and opens the pull request with them.
+
+{{INSTRUCTIONS}}

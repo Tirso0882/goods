@@ -2,7 +2,7 @@
 // host (see factory.mts).
 
 import { execFileSync } from "node:child_process"
-import { existsSync, realpathSync } from "node:fs"
+import { existsSync, readFileSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import config from "../../.factory/factory.config.mts"
@@ -15,6 +15,7 @@ const realHost = (): Host => ({
   env: process.env,
   exists: existsSync,
   realPath: realpathSync,
+  read: (path) => readFileSync(path, "utf8"),
   output: ([command, ...args]) =>
     execFileSync(command, args, { encoding: "utf8" }).trim(),
 })

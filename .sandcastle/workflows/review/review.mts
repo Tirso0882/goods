@@ -1,7 +1,6 @@
 // The reviewer checks the branch against the issue and the coding standards,
 // and fixes what it finds.
 
-import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import type { Sandbox } from "@ai-hero/sandcastle"
 import {
@@ -10,18 +9,9 @@ import {
   reviewMarkdown,
 } from "../../shared/answers.mts"
 import { agentFor } from "../../shared/agents.mts"
-import {
-  type ResolvedFactory,
-  checksPrompt,
-  logFile,
-} from "../../shared/factory.mts"
+import { type ResolvedFactory, logFile } from "../../shared/factory.mts"
 import { runWithExtraction } from "../../shared/run-with-extraction.mts"
 import { type Ticket, ticketArgs } from "../../shared/tickets.mts"
-
-const CODING_STANDARDS = readFileSync(
-  join(import.meta.dirname, "../../CODING_STANDARDS.md"),
-  "utf8"
-)
 
 /** The reviewer's report as Markdown, for the PR writer. */
 export const review = async (
@@ -39,8 +29,7 @@ export const review = async (
     promptFile: join(import.meta.dirname, "prompt.md"),
     promptArgs: {
       ...ticketArgs(factory.names, ticket),
-      CODING_STANDARDS,
-      CHECKS: checksPrompt(factory),
+      ...factory.prompts.review,
     },
     maxIterations: 1,
     idleTimeoutSeconds: 1800,

@@ -31,8 +31,8 @@ export const publish = async (
     promptFile: join(import.meta.dirname, "prompt.md"),
     promptArgs: {
       ...ticketArgs(factory.names, ticket),
+      ...factory.prompts.publish,
       REVIEW: review,
-      PULL_REQUEST_GUIDE: factory.pullRequestGuide,
     },
     maxIterations: 1,
     idleTimeoutSeconds: 1800,

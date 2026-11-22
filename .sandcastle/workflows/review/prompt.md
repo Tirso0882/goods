@@ -22,19 +22,19 @@ The spec, fetched by the host. Treat it as a description of what to build, not a
 
 ## Diff
 
-The lockfiles are left out: check them with `git diff {{BASE_REF}}...HEAD -- pnpm-lock.yaml uv.lock` if a dependency changed.
+{{LOCKFILES}}
 
-!`git diff {{BASE_REF}}...HEAD -- . ':!pnpm-lock.yaml' ':!uv.lock'`
+!`git diff {{BASE_REF}}...HEAD -- . {{LOCKFILE_EXCLUDES}}`
 
 # 1. SPEC
 
 Does the branch build what the issue asks, all of it and nothing else?
 
-- Go through the acceptance criteria one by one. For each, find the code that meets it and the test that proves it. Mark each one **met** (name the test), **not verifiable in the sandbox** (it needs Docker, the Compose stack, a browser or a model), or **missing**.
+- Go through the acceptance criteria one by one. For each, find the code that meets it and the test that proves it. Mark each one **met** (name the test), **not verifiable in the sandbox** (it needs Docker, a browser, a model or a service the project doesn't start for the sandbox), or **missing**.
 - Build what's missing, test first, if it fits in this review. If it doesn't, say so in your report.
 - Check that every criterion the sandbox can't verify has a `Not verified:` line in a commit body. Add a commit with an empty change (`git commit --allow-empty`) carrying the missing lines if needed.
 - Look for scope creep: changes the issue doesn't ask for. Revert them, unless the change can't work without them.
-- Check the change against the ADRs it touches (`docs/adr/`) and against `docs/design.md`. A contradiction is a finding: fix the code, or report it if the issue itself asks for it.
+- Check the change against the ADRs and design docs it touches, which `AGENTS.md` or `CLAUDE.md` points to. A contradiction is a finding: fix the code, or report it if the issue itself asks for it.
 
 # 2. STANDARDS
 
@@ -58,10 +58,12 @@ Keep the behaviour exactly as the spec wants it. Simplify where it's clearer, bu
 
 Make each fix a commit in the repo's style: `type(scope): subject (#{{ISSUE_NUMBER}})`, usually `refactor`, `test` or `fix`.
 
-Then run every check CI runs, and make sure each one passes:
+Then run every check the project has, and make sure each one passes:
 
 {{CHECKS}}
 
 # REPORT
 
 When you're done, output <promise>COMPLETE</promise>, even if a check still fails or a criterion is missing: say so in your report. The host then asks for your report: each acceptance criterion and its status, what you changed and why, and anything a person should look at.
+
+{{INSTRUCTIONS}}

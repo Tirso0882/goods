@@ -30,11 +30,8 @@ If there is a failure above, a previous attempt pushed this branch and CI failed
 
 Read before you change anything:
 
-- `AGENTS.md`: how agents work in this repo, and the pointers to the issue tracker, triage labels and domain docs.
-- `GLOSSARY.md`: the domain language. Name things with its terms, in code, tests and commit messages, and avoid the synonyms it lists under _Avoid_.
-- `docs/adr/`: the decisions. Read the ADRs for the area you touch. If your change would contradict one, stop and say so (see BLOCKED below) rather than override it.
-- `docs/design.md`: the support agent's design, for anything in `apps/agent`, `packages/agent-core`, `evals` or the support routes.
-- `docs/runbooks/` and `docs/architecture/`: how the store runs locally.
+- `AGENTS.md` or `CLAUDE.md`: how agents work in this repo: where the tests live, how commits are scoped, which changes need a build, and the docs to read for each area.
+- The domain docs it points to, such as a glossary and the ADRs. Name things with the glossary's terms, in code, tests and commit messages. If your change would contradict an ADR, stop and say so (see BLOCKED below) rather than override it.
 
 The work so far on this branch:
 
@@ -56,29 +53,29 @@ Build it in vertical slices, test first (red, green, refactor):
 2. GREEN: write the least code that passes it.
 3. Repeat for the next behaviour, then refactor with the tests green.
 
-Test behaviour through public interfaces, not implementation details. Look at the existing tests for the shape: `packages/agent-core/tests/`, `apps/agent/tests/`, `apps/backend/integration-tests/http/` and the `__tests__` folders.
+Test behaviour through public interfaces, not implementation details. Look at the existing tests next to the code for the shape.
 
 # CHECKS
 
-These are CI's checks (`.github/workflows/ci.yml`). The sandbox has a throwaway Postgres and Redis and the variables CI sets, so all of them run here.
+These are the project's checks. The sandbox is set up to run all of them.
 
-While you work, run the narrowest check that covers your change, for example `pnpm turbo test --filter=@dtc/backend` or `uv run pytest packages/agent-core`. Before your last commit, run every check and make sure each one passes:
+While you work, run the narrowest check that covers your change, such as one package's tests. Before your last commit, run every check and make sure each one passes:
 
 {{CHECKS}}
 
-Also run `pnpm build` if you change build configuration, `next.config.js`, `medusa-config.ts` or a package's exports. CI's `backup` job and `infra/postgres/test.sh` need Docker, which the sandbox doesn't have: leave those to CI.
+If `AGENTS.md` or `CLAUDE.md` names other commands for the kind of change you made, such as a build, run them too. Leave to CI what needs Docker, which the sandbox doesn't have.
 
 Never weaken a check to make it pass: no skipped tests, no `eslint-disable`, `# type: ignore` or `# noqa` without a comment saying why it's right.
 
 # WHAT YOU CAN'T VERIFY HERE
 
-The sandbox has no Docker, no Compose stack, no browser and no model. An acceptance criterion that needs one of them, such as "checked by hand in the Compose stack", can't be verified here. Don't claim it, and don't fake it. Build what it needs, test what you can, and add a `Not verified:` line for each such criterion to the body of your last commit. The pull request will list them for a person to check.
+The sandbox has no Docker, no browser and no model, and only the services the project starts for it. An acceptance criterion that needs something else, such as "checked by hand in the running app", can't be verified here. Don't claim it, and don't fake it. Build what it needs, test what you can, and add a `Not verified:` line for each such criterion to the body of your last commit. The pull request will list them for a person to check.
 
 # COMMITS
 
 Commit as you go, in Conventional Commits, the way the history above reads:
 
-- `type(scope): subject (#{{ISSUE_NUMBER}})`. The type is `feat`, `fix`, `test`, `refactor`, `docs`, `ci` or `chore`. The scope is the area: `backend`, `storefront`, `agent`, `agent-core`, `evals`, `contracts`, `compose`, `seed`, `scripts`, or the docs folder for `docs`.
+- `type(scope): subject (#{{ISSUE_NUMBER}})`. The type is `feat`, `fix`, `test`, `refactor`, `docs`, `ci` or `chore`. The scope is the area you changed, named as `AGENTS.md` or `CLAUDE.md` and the history above name it.
 - The subject says what changes for the reader, in plain words, lowercase, with no full stop.
 - One logical change per commit. Split by type as the history does: a `feat` commit for the behaviour, a `test` commit for tests that stand on their own, a `docs` commit for docs.
 - The body, when there is one, says why, not what.
@@ -92,3 +89,5 @@ When you finish, the host asks whether you're done or blocked. If you're blocked
 # DONE
 
 When every behaviour the issue asks for is built, committed and passing every check, output <promise>COMPLETE</promise>.
+
+{{INSTRUCTIONS}}

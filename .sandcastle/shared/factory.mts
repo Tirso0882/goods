@@ -21,6 +21,18 @@ const ROLES = [
   "preflight",
 ] as const
 
+const WORKFLOWS = [
+  "plan",
+  "implement",
+  "review",
+  "addressReview",
+  "updateBranch",
+  "publish",
+] as const
+
+/** A step of the run with its own prompt. */
+export type Workflow = (typeof WORKFLOWS)[number]
+
 /** An agent the factory runs, each with its own model and effort. */
 export type Role = (typeof ROLES)[number]
 
@@ -104,6 +116,20 @@ export type Contribution = {
   env: Env
   setup: readonly SetupStep[]
   probes: readonly Check[]
+  /** The lockfiles it installs from. */
+  lockfiles?: readonly Lockfile[]
+}
+
+/** A lockfile a toolchain installs from, and how to remake it. */
+export type Lockfile = {
+  /** Its path from the repo's root. */
+  path: string
+  /** The file it locks, which a merge resolves first. */
+  manifest: string
+  /** Rewrites it from the manifest. */
+  regenerate: string
+  /** Installs from it, refusing to change it. */
+  install: string
 }
 
 /** A preset for one toolchain, such as `pnpm()` or `uv()`. */
@@ -146,6 +172,12 @@ export type FactoryConfig = {
    *  is mounted read-only and linked into the sandbox's home. The PR writer
    *  uses `pr` when it's listed, and the factory's own template when not. */
   skills?: readonly string[]
+  /** The project's coding standards, a file in `.factory/`. The reviewer
+   *  holds each branch to it. */
+  standards?: string
+  /** Guidance appended to a workflow's prompt. The factory's prompt stays:
+   *  no project can replace it. */
+  instructions?: Partial<Record<Workflow, string>>
 }
 
 /** Facts about the machine and checkout the factory runs on. */
@@ -162,6 +194,8 @@ export type Host = {
   realPath: (path: string) => string
   /** What a command prints, trimmed. It throws if the command fails. */
   output: (command: readonly [string, ...string[]]) => string
+  /** A text file's contents. It throws if the file can't be read. */
+  read: (path: string) => string
 }
 
 /** What every sandbox gets. */
@@ -174,6 +208,22 @@ export type ResolvedSandbox = {
 }
 
 export type ResolvedNames = Names & { baseRef: string }
+
+/** The project's text in each workflow's prompt, by placeholder. */
+export type ResolvedPrompts = {
+  plan: { INSTRUCTIONS: string }
+  implement: { INSTRUCTIONS: string; CHECKS: string }
+  review: {
+    INSTRUCTIONS: string
+    CHECKS: string
+    CODING_STANDARDS: string
+    LOCKFILES: string
+    LOCKFILE_EXCLUDES: string
+  }
+  addressReview: { INSTRUCTIONS: string; CHECKS: string }
+  updateBranch: { INSTRUCTIONS: string; CHECKS: string; LOCKFILES: string }
+  publish: { INSTRUCTIONS: string; PULL_REQUEST_GUIDE: string }
+}
 
 /** Everything a run uses, defaults applied. */
 export type ResolvedFactory = {
@@ -189,9 +239,8 @@ export type ResolvedFactory = {
   services?: { composeFile: string }
   /** The highest slot a sandbox may take, if the project limits it. */
   maxSlots?: number
-  /** How the PR writer shapes the body: the `pr` skill when the project
-   *  lists it, the factory's own template when not. */
-  pullRequestGuide: string
+  /** The project's text for each workflow's prompt, as its prompt args. */
+  prompts: ResolvedPrompts
   /** Where each agent's log goes. */
   logDir: string
 }
@@ -209,6 +258,20 @@ const atOwnPath = (hostPath: string, readonly?: true): ResolvedMount =>
 // mount), so nothing an agent edits in its worktree reaches them. The
 // lockfiles are the contract: an install that would change one fails.
 const INSTALL_TIMEOUT_SECONDS = 600
+
+const PNPM_LOCKFILE: Lockfile = {
+  path: "pnpm-lock.yaml",
+  manifest: "package.json",
+  regenerate: "pnpm install --prefer-offline",
+  install: "pnpm install --frozen-lockfile --prefer-offline",
+}
+
+const UV_LOCKFILE: Lockfile = {
+  path: "uv.lock",
+  manifest: "pyproject.toml",
+  regenerate: "uv lock",
+  install: "uv sync --locked",
+}
 
 /**
  * pnpm, run through corepack. The store is mounted writable, because an agent
@@ -236,10 +299,11 @@ export const pnpm = (): Toolchain => ({
       },
       setup: [
         {
-          command: "pnpm install --frozen-lockfile --prefer-offline",
+          command: PNPM_LOCKFILE.install,
           timeoutSeconds: INSTALL_TIMEOUT_SECONDS,
         },
       ],
+      lockfiles: [PNPM_LOCKFILE],
       probes: [
         {
           name: "pnpm runs from the mounted corepack cache",
@@ -269,10 +333,11 @@ export const uv = (): Toolchain => ({
       env: { UV_CACHE_DIR: cache, UV_PYTHON_INSTALL_DIR: pythons },
       setup: [
         {
-          command: "uv sync --locked",
+          command: UV_LOCKFILE.install,
           timeoutSeconds: INSTALL_TIMEOUT_SECONDS,
         },
       ],
+      lockfiles: [UV_LOCKFILE],
       probes: [
         {
           name: "uv uses the mounted cache",
@@ -532,6 +597,98 @@ const resolveSandbox = (
   }
 }
 
+const NO_STANDARDS =
+  "The project has no coding standards file. Hold the diff to the conventions of the code around it, and to what `AGENTS.md` or `CLAUDE.md` says."
+
+/** The project's standards file in `.factory/`, for the reviewer. */
+const readStandards = (file: string | undefined, host: Host) => {
+  if (file === undefined) return NO_STANDARDS
+  const path = join(host.repoRoot, ".factory", file)
+  try {
+    return host.read(path)
+  } catch (error) {
+    throw new Error(`standards: can't read ${path}.`, { cause: error })
+  }
+}
+
+/** A workflow's instructions as the end of its prompt, or nothing. */
+const instructionsText = (text: string | undefined) =>
+  text?.trim()
+    ? [
+        "# THIS PROJECT",
+        "",
+        "The project adds this guidance for this step. Where it conflicts with the rules above, the rules above win.",
+        "",
+        text.trim(),
+      ].join("\n")
+    : ""
+
+const code = (text: string) => `\`${text}\``
+
+/** How the reviewer reads the lockfiles it leaves out of the diff. */
+const reviewLockfiles = (lockfiles: readonly Lockfile[], baseRef: string) =>
+  lockfiles.length === 0
+    ? ""
+    : `The lockfiles are left out: check them with \`git diff ${baseRef}...HEAD -- ${lockfiles.map((l) => l.path).join(" ")}\` if a dependency changed.`
+
+/** How the branch updater resolves a conflicting lockfile. */
+const mergeLockfiles = (lockfiles: readonly Lockfile[], baseRef: string) =>
+  lockfiles.length === 0
+    ? ""
+    : [
+        `Don't merge a lockfile's hunks by hand. Resolve the file it locks first, take \`${baseRef}\`'s lockfile (\`git checkout --theirs <lockfile>\`), then regenerate it:`,
+        "",
+        ...lockfiles.map(
+          (l) =>
+            `- ${code(l.path)}: resolve ${code(l.manifest)}, then run ${code(l.regenerate)}`
+        ),
+        "",
+        "The sandbox was installed from the branch before the merge. If a lockfile changed, install from it again before the checks:",
+        "",
+        ...lockfiles.map((l) => `- ${code(l.path)}: ${code(l.install)}`),
+      ].join("\n")
+
+const resolvePrompts = (
+  config: FactoryConfig,
+  host: Host,
+  baseRef: string,
+  lockfiles: readonly Lockfile[],
+  checks: readonly Check[],
+  pullRequestGuide: string
+): ResolvedPrompts => {
+  const instructions = config.instructions ?? {}
+  for (const key of Object.keys(instructions)) {
+    if (!(WORKFLOWS as readonly string[]).includes(key)) {
+      throw new Error(`instructions: the factory has no "${key}" workflow.`)
+    }
+  }
+  const forWorkflow = (workflow: Workflow) => ({
+    INSTRUCTIONS: instructionsText(instructions[workflow]),
+  })
+  const CHECKS = checksPrompt({ checks })
+  return {
+    plan: forWorkflow("plan"),
+    implement: { ...forWorkflow("implement"), CHECKS },
+    review: {
+      ...forWorkflow("review"),
+      CHECKS,
+      CODING_STANDARDS: readStandards(config.standards, host),
+      LOCKFILES: reviewLockfiles(lockfiles, baseRef),
+      LOCKFILE_EXCLUDES: lockfiles.map((l) => `':!${l.path}'`).join(" "),
+    },
+    addressReview: { ...forWorkflow("addressReview"), CHECKS },
+    updateBranch: {
+      ...forWorkflow("updateBranch"),
+      CHECKS,
+      LOCKFILES: mergeLockfiles(lockfiles, baseRef),
+    },
+    publish: {
+      ...forWorkflow("publish"),
+      PULL_REQUEST_GUIDE: pullRequestGuide,
+    },
+  }
+}
+
 /** The settings a run uses: `config`, defaults filled in, for `host`. */
 export const resolveFactory = (
   config: FactoryConfig,
@@ -566,13 +723,18 @@ export const resolveFactory = (
       contribution: skillContribution(name, host),
     })),
   ]
+  const baseRef = `origin/${names.baseBranch}`
+  const checks = validateChecks("checks", config.checks ?? [])
+  const pullRequestGuide = config.skills?.includes("pr")
+    ? PR_SKILL_GUIDE
+    : BUILT_IN_PR_GUIDE
   return {
-    names: { ...names, baseRef: `origin/${names.baseBranch}` },
+    names: { ...names, baseRef },
     models,
     limits: { ...limits, parallel: capParallel({ maxSlots }, limits.parallel) },
     timeouts,
     retries,
-    checks: validateChecks("checks", config.checks ?? []),
+    checks,
     probes: validateChecks("probes", [
       ...sources.flatMap((t) => t.contribution.probes),
       ...(config.probes ?? []),
@@ -586,9 +748,14 @@ export const resolveFactory = (
           },
         }),
     ...(maxSlots === undefined ? {} : { maxSlots }),
-    pullRequestGuide: config.skills?.includes("pr")
-      ? PR_SKILL_GUIDE
-      : BUILT_IN_PR_GUIDE,
+    prompts: resolvePrompts(
+      config,
+      host,
+      baseRef,
+      sources.flatMap((s) => s.contribution.lockfiles ?? []),
+      checks,
+      pullRequestGuide
+    ),
     logDir: join(host.repoRoot, ".factory", "logs"),
   }
 }
