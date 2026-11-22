@@ -89,7 +89,7 @@ describe("ticketArgs", () => {
       ISSUE_NUMBER: "42",
       ISSUE_TITLE: "Show the order's status",
       ISSUE: "# #42: …",
-      BRANCH: "sandcastle/issue-42",
+      BRANCH: "factory/issue-42",
       BASE_REF: "origin/main",
     })
   })
@@ -103,10 +103,10 @@ describe("issueFor", () => {
   it("finds none in a branch the factory didn't name", () => {
     for (const branch of [
       "main",
-      "sandcastle/issue-",
-      "sandcastle/issue-1e2",
-      "sandcastle/issue-12-fix",
-      "sandcastle/planner",
+      "factory/issue-",
+      "factory/issue-1e2",
+      "factory/issue-12-fix",
+      "factory/planner",
     ]) {
       assert.equal(issueFor(branch), undefined, branch)
     }

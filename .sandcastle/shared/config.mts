@@ -37,10 +37,10 @@ export const BASE_BRANCH = "main"
 export const BASE_REF = `origin/${BASE_BRANCH}`
 export const READY_LABEL = "ready-for-agent"
 export const HUMAN_LABEL = "ready-for-human"
-export const PR_LABEL = "Sandcastle"
-export const BRANCH_PREFIX = "sandcastle/issue-"
-export const PLANNER_BRANCH = "sandcastle/planner"
-export const PREFLIGHT_BRANCH = "sandcastle/preflight"
+export const PR_LABEL = "factory"
+export const BRANCH_PREFIX = "factory/issue-"
+export const PLANNER_BRANCH = "factory/planner"
+export const PREFLIGHT_BRANCH = "factory/preflight"
 
 export const PLANNER = () =>
   sandcastle.claudeCode("claude-opus-5-5", { effort: "high" })

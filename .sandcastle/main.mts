@@ -11,7 +11,7 @@
 //   Plan       The host lists the open `ready-for-agent` issues you wrote and
 //              drops any with an open blocker or an open factory pull request.
 //              A planner picks the ones that can be built side by side.
-//   Implement  Each issue gets a bwrap sandbox on `sandcastle/issue-<n>`,
+//   Implement  Each issue gets a bwrap sandbox on `factory/issue-<n>`,
 //              branched from origin/main. The implementer builds it and the
 //              reviewer checks it against the coding standards and the issue.
 //   Publish    A writer drafts the pull request body with the /pr skill. The

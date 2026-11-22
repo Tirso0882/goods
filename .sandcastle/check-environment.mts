@@ -33,7 +33,7 @@ import {
 // sandbox here wouldn't get the variables an agent's does.
 process.chdir(join(import.meta.dirname, ".."))
 
-const BRANCH = "sandcastle/environment-check"
+const BRANCH = "factory/environment-check"
 const quick = process.argv.includes("--quick")
 
 const envFile = (path: string) =>
