@@ -127,7 +127,9 @@ Declines, 3D Secure, bad or repeated webhooks and refunds are recorded in [docs/
 pnpm test
 ```
 
-Needs the Postgres and Redis containers running. The backend tests check the catalog fixture, then run the migration scripts and the jewelry seed twice on a throwaway database (Redis database 1). They assert the product and variant counts, PLN prices, stock and Poland setup, the synthetic customers and the order count in each state, and that the second run changes nothing.
+Before every commit, a pre-commit hook runs `pnpm verify` ([scripts/verify.sh](scripts/verify.sh)): the checks CI runs except `build` and the Docker-only tests. It checks and never fixes. When Postgres or Redis isn't reachable on localhost, it skips the backend integration and storefront tests, says so, and leaves them to CI. `pnpm install` sets the hook up.
+
+`pnpm test` needs the Postgres and Redis containers running. The backend tests check the catalog fixture, then run the migration scripts and the jewelry seed twice on a throwaway database (Redis database 1). They assert the product and variant counts, PLN prices, stock and Poland setup, the synthetic customers and the order count in each state, and that the second run changes nothing.
 
 ## Synthetic customers and orders
 
