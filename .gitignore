@@ -244,9 +244,10 @@ sandcastle/
 # Folders
 /.agents/
 docs/personal-docs
-# Claude Code: share the project settings (Medusa plugins), keep the rest local.
+# Claude Code: share the project settings (Medusa plugins) and hooks, keep the rest local.
 /.claude/*
 !/.claude/settings.json
+!/.claude/hooks/
 
 # Next.js and TypeScript build output
 .next/
