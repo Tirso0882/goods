@@ -238,6 +238,9 @@ __marimo__/
 *.temp
 *.swp
 
+# Projects
+sandcastle/
+
 # Folders
 /.agents/
 docs/personal-docs

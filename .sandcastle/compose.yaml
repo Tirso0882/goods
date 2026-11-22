@@ -1,0 +1,38 @@
+# Throwaway Postgres and Redis for the factory's test runs. Nothing is kept:
+# the data lives in memory and goes when the containers stop.
+#
+# The ports are bound to localhost and differ from the store's, so this stack
+# never collides with `compose.yaml` or a database you run yourself.
+# `.sandcastle/environment.mts` starts and stops it, and holds the same ports.
+#
+# Same images as compose.yaml. Dependabot only bumps them there, so copy each
+# new tag and digest here in the same pull request.
+name: goods-factory
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg17-bookworm@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:55432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      # Over TCP: during initdb, Postgres answers only on its socket.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:8.10.2-alpine3.23@sha256:9f8d2d789b9a1d1e3f283f979aa9cbf393373806472e1ccd460e2f9c869b833b
+    # No persistence: a test run never needs yesterday's keys.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:56379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30

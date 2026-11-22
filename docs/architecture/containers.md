@@ -61,13 +61,15 @@ On Linux, add `--add-host=host.docker.internal:host-gateway` to each `docker run
 | Migrate (one-off) | backend, `./node_modules/.bin/medusa db:migrate` | none | exit code 0 | none | `DATABASE_URL`, `REDIS_URL`, plus the CORS and JWT/cookie values the config reads |
 | Seed (one-off) | backend, `./node_modules/.bin/medusa exec ./src/scripts/seed-jewelry.js` | none | exit code 0 | none | as migrate, plus `STRIPE_API_KEY` to enable Stripe in the region |
 | Storefront | storefront, `node --require ./apps/storefront/client-ip.cjs apps/storefront/server.js` | 8000, published | `GET /api/health` returns `OK` | none (`.next/cache` is disposable) | `MEDUSA_PUBLISHABLE_KEY` (public by design), `MEDUSA_BACKEND_URL`, `PUBLIC_MEDUSA_BACKEND_URL`, `PUBLIC_BASE_URL`, `PUBLIC_STRIPE_KEY` (public) |
-| Agent | agent, `python -m agent_service` | 8080, internal only | `GET /health/ready` returns 200 (the agent database answers `select 1`) | none | `AGENT_DATABASE_URL` (the `agent` role's password is in it) |
+| Agent | agent, `python -m agent_service` | 8080, internal only | `GET /health/ready` returns 200 (the agent database answers `select 1`, and the model proxy's readiness answers 200) | none | `AGENT_DATABASE_URL` (the `agent` role's password is in it), `AGENT_PROXY_KEY` (its virtual key on the proxy, nothing more), `AGENT_MODEL=proxy`, `AGENT_PROXY_URL` |
+| Model proxy | `ghcr.io/berriai/litellm:v1.110.1`, `--config /etc/litellm/config.yaml` (`infra/litellm/config.yaml`) | 4000, internal only | `GET /health/readiness` returns 200 (its database answers) | none: its state is in the `litellm` database | `DATABASE_URL` (the `litellm` role's password is in it), `LITELLM_MASTER_KEY`, `LITELLM_SALT_KEY` (recovery material, never rotated casually), `LITELLM_LOCAL_MODEL` |
+| Model proxy key setup (one-off) | the proxy's image, `python3 infra/litellm/setup_keys.py` | none | exit code 0 | none | `LITELLM_MASTER_KEY`, `AGENT_PROXY_KEY` |
 | Agent database setup (one-off) | `pgvector/pgvector:0.8.7-pg17-bookworm`, `infra/postgres/create-databases.sh` | none | exit code 0 | none | `PGPASSWORD` (the superuser's), `AGENT_DB_PASSWORD`, `LITELLM_DB_PASSWORD` |
 | PostgreSQL + pgvector | `pgvector/pgvector:0.8.7-pg17-bookworm` | 5432, never public | `pg_isready -U postgres -d medusa-goods` | `/var/lib/postgresql/data` | `POSTGRES_PASSWORD` |
 | Redis | `redis:8.10.2-alpine3.23`, `--appendonly yes` | 6379, never public | `redis-cli ping` returns `PONG` | `/data` | none locally; a password on Railway |
 | Ollama | `ollama/ollama:0.40.14` | 11434, internal | `ollama list` | `/root/.ollama` (models, pulled at runtime) | none |
 
-The last three are third-party images that #12 adds. Pin them by tag (and digest where the platform supports it), never `latest`. Ollama runs as root and has no documented non-root mode; it is the one exception to non-root runtime users.
+The last three are third-party images that #12 adds. Pin them by tag (and digest where the platform supports it), never `latest`. Ollama and the LiteLLM proxy run as root and have no documented non-root mode; they are the exceptions to non-root runtime users.
 
 ## Health checks
 
