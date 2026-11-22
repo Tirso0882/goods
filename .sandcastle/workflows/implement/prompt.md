@@ -64,17 +64,7 @@ These are CI's checks (`.github/workflows/ci.yml`). The sandbox has a throwaway 
 
 While you work, run the narrowest check that covers your change, for example `pnpm turbo test --filter=@dtc/backend` or `uv run pytest packages/agent-core`. Before your last commit, run every check and make sure each one passes:
 
-```bash
-pnpm format:check        # fix with: pnpm exec prettier --write <files>
-pnpm lint
-pnpm check:migrations
-pnpm typecheck
-pnpm test
-uv run ruff check
-uv run ruff format --check
-uv run mypy
-uv run pytest
-```
+{{CHECKS}}
 
 Also run `pnpm build` if you change build configuration, `next.config.js`, `medusa-config.ts` or a package's exports. CI's `backup` job and `infra/postgres/test.sh` need Docker, which the sandbox doesn't have: leave those to CI.
 

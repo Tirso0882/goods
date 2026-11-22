@@ -56,17 +56,7 @@ The sandbox was installed from the branch before the merge. If a lockfile change
 
 These are CI's checks. The sandbox has a throwaway Postgres and Redis and the variables CI sets, so all of them run here. Run every one and make sure each passes:
 
-```bash
-pnpm format:check        # fix with: pnpm exec prettier --write <files>
-pnpm lint
-pnpm check:migrations
-pnpm typecheck
-pnpm test
-uv run ruff check
-uv run ruff format --check
-uv run mypy
-uv run pytest
-```
+{{CHECKS}}
 
 A check that fails because of the merge is part of the resolution: fix it in the merge. Never weaken a check to make it pass.
 

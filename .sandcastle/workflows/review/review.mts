@@ -10,7 +10,11 @@ import {
   reviewMarkdown,
 } from "../../shared/answers.mts"
 import { agentFor } from "../../shared/agents.mts"
-import { type ResolvedFactory, logFile } from "../../shared/factory.mts"
+import {
+  type ResolvedFactory,
+  checksPrompt,
+  logFile,
+} from "../../shared/factory.mts"
 import { runWithExtraction } from "../../shared/run-with-extraction.mts"
 import { type Ticket, ticketArgs } from "../../shared/tickets.mts"
 
@@ -33,7 +37,11 @@ export const review = async (
     name,
     agent: agentFor(factory, "reviewer"),
     promptFile: join(import.meta.dirname, "prompt.md"),
-    promptArgs: { ...ticketArgs(factory.names, ticket), CODING_STANDARDS },
+    promptArgs: {
+      ...ticketArgs(factory.names, ticket),
+      CODING_STANDARDS,
+      CHECKS: checksPrompt(factory),
+    },
     maxIterations: 1,
     idleTimeoutSeconds: 1800,
     logging: logFile(factory.logDir, ticket.branch, name),
