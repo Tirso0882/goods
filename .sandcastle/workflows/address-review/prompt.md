@@ -73,17 +73,7 @@ Your replies are posted publicly on the pull request, as the factory. Write them
 
 These are CI's checks. The sandbox has a throwaway Postgres and Redis and the variables CI sets, so all of them run here. If you change code, run every one before your last commit and make sure each passes:
 
-```bash
-pnpm format:check        # fix with: pnpm exec prettier --write <files>
-pnpm lint
-pnpm check:migrations
-pnpm typecheck
-pnpm test
-uv run ruff check
-uv run ruff format --check
-uv run mypy
-uv run pytest
-```
+{{CHECKS}}
 
 Never weaken a check to make it pass.
 

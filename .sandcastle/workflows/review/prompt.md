@@ -60,17 +60,7 @@ Make each fix a commit in the repo's style: `type(scope): subject (#{{ISSUE_NUMB
 
 Then run every check CI runs, and make sure each one passes:
 
-```bash
-pnpm format:check
-pnpm lint
-pnpm check:migrations
-pnpm typecheck
-pnpm test
-uv run ruff check
-uv run ruff format --check
-uv run mypy
-uv run pytest
-```
+{{CHECKS}}
 
 # REPORT
 

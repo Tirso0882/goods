@@ -71,6 +71,14 @@ export type Timeouts = {
 
 export type Retries = { agentAttempts: number; delayMs: number }
 
+/** A shell command that must exit 0 inside a sandbox. */
+export type Check = {
+  name: string
+  command: string
+  /** `factory check --quick` skips it. */
+  slow?: boolean
+}
+
 /** What a project may set. Every field is optional. */
 export type FactoryConfig = {
   names?: Partial<Names>
@@ -78,6 +86,12 @@ export type FactoryConfig = {
   limits?: Partial<Limits>
   timeouts?: Partial<Timeouts>
   retries?: Partial<Retries>
+  /** Quality gates: the agents run them before they commit, and so does
+   *  `factory check`. */
+  checks?: readonly Check[]
+  /** Environment health, such as dependencies installed or services
+   *  answering. Only `factory check` runs them. */
+  probes?: readonly Check[]
 }
 
 /** Facts about the machine and checkout the factory runs on. */
@@ -95,6 +109,8 @@ export type ResolvedFactory = {
   limits: Limits
   timeouts: Timeouts
   retries: Retries
+  checks: readonly Check[]
+  probes: readonly Check[]
   /** Where each agent's log goes. */
   logDir: string
 }
@@ -150,6 +166,15 @@ const DEFAULT_TIMEOUTS: Timeouts = {
 
 const DEFAULT_RETRIES: Retries = { agentAttempts: 3, delayMs: MINUTE }
 
+const validateChecks = (section: string, list: readonly Check[]) => {
+  list.forEach((check, i) => {
+    if (!check.name?.trim() || !check.command?.trim()) {
+      throw new Error(`${section}[${i}] needs a name and a command.`)
+    }
+  })
+  return [...list]
+}
+
 const checkWhole = (section: string, values: Record<string, number>) => {
   for (const [key, value] of Object.entries(values)) {
     if (!Number.isInteger(value) || value < 1) {
@@ -193,9 +218,55 @@ export const resolveFactory = (
     limits,
     timeouts,
     retries,
+    checks: validateChecks("checks", config.checks ?? []),
+    probes: validateChecks("probes", config.probes ?? []),
     logDir: join(host.repoRoot, ".factory", "logs"),
   }
 }
+
+/** The configured checks as the agents' prompts list them. */
+export const checksPrompt = (factory: Pick<ResolvedFactory, "checks">) =>
+  [
+    "```bash",
+    ...factory.checks.map((c) => `${c.command}  # ${c.name}`),
+    "```",
+  ].join("\n")
+
+/** One step of `factory check`: a shell command, or the scan of the
+ *  sandbox's environment for host secrets and the canary. */
+export type CheckStep =
+  | { kind: "command"; name: string; command: string }
+  | { kind: "env-leaks"; name: string }
+
+// The factory's own guarantees. They aren't config: a project can't drop them.
+const SECURITY_STEPS: readonly CheckStep[] = [
+  {
+    kind: "command",
+    name: "the home directory is private",
+    // The sandbox has its own ~/.claude (the skill links), so look for a file
+    // only the host's has.
+    command:
+      'test ! -e "$HOME/.ssh" && test ! -e "$HOME/.claude/CLAUDE.md" && test ! -e "$HOME/.config/gh"',
+  },
+  {
+    kind: "command",
+    name: "the repo's .env is not in the worktree",
+    command: "test ! -e .env",
+  },
+  { kind: "env-leaks", name: "no host secret or canary reaches the sandbox" },
+]
+
+/** What `factory check` runs, in order: the probes, the checks, then the
+ *  security checks. `quick` skips the probes and checks marked slow. */
+export const checkPlan = (
+  factory: Pick<ResolvedFactory, "checks" | "probes">,
+  { quick }: { quick: boolean }
+): CheckStep[] => [
+  ...[...factory.probes, ...factory.checks]
+    .filter((check) => !(quick && check.slow))
+    .map(({ name, command }) => ({ kind: "command" as const, name, command })),
+  ...SECURITY_STEPS,
+]
 
 /** A time limit for a public comment: "3-hour", or "90-minute". */
 export const limitText = (ms: number) =>

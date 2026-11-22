@@ -11,6 +11,7 @@ import {
   type ResolvedFactory,
   type ResolvedNames,
   limitText,
+  checksPrompt,
   logFile,
 } from "../../shared/factory.mts"
 import {
@@ -113,6 +114,7 @@ const resolveConflicts = async (
       CONFLICTS: conflicts.map((f) => `- ${f}`).join("\n"),
       ISSUE_NUMBER: String(issue.number),
       ISSUE: issue.text,
+      CHECKS: checksPrompt(factory),
     },
     maxIterations: 1,
     idleTimeoutSeconds: 1800,

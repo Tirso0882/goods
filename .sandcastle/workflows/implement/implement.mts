@@ -9,7 +9,11 @@ import {
 } from "../../shared/answers.mts"
 import { waitForChecks } from "../../shared/ci.mts"
 import { agentFor } from "../../shared/agents.mts"
-import { type ResolvedFactory, logFile } from "../../shared/factory.mts"
+import {
+  type ResolvedFactory,
+  checksPrompt,
+  logFile,
+} from "../../shared/factory.mts"
 import { TicketFailure } from "../../shared/failures.mts"
 import { git, push } from "../../shared/host.mts"
 import { runWithExtraction } from "../../shared/run-with-extraction.mts"
@@ -32,7 +36,11 @@ export const implement = async (
     name,
     agent: agentFor(factory, "implementer"),
     promptFile: join(import.meta.dirname, "prompt.md"),
-    promptArgs: { ...ticketArgs(factory.names, ticket), CI_FAILURE: ciFailure },
+    promptArgs: {
+      ...ticketArgs(factory.names, ticket),
+      CI_FAILURE: ciFailure,
+      CHECKS: checksPrompt(factory),
+    },
     maxIterations,
     idleTimeoutSeconds: 1800,
     logging: logFile(factory.logDir, ticket.branch, name),

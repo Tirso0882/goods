@@ -14,6 +14,7 @@ import { agentFor } from "../../shared/agents.mts"
 import {
   type ResolvedFactory,
   limitText,
+  checksPrompt,
   logFile,
 } from "../../shared/factory.mts"
 import {
@@ -86,6 +87,7 @@ const runAddresser = async (
       ISSUE: ticket.text,
       FEEDBACK: JSON.stringify(feedback, null, 2),
       CI_FAILURE: ciFailure,
+      CHECKS: checksPrompt(factory),
     },
     maxIterations: factory.limits.addressIterations,
     idleTimeoutSeconds: 1800,
