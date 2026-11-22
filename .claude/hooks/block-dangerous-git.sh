@@ -13,6 +13,7 @@ DANGEROUS_PATTERNS=(
   '\bclean\b.*\s-[a-zA-Z]*f'
   '\bbranch\b.*\s(-[a-zA-Z]*D|--delete\s+--force|--force\s+--delete)'
   '\b(checkout|restore)\b.*\s(--\s+)?\.(\s|$)'
+  '\bcommit\b.*\s(--no-verify|-[a-zA-Z]*n[a-zA-Z]*)(\s|$)' # skips the pre-commit verify
 )
 
 # Blank out quoted strings (commit messages, PR bodies), then split on newlines
