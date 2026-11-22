@@ -4,7 +4,8 @@ import { join } from "node:path"
 import * as sandcastle from "@ai-hero/sandcastle"
 import { z } from "zod"
 import { sandbox } from "../../environment.mts"
-import { BASE_REF, PLANNER, PLANNER_BRANCH } from "../../shared/config.mts"
+import { agentFor } from "../../shared/agents.mts"
+import { type ResolvedFactory, logFile } from "../../shared/factory.mts"
 import { withRetry } from "../../shared/failures.mts"
 import { openFactoryPullRequests } from "../../shared/github.mts"
 import type { Ticket } from "../../shared/tickets.mts"
@@ -15,21 +16,26 @@ const planSchema = z.object({
 })
 
 /** The tickets that can be built side by side now. */
-export const plan = async (tickets: Ticket[], signal: AbortSignal) => {
-  const inFlight = openFactoryPullRequests()
+export const plan = async (
+  factory: ResolvedFactory,
+  tickets: Ticket[],
+  signal: AbortSignal
+) => {
+  const { names } = factory
+  const inFlight = openFactoryPullRequests(names)
   // The planner only reads, but it still gets its own worktree on origin/main
   // so it never sees your checkout.
-  deleteBranch(PLANNER_BRANCH)
+  deleteBranch(names.plannerBranch)
   try {
-    const result = await withRetry("planner", signal, () =>
+    const result = await withRetry("planner", factory.retries, signal, () =>
       sandcastle.run({
         name: "planner",
-        agent: PLANNER(),
+        agent: agentFor(factory, "planner"),
         sandbox: sandbox(0),
         branchStrategy: {
           type: "branch",
-          branch: PLANNER_BRANCH,
-          baseBranch: BASE_REF,
+          branch: names.plannerBranch,
+          baseBranch: names.baseRef,
         },
         promptFile: join(import.meta.dirname, "prompt.md"),
         promptArgs: {
@@ -43,6 +49,7 @@ export const plan = async (tickets: Ticket[], signal: AbortSignal) => {
         },
         maxIterations: 1, // structured output requires a single iteration
         idleTimeoutSeconds: 1800,
+        logging: logFile(factory.logDir, names.plannerBranch, "planner"),
         signal,
         output: sandcastle.Output.object({
           tag: "plan",
@@ -54,6 +61,6 @@ export const plan = async (tickets: Ticket[], signal: AbortSignal) => {
     const chosen = new Set(result.output.issues.map((i) => i.number))
     return tickets.filter((t) => chosen.has(t.number))
   } finally {
-    deleteBranch(PLANNER_BRANCH)
+    deleteBranch(names.plannerBranch)
   }
 }

@@ -2,9 +2,8 @@
 
 import { execFileSync } from "node:child_process"
 import { join } from "node:path"
-import { BASE_REF } from "./config.mts"
 
-// Sandcastle anchors worktrees, logs and `.sandcastle/.env` to the working
+// Sandcastle anchors worktrees and `.sandcastle/.env` to the working
 // directory, so run from the repo root wherever the script was started.
 process.chdir(join(import.meta.dirname, "../.."))
 
@@ -27,9 +26,9 @@ const { nameWithOwner, owner } = ghJson<{
 export const REPO = nameWithOwner
 export const OWNER = owner.login
 
-export const isAheadOfBase = (branch: string) => {
+export const isAheadOfBase = (baseRef: string, branch: string) => {
   try {
-    return Number(git("rev-list", "--count", `${BASE_REF}..${branch}`)) > 0
+    return Number(git("rev-list", "--count", `${baseRef}..${branch}`)) > 0
   } catch {
     return false // the branch doesn't exist yet
   }

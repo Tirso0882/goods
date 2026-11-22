@@ -12,6 +12,7 @@ import type {
   SandboxRunOptions,
   SandboxRunResult,
 } from "@ai-hero/sandcastle"
+import type { Retries } from "./factory.mts"
 import { TicketFailure, withRetry } from "./failures.mts"
 
 export type Answer<T> =
@@ -85,6 +86,8 @@ export interface RunWithExtractionOptions<T> extends SandboxRunOptions {
   readonly output: OutputObjectDefinition<T>
   /** Asks for the answer. It must show the `<tag>` the output reads. */
   readonly extractionPrompt: string
+  /** How often to try again when the model API has trouble. */
+  readonly retries: Retries
 }
 
 /** Extra tries at the answer after the first. */
@@ -98,10 +101,12 @@ export const runWithExtraction = async <T,>(
   box: Pick<Sandbox, "run">,
   options: RunWithExtractionOptions<T>
 ): Promise<SandboxRunResult & { output: T }> => {
-  const { role, output, extractionPrompt, ...workOptions } = options
+  const { role, output, extractionPrompt, retries, ...workOptions } = options
   const name = workOptions.name ?? role
   const signal = workOptions.signal ?? new AbortController().signal
-  const work = await withRetry(name, signal, () => box.run(workOptions))
+  const work = await withRetry(name, retries, signal, () =>
+    box.run(workOptions)
+  )
 
   let session = work.iterations.at(-1)?.sessionId
   let prompt = extractionPrompt
@@ -110,18 +115,22 @@ export const runWithExtraction = async <T,>(
       throw new Error(`${name} left no session to read its answer from.`)
     }
     const resumeSession = session
-    const extraction = await withRetry(`${name} (answer)`, signal, () =>
-      box.run({
-        agent: workOptions.agent,
-        name: `${name} (answer)`,
-        prompt,
-        // No completion signal: the resumed turn ends on its own, and a
-        // closing tag the agent quotes before its answer would cut it short.
-        resumeSession,
-        idleTimeoutSeconds: workOptions.idleTimeoutSeconds,
-        logging: workOptions.logging,
-        signal,
-      })
+    const extraction = await withRetry(
+      `${name} (answer)`,
+      retries,
+      signal,
+      () =>
+        box.run({
+          agent: workOptions.agent,
+          name: `${name} (answer)`,
+          prompt,
+          // No completion signal: the resumed turn ends on its own, and a
+          // closing tag the agent quotes before its answer would cut it short.
+          resumeSession,
+          idleTimeoutSeconds: workOptions.idleTimeoutSeconds,
+          logging: workOptions.logging,
+          signal,
+        })
     )
     const answer = await readAnswer(extraction.stdout, output)
     if (answer.ok) return { ...work, output: answer.value }

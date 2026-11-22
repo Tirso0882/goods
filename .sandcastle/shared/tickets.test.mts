@@ -8,6 +8,9 @@ import {
   ticketArgs,
   ticketText,
 } from "./tickets.mts"
+import { resolveFactory } from "./factory.mts"
+
+const { names } = resolveFactory({}, { repoRoot: "/repo" })
 
 const OWNER = "maintainer"
 
@@ -82,10 +85,10 @@ describe("ticketArgs", () => {
     const ticket = {
       number: 42,
       title: "Show the order's status",
-      branch: branchFor(42),
+      branch: branchFor(names, 42),
       text: "# #42: …",
     }
-    assert.deepEqual(ticketArgs(ticket), {
+    assert.deepEqual(ticketArgs(names, ticket), {
       ISSUE_NUMBER: "42",
       ISSUE_TITLE: "Show the order's status",
       ISSUE: "# #42: …",
@@ -97,7 +100,7 @@ describe("ticketArgs", () => {
 
 describe("issueFor", () => {
   it("reads the issue back from its branch", () => {
-    assert.equal(issueFor(branchFor(189)), 189)
+    assert.equal(issueFor(names, branchFor(names, 189)), 189)
   })
 
   it("finds none in a branch the factory didn't name", () => {
@@ -108,7 +111,19 @@ describe("issueFor", () => {
       "factory/issue-12-fix",
       "factory/planner",
     ]) {
-      assert.equal(issueFor(branch), undefined, branch)
+      assert.equal(issueFor(names, branch), undefined, branch)
     }
+  })
+})
+
+describe("branch names from the config", () => {
+  it("names and reads branches with the prefix the config sets", () => {
+    const custom = resolveFactory(
+      { names: { branchPrefix: "bot/ticket-" } },
+      { repoRoot: "/repo" }
+    ).names
+    assert.equal(branchFor(custom, 7), "bot/ticket-7")
+    assert.equal(issueFor(custom, "bot/ticket-7"), 7)
+    assert.equal(issueFor(custom, "factory/issue-7"), undefined)
   })
 })

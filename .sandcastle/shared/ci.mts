@@ -1,7 +1,7 @@
 // Waiting for CI on a commit, and reading what failed.
 
 import { setTimeout as sleep } from "node:timers/promises"
-import { CI_POLL_MS, CI_TIMEOUT_MS } from "./config.mts"
+import type { Timeouts } from "./factory.mts"
 import { TicketFailure } from "./failures.mts"
 import { REPO, gh, ghJson, onHost } from "./host.mts"
 
@@ -60,16 +60,17 @@ const failureLog = (failed: CheckRun[]) => {
  * push the pull request can still show the previous commit's results.
  */
 export const waitForChecks = async (
+  timeouts: Timeouts,
   sha: string,
   signal: AbortSignal
 ): Promise<CiResult> => {
-  const deadline = Date.now() + CI_TIMEOUT_MS
+  const deadline = Date.now() + timeouts.ciMs
   let finishedCount = -1
   for (;;) {
-    await sleep(CI_POLL_MS, undefined, { signal })
+    await sleep(timeouts.ciPollMs, undefined, { signal })
     if (Date.now() > deadline) {
       throw new TicketFailure(
-        `CI didn't finish within ${CI_TIMEOUT_MS / 60_000} minutes.`
+        `CI didn't finish within ${timeouts.ciMs / 60_000} minutes.`
       )
     }
     let runs: CheckRun[]
@@ -114,13 +115,14 @@ const verdict = (runs: CheckRun[]): CiResult => {
  * checks still running. A commit with no checks counts as passing.
  */
 export const checksOn = async (
+  timeouts: Timeouts,
   sha: string,
   signal: AbortSignal
 ): Promise<CiResult> => {
   const runs = onHost("Reading the checks", () => checkRuns(sha))
   if (runs.length === 0) return { passed: true }
   if (runs.some((r) => r.status !== "completed")) {
-    return waitForChecks(sha, signal)
+    return waitForChecks(timeouts, sha, signal)
   }
   return verdict(runs)
 }

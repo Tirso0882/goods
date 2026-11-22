@@ -11,6 +11,9 @@ import {
   whatToAddress,
   withoutLogQuotes,
 } from "./review-feedback.mts"
+import { resolveFactory } from "./factory.mts"
+
+const { names } = resolveFactory({}, { repoRoot: "/repo" })
 
 const OWNER = "maintainer"
 
@@ -205,7 +208,7 @@ describe("fromFactory", () => {
 describe("the comments on a pull request the factory sent back", () => {
   it("says it found nothing to act on, and how to send it back again", () => {
     assert.equal(
-      nothingActionableComment(),
+      nothingActionableComment(names),
       [
         "The Sandcastle factory read your unresolved review comments and found nothing to change or answer. The branch is unchanged.",
         "To send it back, leave a review comment, then add `ready-for-agent` again.",
@@ -215,7 +218,7 @@ describe("the comments on a pull request the factory sent back", () => {
 
   it("says why it stopped, and how to send it back again", () => {
     assert.equal(
-      addressFailedComment("CI still fails after 2 fix attempts."),
+      addressFailedComment(names, "CI still fails after 2 fix attempts."),
       [
         "The Sandcastle factory couldn't finish addressing your review on this pull request.",
         "**Why:** CI still fails after 2 fix attempts.",

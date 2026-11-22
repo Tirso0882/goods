@@ -3,11 +3,7 @@
 
 import * as sandcastle from "@ai-hero/sandcastle"
 import { sandbox, setUpSandbox } from "./environment.mts"
-import {
-  BASE_REF,
-  IMPLEMENT_ITERATIONS,
-  TICKET_TIMEOUT_MS,
-} from "./shared/config.mts"
+import { type ResolvedFactory, limitText } from "./shared/factory.mts"
 import { SandboxSetupError } from "./shared/setup.mts"
 import {
   TicketFailure,
@@ -26,6 +22,7 @@ import { publish } from "./workflows/publish/publish.mts"
 import { review } from "./workflows/review/review.mts"
 
 const buildTicket = async (
+  factory: ResolvedFactory,
   ticket: Ticket,
   slot: number,
   signal: AbortSignal,
@@ -34,21 +31,28 @@ const buildTicket = async (
   discardWorktree(ticket.branch)
   await using box = await sandcastle.createSandbox({
     branch: ticket.branch,
-    baseBranch: BASE_REF,
+    baseBranch: factory.names.baseRef,
     sandbox: sandbox(slot),
   })
   await setUpSandbox(box)
 
-  await implement(box, ticket, NO_CI_FAILURE, IMPLEMENT_ITERATIONS, signal)
-  if (!isAheadOfBase(ticket.branch)) {
+  await implement(
+    factory,
+    box,
+    ticket,
+    NO_CI_FAILURE,
+    factory.limits.implementIterations,
+    signal
+  )
+  if (!isAheadOfBase(factory.names.baseRef, ticket.branch)) {
     throw new TicketFailure("The implementer finished without a commit.")
   }
 
-  const report = await review(box, ticket, signal)
-  const pullRequest = await publish(box, ticket, report, signal)
+  const report = await review(factory, box, ticket, signal)
+  const pullRequest = await publish(factory, box, ticket, report, signal)
   progress.pullRequest = pullRequest
 
-  await untilCiPasses(box, ticket, signal)
+  await untilCiPasses(factory, box, ticket, signal)
   return pullRequest
 }
 
@@ -62,15 +66,22 @@ export type Outcome =
  * can't log in stops it.
  */
 export const runTicket = async (
+  factory: ResolvedFactory,
   ticket: Ticket,
   slot: number,
   stop: AbortController
 ): Promise<Outcome> => {
-  const deadline = AbortSignal.timeout(TICKET_TIMEOUT_MS)
+  const deadline = AbortSignal.timeout(factory.timeouts.ticketMs)
   const signal = AbortSignal.any([stop.signal, deadline])
   const progress: { pullRequest?: string } = {}
   try {
-    const pullRequest = await buildTicket(ticket, slot, signal, progress)
+    const pullRequest = await buildTicket(
+      factory,
+      ticket,
+      slot,
+      signal,
+      progress
+    )
     return { status: "ready", pullRequest }
   } catch (error) {
     console.error(`  ✗ #${ticket.number} (${ticket.branch}):`, error)
@@ -93,10 +104,10 @@ export const runTicket = async (
       error instanceof TicketFailure
         ? error.message
         : deadline.aborted
-          ? `It ran past its ${TICKET_TIMEOUT_MS / 3_600_000}-hour limit.`
+          ? `It ran past its ${limitText(factory.timeouts.ticketMs)} limit.`
           : "The factory hit an unexpected error. Its log on the factory host has the details."
     try {
-      handToHuman(ticket, reason, progress.pullRequest)
+      handToHuman(factory.names, ticket, reason, progress.pullRequest)
     } catch (labelError) {
       console.error(`  Couldn't relabel #${ticket.number}:`, labelError)
     }

@@ -27,13 +27,14 @@ import {
   parseEnvFile,
   secretsIn,
 } from "./shared/env-leaks.mts"
+import { loadFactory } from "./shared/load-factory.mts"
 
 // Run from the repo root, as the factory does (shared/host.mts): Sandcastle
 // reads `.sandcastle/.env` from the working directory, and without it the
 // sandbox here wouldn't get the variables an agent's does.
 process.chdir(join(import.meta.dirname, ".."))
 
-const BRANCH = "factory/environment-check"
+const BRANCH = loadFactory().names.environmentCheckBranch
 const quick = process.argv.includes("--quick")
 
 const envFile = (path: string) =>

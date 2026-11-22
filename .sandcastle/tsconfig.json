@@ -16,6 +16,6 @@
     "erasableSyntaxOnly": true,
     "skipLibCheck": true
   },
-  "include": ["**/*.mts"],
+  "include": ["**/*.mts", "../.factory/*.mts"],
   "exclude": ["node_modules", "worktrees", "logs"]
 }

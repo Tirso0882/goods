@@ -1,7 +1,7 @@
 // Telling the ticket's failures from the model API's, and retrying the API's.
 
 import { setTimeout as sleep } from "node:timers/promises"
-import { MAX_AGENT_ATTEMPTS, RETRY_DELAY_MS } from "./config.mts"
+import type { Retries } from "./factory.mts"
 
 /** A ticket the factory can't finish, for a reason a person should read. */
 export class TicketFailure extends Error {}
@@ -27,6 +27,7 @@ export const isAuthFailure = (error: unknown) =>
 
 export const withRetry = async <T,>(
   label: string,
+  retries: Retries,
   signal: AbortSignal,
   run: () => Promise<T>
 ) => {
@@ -34,11 +35,11 @@ export const withRetry = async <T,>(
     try {
       return await run()
     } catch (error) {
-      if (attempt >= MAX_AGENT_ATTEMPTS || !isApiTrouble(error)) throw error
+      if (attempt >= retries.agentAttempts || !isApiTrouble(error)) throw error
       console.warn(
-        `  ${label} hit API trouble. Retrying in ${RETRY_DELAY_MS / 1000}s (${attempt}/${MAX_AGENT_ATTEMPTS}).`
+        `  ${label} hit API trouble. Retrying in ${retries.delayMs / 1000}s (${attempt}/${retries.agentAttempts}).`
       )
-      await sleep(RETRY_DELAY_MS, undefined, { signal })
+      await sleep(retries.delayMs, undefined, { signal })
     }
   }
 }

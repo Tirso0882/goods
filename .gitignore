@@ -242,6 +242,8 @@ __marimo__/
 sandcastle/
 
 # Folders
+# The agent factory's run logs.
+/.factory/logs/
 /.agents/
 docs/personal-docs
 # Claude Code: share the project settings (Medusa plugins) and hooks, keep the rest local.

@@ -6,7 +6,7 @@
 // reads only what you wrote, the same rule as `ticketText` in tickets.mts.
 
 import type { CiResult } from "./ci.mts"
-import { READY_LABEL } from "./config.mts"
+import type { ResolvedNames } from "./factory.mts"
 
 // The factory posts with your token, so GitHub says you wrote its comments
 // too. This hidden mark tells them apart.
@@ -140,21 +140,21 @@ export const filterReplies = (
   })
 
 /** The comment when the agent changed nothing and had nothing to say. */
-export const nothingActionableComment = () =>
+export const nothingActionableComment = (names: ResolvedNames) =>
   [
     "The Sandcastle factory read your unresolved review comments and found nothing to change or answer. The branch is unchanged.",
-    `To send it back, leave a review comment, then add \`${READY_LABEL}\` again.`,
+    `To send it back, leave a review comment, then add \`${names.readyLabel}\` again.`,
   ].join("\n\n")
 
 /**
  * The comment when the factory couldn't finish. It is public, so `reason` is
  * one the host wrote or the agent's own explanation, never raw output.
  */
-export const addressFailedComment = (reason: string) =>
+export const addressFailedComment = (names: ResolvedNames, reason: string) =>
   [
     "The Sandcastle factory couldn't finish addressing your review on this pull request.",
     `**Why:** ${reason}`,
-    `Commits and replies it already pushed stay. Look at the branch as it is, then add \`${READY_LABEL}\` again to send it back.`,
+    `Commits and replies it already pushed stay. Look at the branch as it is, then add \`${names.readyLabel}\` again to send it back.`,
   ].join("\n\n")
 
 const NO_CI_FAILURE =

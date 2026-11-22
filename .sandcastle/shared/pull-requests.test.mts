@@ -4,6 +4,9 @@ import {
   partitionByMergeability,
   updateFailedComment,
 } from "./pull-requests.mts"
+import { resolveFactory } from "./factory.mts"
+
+const { names } = resolveFactory({}, { repoRoot: "/repo" })
 
 const answer = (
   number: number,
@@ -36,7 +39,7 @@ describe("partitionByMergeability", () => {
 describe("updateFailedComment", () => {
   it("says why, lists the conflicted files and how to go on", () => {
     assert.equal(
-      updateFailedComment("The agent left files unresolved.", [
+      updateFailedComment(names, "The agent left files unresolved.", [
         "apps/backend/src/a.ts",
         "pnpm-lock.yaml",
       ]),
@@ -52,6 +55,7 @@ describe("updateFailedComment", () => {
   it("leaves out the file list when the merge never ran", () => {
     assert.equal(
       updateFailedComment(
+        names,
         "The issue it builds was written by someone else.",
         []
       ),

@@ -2,12 +2,7 @@
 // handing one to a person.
 
 import { setTimeout as sleep } from "node:timers/promises"
-import {
-  BRANCH_PREFIX,
-  HUMAN_LABEL,
-  MERGEABILITY_RECHECK_MS,
-  READY_LABEL,
-} from "./config.mts"
+import type { ResolvedFactory, ResolvedNames } from "./factory.mts"
 import { OWNER, REPO, gh, ghJson, host, onHost } from "./host.mts"
 import {
   type FactoryPullRequest,
@@ -43,7 +38,10 @@ const parentOf = (issue: number) => {
  * name one. A fork can name its branch like the factory's, so only your own,
  * from this repo, count.
  */
-export const openFactoryPullRequests = (label?: string): FactoryPullRequest[] =>
+export const openFactoryPullRequests = (
+  names: ResolvedNames,
+  label?: string
+): FactoryPullRequest[] =>
   ghJson<
     (FactoryPullRequest & {
       author: { login: string }
@@ -64,7 +62,7 @@ export const openFactoryPullRequests = (label?: string): FactoryPullRequest[] =>
   )
     .filter(
       (pr) =>
-        pr.headRefName.startsWith(BRANCH_PREFIX) &&
+        pr.headRefName.startsWith(names.branchPrefix) &&
         pr.author.login === OWNER &&
         !pr.isCrossRepository
     )
@@ -79,15 +77,18 @@ const readMergeability = (numbers: readonly number[]) =>
   numbers.map((n) => ghJson<GhMergeability>("api", `repos/${REPO}/pulls/${n}`))
 
 /** The factory's open pull requests that conflict with the base. */
-export const conflictingPullRequests = async (signal: AbortSignal) => {
-  const open = openFactoryPullRequests()
+export const conflictingPullRequests = async (
+  factory: ResolvedFactory,
+  signal: AbortSignal
+) => {
+  const open = openFactoryPullRequests(factory.names)
   let { conflicting, unknown } = partitionByMergeability(
     readMergeability(open.map((pr) => pr.number))
   )
   if (unknown.length > 0) {
-    await sleep(MERGEABILITY_RECHECK_MS, undefined, { signal }).catch(
-      () => undefined
-    )
+    await sleep(factory.timeouts.mergeabilityRecheckMs, undefined, {
+      signal,
+    }).catch(() => undefined)
     if (signal.aborted) return []
     const second = partitionByMergeability(readMergeability(unknown))
     conflicting = [...conflicting, ...second.conflicting]
@@ -101,7 +102,10 @@ export const conflictingPullRequests = async (signal: AbortSignal) => {
 }
 
 /** Issue `number` as a ticket, or nothing if you didn't write it. */
-export const readTicket = (number: number): Ticket | undefined => {
+export const readTicket = (
+  names: ResolvedNames,
+  number: number
+): Ticket | undefined => {
   const issue = ghJson<GhIssue>(
     "issue",
     "view",
@@ -115,17 +119,17 @@ export const readTicket = (number: number): Ticket | undefined => {
   return {
     number,
     title: issue.title,
-    branch: branchFor(number),
+    branch: branchFor(names, number),
     text: ticketText(issue, OWNER, parentOf(number)),
   }
 }
 
 /** The ticket a factory branch builds, if its name has one you wrote. */
-export const ticketForBranch = (branch: string) => {
-  const number = issueFor(branch)
+export const ticketForBranch = (names: ResolvedNames, branch: string) => {
+  const number = issueFor(names, branch)
   return number === undefined
     ? undefined
-    : onHost(`Reading issue #${number}`, () => readTicket(number))
+    : onHost(`Reading issue #${number}`, () => readTicket(names, number))
 }
 
 /** Comment on a pull request, signed as the factory's own. */
@@ -155,7 +159,7 @@ export const replyToReviewComment = (
     JSON.stringify({ body: fromFactory(body) })
   )
 
-export const removeReadyLabel = (pullRequest: number) =>
+export const removeReadyLabel = (names: ResolvedNames, pullRequest: number) =>
   gh(
     "pr",
     "edit",
@@ -163,7 +167,7 @@ export const removeReadyLabel = (pullRequest: number) =>
     "--repo",
     REPO,
     "--remove-label",
-    READY_LABEL
+    names.readyLabel
   )
 
 const REVIEW_THREADS_QUERY = `
@@ -229,11 +233,12 @@ export const readFeedback = (number: number) => {
  * `onlyIssues`, when not empty, limits them to the issues you named.
  */
 export const loadTickets = (
+  names: ResolvedNames,
   done: ReadonlySet<number>,
   onlyIssues: ReadonlySet<number>
 ) => {
   const inFlight = new Set(
-    openFactoryPullRequests().map((pr) => pr.headRefName)
+    openFactoryPullRequests(names).map((pr) => pr.headRefName)
   )
   const issues = ghJson<GhIssue[]>(
     "issue",
@@ -243,7 +248,7 @@ export const loadTickets = (
     "--state",
     "open",
     "--label",
-    READY_LABEL,
+    names.readyLabel,
     "--limit",
     "100",
     "--json",
@@ -263,7 +268,7 @@ export const loadTickets = (
       console.warn(`  #${issue.number} skipped: written by someone else.`)
       continue
     }
-    if (inFlight.has(branchFor(issue.number))) {
+    if (inFlight.has(branchFor(names, issue.number))) {
       skip("its pull request is open")
       continue
     }
@@ -282,13 +287,13 @@ export const loadTickets = (
     tickets.push({
       number: issue.number,
       title: issue.title,
-      branch: branchFor(issue.number),
+      branch: branchFor(names, issue.number),
       text: ticketText(issue, OWNER, parentOf(issue.number)),
     })
   }
   for (const n of onlyIssues) {
     if (!issues.some((issue) => issue.number === n)) {
-      console.warn(`  #${n} skipped: not an open ${READY_LABEL} issue.`)
+      console.warn(`  #${n} skipped: not an open ${names.readyLabel} issue.`)
     }
   }
   return tickets
@@ -296,6 +301,7 @@ export const loadTickets = (
 
 /** Take the ticket off the factory and say why on the issue. */
 export const handToHuman = (
+  names: ResolvedNames,
   ticket: Ticket,
   reason: string,
   pullRequest?: string
@@ -310,9 +316,9 @@ export const handToHuman = (
     "--repo",
     REPO,
     "--remove-label",
-    READY_LABEL,
+    names.readyLabel,
     "--add-label",
-    HUMAN_LABEL
+    names.humanLabel
   )
   host(
     "gh",
@@ -329,7 +335,7 @@ export const handToHuman = (
       "The Sandcastle factory stopped on this ticket and handed it to a person.",
       `**Why:** ${reason}`,
       where,
-      `To give it back, close any open factory pull request and swap \`${HUMAN_LABEL}\` for \`${READY_LABEL}\`. The next run continues from the branch's commits.`,
+      `To give it back, close any open factory pull request and swap \`${names.humanLabel}\` for \`${names.readyLabel}\`. The next run continues from the branch's commits.`,
     ].join("\n\n")
   )
 }

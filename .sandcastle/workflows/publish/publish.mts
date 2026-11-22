@@ -8,27 +8,32 @@ import {
   PULL_REQUEST_PROMPT,
   finishPullRequest,
 } from "../../shared/answers.mts"
-import { BASE_BRANCH, PR_LABEL, PR_WRITER } from "../../shared/config.mts"
+import { agentFor } from "../../shared/agents.mts"
+import { type ResolvedFactory, logFile } from "../../shared/factory.mts"
 import { runWithExtraction } from "../../shared/run-with-extraction.mts"
 import { type Ticket, ticketArgs } from "../../shared/tickets.mts"
 import { REPO, host, onHost, push } from "../../shared/host.mts"
 
 /** Write, push and open the pull request; its URL. */
 export const publish = async (
+  factory: ResolvedFactory,
   box: Sandbox,
   ticket: Ticket,
   review: string,
   signal: AbortSignal
 ) => {
   const label = `#${ticket.number}`
+  const name = `PR writer ${label}`
   const { output: draft } = await runWithExtraction(box, {
     role: "the PR writer",
-    name: `PR writer ${label}`,
-    agent: PR_WRITER(),
+    name,
+    agent: agentFor(factory, "prWriter"),
     promptFile: join(import.meta.dirname, "prompt.md"),
-    promptArgs: { ...ticketArgs(ticket), REVIEW: review },
+    promptArgs: { ...ticketArgs(factory.names, ticket), REVIEW: review },
     maxIterations: 1,
     idleTimeoutSeconds: 1800,
+    logging: logFile(factory.logDir, ticket.branch, name),
+    retries: factory.retries,
     signal,
     output: PULL_REQUEST_DRAFT,
     extractionPrompt: PULL_REQUEST_PROMPT,
@@ -53,13 +58,13 @@ export const publish = async (
         "--repo",
         REPO,
         "--base",
-        BASE_BRANCH,
+        factory.names.baseBranch,
         "--head",
         ticket.branch,
         "--title",
         title,
         "--label",
-        PR_LABEL,
+        factory.names.prLabel,
         "--body-file",
         "-",
       ],
