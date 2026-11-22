@@ -739,6 +739,9 @@ describe("the prompts' project text", () => {
         prompts.review.LOCKFILE_EXCLUDES,
         "':!pnpm-lock.yaml' ':!uv.lock'"
       )
+    })
+
+    it("tells the reviewer how to read the lockfiles it left out", () => {
       assert.match(
         prompts.review.LOCKFILES,
         /git diff origin\/main\.\.\.HEAD -- pnpm-lock\.yaml uv\.lock/
@@ -753,6 +756,10 @@ describe("the prompts' project text", () => {
         /`pnpm-lock\.yaml`.*`package\.json`.*`pnpm install --prefer-offline`/
       )
       assert.match(text, /`uv\.lock`.*`pyproject\.toml`.*`uv lock`/)
+    })
+
+    it("tells the branch updater to install from a changed lockfile", () => {
+      const text = prompts.updateBranch.LOCKFILES
       assert.match(text, /`pnpm install --frozen-lockfile --prefer-offline`/)
       assert.match(text, /`uv sync --locked`/)
     })
