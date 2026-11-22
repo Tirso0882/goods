@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
+  checkPlan,
+  checksPrompt,
   defineFactory,
   limitText,
   logFile,
@@ -147,5 +149,93 @@ describe("limitText", () => {
 
   it("says a limit that isn't whole hours in minutes", () => {
     assert.equal(limitText(5_400_000), "90-minute")
+  })
+})
+
+describe("checks and probes", () => {
+  it("refuses a check without a command", () => {
+    assert.throws(
+      () => resolveFactory({ probes: [{ name: "x", command: " " }] }, host),
+      /probes\[0\] needs a name and a command/
+    )
+  })
+
+  it("refuses a check without a name", () => {
+    assert.throws(
+      () => resolveFactory({ checks: [{ name: "", command: "true" }] }, host),
+      /checks\[0\] needs a name and a command/
+    )
+  })
+})
+
+describe("checksPrompt", () => {
+  it("lists the configured checks for the agents, slow ones included", () => {
+    const factory = resolveFactory(
+      {
+        checks: [
+          { name: "formatting", command: "pnpm format:check" },
+          { name: "tests", command: "pnpm test", slow: true },
+        ],
+      },
+      host
+    )
+    assert.equal(
+      checksPrompt(factory),
+      "```bash\npnpm format:check  # formatting\npnpm test  # tests\n```"
+    )
+  })
+})
+
+describe("checkPlan", () => {
+  const factory = resolveFactory(
+    {
+      probes: [
+        { name: "deps installed", command: "test -d node_modules" },
+        { name: "slow probe", command: "sleep 60", slow: true },
+      ],
+      checks: [
+        { name: "lint", command: "pnpm lint" },
+        { name: "tests", command: "pnpm test", slow: true },
+      ],
+    },
+    host
+  )
+  const names = (quick: boolean) =>
+    checkPlan(factory, { quick }).map((step) => step.name)
+
+  it("runs the probes, then the checks, then the security checks", () => {
+    assert.deepEqual(names(false), [
+      "deps installed",
+      "slow probe",
+      "lint",
+      "tests",
+      "the home directory is private",
+      "the repo's .env is not in the worktree",
+      "no host secret or canary reaches the sandbox",
+    ])
+  })
+
+  it("keeps the security checks when the config lists nothing", () => {
+    for (const config of [{}, { checks: [], probes: [] }]) {
+      const plan = checkPlan(resolveFactory(config, host), { quick: true })
+      assert.deepEqual(
+        plan.map((step) => step.name),
+        [
+          "the home directory is private",
+          "the repo's .env is not in the worktree",
+          "no host secret or canary reaches the sandbox",
+        ]
+      )
+    }
+  })
+
+  it("skips what's marked slow with --quick", () => {
+    assert.deepEqual(names(true), [
+      "deps installed",
+      "lint",
+      "the home directory is private",
+      "the repo's .env is not in the worktree",
+      "no host secret or canary reaches the sandbox",
+    ])
   })
 })
