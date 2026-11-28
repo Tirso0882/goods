@@ -131,6 +131,21 @@ Before every commit, a pre-commit hook runs `pnpm verify` ([scripts/verify.sh](s
 
 `pnpm test` needs the Postgres and Redis containers running. The backend tests check the catalog fixture, then run the migration scripts and the jewelry seed twice on a throwaway database (Redis database 1). They assert the product and variant counts, PLN prices, stock and Poland setup, the synthetic customers and the order count in each state, and that the second run changes nothing.
 
+## The agent factory
+
+The factory builds `ready-for-agent` issues into pull requests, each agent in its own sandbox. It lives in its own repo, [Tirso0882/factory](https://github.com/Tirso0882/factory) ([ADR-0021](docs/adr/0021-the-agent-factory-lives-in-its-own-repo.md)), and runs as a global CLI. Goods keeps only its settings, in `.factory/`.
+
+```bash
+npm i -g @tirso0882/factory   # once per machine
+factory check --quick         # the sandbox and its probes, no tokens spent
+factory check                 # also every check CI runs, inside the sandbox
+factory preflight             # one tiny agent call: does the token work?
+factory                       # build the ready-for-agent backlog
+factory --issue <n>           # build only this issue
+```
+
+The Claude token lives in `~/.config/factory/.env`. `.factory/factory.config.mts` declares goods' toolchains, test services, checks and probes. The reviewer holds each branch to `.factory/CODING_STANDARDS.md`. The factory's README lists every command.
+
 ## Synthetic customers and orders
 
 The seed also creates 10 customers (`@example.com` emails, made-up addresses) and 12 orders, defined in `apps/backend/src/seed/customers-and-orders.ts`. Each order goes through checkout, gets paid, then follows its story through Medusa's admin workflows, so the order's Activity panel shows every step:

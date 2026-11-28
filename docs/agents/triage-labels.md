@@ -10,7 +10,7 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 | `ready-for-human`          | `ready-for-human`    | Requires human implementation            |
 | `wontfix`                  | `wontfix`            | Will not be actioned                     |
 
-On a pull request the Sandcastle factory opened, `ready-for-agent` sends it back: the factory's next run addresses your unresolved review comments, then removes the label. GitHub won't take a request for changes on these pull requests, because they're opened with your token.
+On a pull request the factory opened, `ready-for-agent` sends it back: the factory's next run addresses your unresolved review comments, then removes the label. GitHub won't take a request for changes on these pull requests, because they're opened with your token.
 
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
