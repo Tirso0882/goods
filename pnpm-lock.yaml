@@ -49,24 +49,6 @@ importers:
         specifier: ^2.11.10
         version: 2.11.10
 
-  .sandcastle:
-    devDependencies:
-      '@ai-hero/sandcastle':
-        specifier: ^0.14.0
-        version: 0.14.0
-      '@types/node':
-        specifier: ^24.0.0
-        version: 24.19.2
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      zod:
-        specifier: 4.6.7
-        version: 4.6.7
-
   apps/backend:
     dependencies:
       '@medusajs/admin-sdk':
@@ -299,27 +281,6 @@ packages:
   '@adyen/api-library@32.2.0':
     resolution: {integrity: sha512-C+iA3R/R8nPAS+dlpIhAG+jWzYZCyndx5GZmTNh3rTnsEYogRjum7k4qBC29SNDAZzeXruIcoyjjVCQ5wHyK8g==}
     engines: {node: '>=18'}
-
-  '@ai-hero/sandcastle@0.14.0':
-    resolution: {integrity: sha512-s9B/23nPWL6y2sZkVxksqTge0MqGWr2HtjneGDf/V1npReiqDRlUJUvQ4+7K0oWORLqgHU5wLK0pfukg+UqTqQ==}
-    hasBin: true
-    peerDependencies:
-      '@daytona/sdk': '>=0.164.0 <1.0.0'
-      '@fly/sprites': '>=0.2.4 <1.0.0'
-      '@vercel/sandbox': '>=1.0.0'
-      e2b: '>=2.62.0 <3.0.0'
-      modal: '>=0.11.0 <1.0.0'
-    peerDependenciesMeta:
-      '@daytona/sdk':
-        optional: true
-      '@fly/sprites':
-        optional: true
-      '@vercel/sandbox':
-        optional: true
-      e2b:
-        optional: true
-      modal:
-        optional: true
 
   '@algolia/abtesting@1.23.0':
     resolution: {integrity: sha512-j45MBISstltys9QyQ4xf6quRiN1g7vMuwQL9VM4dx8YuRZvCQ173b9royZAx6iAbRX3IB1VnG1z//NuwyQ8jpQ==}
@@ -800,14 +761,6 @@ packages:
 
   '@bcoe/v8-coverage@0.2.3':
     resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
-
-  '@clack/core@1.6.0':
-    resolution: {integrity: sha512-4GZynIB2IIe431odxesswvWTCP6orvqd6e2b07b3VFWBQRqUqIHc/EPIZwFoKS692QBp+ooPuXKaJV8g4kXuYA==}
-    engines: {node: '>= 20.12.0'}
-
-  '@clack/prompts@1.9.0':
-    resolution: {integrity: sha512-tEj8X2No2A1c9NDnZECxiiJ8TP3vmFlN9tLlLeSaMqVW4tUmVG2R4qpv/eP4zymWxnymYLkLcIYVV0VcWj3RCQ==}
-    engines: {node: '>= 20.12.0'}
 
   '@colors/colors@1.6.0':
     resolution: {integrity: sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA==}
@@ -4518,9 +4471,6 @@ packages:
 
   '@types/node@18.19.69':
     resolution: {integrity: sha512-ECPdY1nlaiO/Y6GUnwgtAAhLNaQ53AyIVz+eILxpEo5OvuqE6yWkqWBIb5dU0DqhKQtMeny+FBD3PK6lm7L5xQ==}
-
-  '@types/node@24.19.2':
-    resolution: {integrity: sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==}
 
   '@types/pg-pool@2.0.7':
     resolution: {integrity: sha512-U4CwmGVQcbEuqpyju8/ptOKg6gEC+Tqsvj2xS9o1g71bUh8twxnC6ZL5rZKCsGN0iyH0CwgUyc9VR5owNQF9Ng==}
@@ -8269,10 +8219,6 @@ packages:
   sisteransi@1.0.5:
     resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
 
-  sisteransi@2.0.0:
-    resolution: {integrity: sha512-2WCqLdt12eN6ehLI50S2/ZxoowXU3DD1KVPRyVP0WEsFahrGZZmCdq1K59qjJljMRIDTwx1D9YaRK+hDneBUMg==}
-    engines: {node: '>=20'}
-
   slash@3.0.0:
     resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==}
     engines: {node: '>=8'}
@@ -8685,9 +8631,6 @@ packages:
   undici-types@5.26.5:
     resolution: {integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==}
 
-  undici-types@7.24.6:
-    resolution: {integrity: sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==}
-
   unicorn-magic@0.3.0:
     resolution: {integrity: sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA==}
     engines: {node: '>=18'}
@@ -9064,10 +9007,6 @@ snapshots:
       '@types/node': 18.19.69
     transitivePeerDependencies:
       - supports-color
-
-  '@ai-hero/sandcastle@0.14.0':
-    dependencies:
-      '@clack/prompts': 1.9.0
 
   '@algolia/abtesting@1.23.0':
     dependencies:
@@ -9746,19 +9685,6 @@ snapshots:
       '@babel/helper-validator-identifier': 7.29.7
 
   '@bcoe/v8-coverage@0.2.3': {}
-
-  '@clack/core@1.6.0':
-    dependencies:
-      fast-string-width: 3.0.2
-      fast-wrap-ansi: 0.2.2
-      sisteransi: 2.0.0
-
-  '@clack/prompts@1.9.0':
-    dependencies:
-      '@clack/core': 1.6.0
-      fast-string-width: 3.0.2
-      fast-wrap-ansi: 0.2.2
-      sisteransi: 2.0.0
 
   '@colors/colors@1.6.0': {}
 
@@ -14118,10 +14044,6 @@ snapshots:
     dependencies:
       undici-types: 5.26.5
     optional: true
-
-  '@types/node@24.19.2':
-    dependencies:
-      undici-types: 7.24.6
 
   '@types/pg-pool@2.0.7':
     dependencies:
@@ -18543,8 +18465,6 @@ snapshots:
 
   sisteransi@1.0.5: {}
 
-  sisteransi@2.0.0: {}
-
   slash@3.0.0: {}
 
   slice-ansi@9.0.1:
@@ -18896,6 +18816,7 @@ snapshots:
       esbuild: 0.28.2
     optionalDependencies:
       fsevents: 2.3.3
+    optional: true
 
   turbo@2.11.10:
     optionalDependencies:
@@ -18986,8 +18907,6 @@ snapshots:
 
   undici-types@5.26.5:
     optional: true
-
-  undici-types@7.24.6: {}
 
   unicorn-magic@0.3.0: {}
 

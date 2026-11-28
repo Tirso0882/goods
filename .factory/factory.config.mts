@@ -1,13 +1,16 @@
-// Goods' settings for the agent factory. Every field is optional: what isn't
-// set here keeps the factory's default (see .sandcastle/shared/factory.mts).
+// Goods' settings for the agent factory, the global `factory` CLI
+// (Tirso0882/factory, installed with `npm i -g @tirso0882/factory`). Every
+// field is optional: what isn't set here keeps the factory's default, and the
+// editor shows each one through .factory/tsconfig.json.
 //
+//   version   the factory CLI versions this config works with
 //   names     labels, the base branch and the factory's branch names
 //   models    the model and effort for each agent role
 //   limits    parallel agents, waves, iterations, CI fix attempts
 //   timeouts  per ticket, per pull request update or review, CI
 //   retries   attempts and delay when the model API has trouble
-//   checks    quality gates: the agents run them, and so does factory:check
-//   probes    environment health: only factory:check runs them
+//   checks    quality gates: the agents run them, and so does factory check
+//   probes    environment health: only factory check runs them
 //   toolchains  presets that mount their caches, install and probe
 //   env       the sandbox's variables, per parallel slot
 //   setup     setup steps after the toolchains' installs
@@ -23,19 +26,21 @@
 // The factory's security checks (private home, no repo .env, no leaked host
 // secret) always run after these, whatever this file says.
 
-import { defineFactory, pnpm, uv } from "../.sandcastle/shared/factory.mts"
+import { defineFactory, pnpm, uv } from "factory"
 
 // The ports compose.yaml publishes on localhost.
 const POSTGRES_PORT = "55432"
 const REDIS_PORT = "56379"
 
 export default defineFactory({
+  // A CLI outside the range stops and names the version to install.
+  version: "^0.1",
   limits: {
     // Parallel agents share one Claude subscription's rate limits.
     parallel: 3,
   },
   // CI's checks (.github/workflows/ci.yml). Each runs over the whole repo,
-  // so `factory:check --quick` skips them all.
+  // so `factory check --quick` skips them all.
   checks: [
     {
       name: "formatting; fix with: pnpm exec prettier --write <files>",

@@ -242,8 +242,12 @@ __marimo__/
 sandcastle/
 
 # Folders
-# The agent factory's run logs.
+# The agent factory: its run logs, the link that gives an editor the config's
+# types, and the library's scratch worktrees. Its token overlay,
+# .factory/.env, is covered by .env above.
 /.factory/logs/
+/.factory/node_modules/
+/.sandcastle/
 /.agents/
 docs/personal-docs
 # Claude Code: share the project settings (Medusa plugins) and hooks, keep the rest local.

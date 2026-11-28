@@ -1,6 +1,5 @@
 packages:
   - "apps/**"
-  - ".sandcastle"
   - "!apps/backend/.medusa/**"
   - "!apps/storefront/.next/**"
 
