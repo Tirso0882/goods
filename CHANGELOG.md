@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0](https://github.com/Tirso0882/goods/compare/v0.7.0...v0.8.0) (2026-11-28)
+
+
+### Features
+
+* **compose:** answer chat through litellm on the local model ([#182](https://github.com/Tirso0882/goods/issues/182)) ([6e66b0c](https://github.com/Tirso0882/goods/commit/6e66b0c0df2c11edfe5359ab681ce31610ee363f))
+* **sandcastle:** build the sandbox from the project's declarations ([#229](https://github.com/Tirso0882/goods/issues/229)) ([61a3d11](https://github.com/Tirso0882/goods/commit/61a3d11e933009b8efa27898203854d732228d7c)), closes [#210](https://github.com/Tirso0882/goods/issues/210)
+* **sandcastle:** give the review addresser CI's failure on a pull request you send back with red CI ([#198](https://github.com/Tirso0882/goods/issues/198)) ([#201](https://github.com/Tirso0882/goods/issues/201)) ([653177f](https://github.com/Tirso0882/goods/commit/653177f156fa2a1994fcfcd627953c92ad899345))
+* **sandcastle:** make the factory's prompts generic, and mount the skills the config lists ([#230](https://github.com/Tirso0882/goods/issues/230)) ([a17c334](https://github.com/Tirso0882/goods/commit/a17c334b15b529a45c4b79adecf898148586c793))
+* **sandcastle:** read the factory's settings from .factory/factory.config.mts ([#226](https://github.com/Tirso0882/goods/issues/226)) ([53d588b](https://github.com/Tirso0882/goods/commit/53d588bc43ce5662534c0542e07aa2d2988e4bc9)), closes [#208](https://github.com/Tirso0882/goods/issues/208)
+* **storefront:** protect the chat route with turnstile and a redis rate limit ([#183](https://github.com/Tirso0882/goods/issues/183)) ([7c12006](https://github.com/Tirso0882/goods/commit/7c12006081b8d5d9bef4bb2eadb7f94b8da3bea2))
+
 ## [0.7.0](https://github.com/Tirso0882/goods/compare/v0.6.0...v0.7.0) (2026-11-21)
 
 
